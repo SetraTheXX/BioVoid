@@ -1381,9 +1381,12 @@ Her NMA karesinde proteinin içindeki boşlukları tespit etmek için geometrik 
    - **VARSAYILAN: Heavy Atoms (C, N, O, S)** - Yan zincirleri dahil et
    - Opsiyonel: `atom_type='ca'` (fast-mode / debug için)
    - Validasyon: NaN/Inf kontrolü, bounding box (< 1000 Å)
+   - **Elite++:** `atom_type` enum-like validation (`atom_type in {"heavy", "ca"}`)
+   - **Gelecek (Faz 3):** `backbone`, `polar`, `hydrophobic` filtreleri için kapı açık
 3. **`calculate_voronoi(coords)`** - Scipy Voronoi wrapper
-4. **`filter_surface_voids(voronoi, coords)`** - ConvexHull filtresi
+4. **`filter_surface_voids(voronoi, coords, eps=1e-6)`** - ConvexHull filtresi
    - Hull dışındaki vertex'leri ele (ghost void'leri temizle)
+   - **Elite++:** Floating-point tolerans (`hull.equations @ vertex <= eps`)
 5. **`calculate_void_properties(region_vertices, coords)`** - Hacim + Radius
    - Hacim: ConvexHull(region_vertices).volume
    - **Radius: min_distance(center → nearest_atom)** - Açık tanım
@@ -1510,6 +1513,9 @@ Bu test senaryosu, Voronoi tarayıcının **bilimsel olarak doğru** çalıştı
    - Cebin "sıkışıklığını" ölçer
 3. ✅ **Weighted Centroid:** İleride hacim ağırlıklı merkez (opsiyonel)
 4. ✅ **NaN/Bounding Box Validasyonu:** Prod-level hata kontrolü
+5. ✅ **Elite++ Mikro-Dokunuşlar:**
+   - ConvexHull floating-point tolerans (`eps=1e-6`)
+   - `atom_type` enum-like validation (gelecek: `backbone`, `polar`, `hydrophobic`)
 
 📚 **Referans:** `scripts/test_voronoi.py` - Bilimsel olarak doğru implementasyon burada.
 
