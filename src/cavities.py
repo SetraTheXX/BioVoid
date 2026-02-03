@@ -324,6 +324,7 @@ def filter_hydrophobic(cavities: List[Dict], pdb_file: str,
 
 def find_cavities(pdb_file: str, 
                   min_volume: float = 200.0,
+                  max_volume: float = 3000.0, # New filter
                   atom_type: str = 'heavy',
                   merge: bool = True,
                   hydrophobic: bool = True,
@@ -337,6 +338,7 @@ def find_cavities(pdb_file: str,
     Args:
         pdb_file: Path to PDB file
         min_volume: Minimum cavity volume (Å³)
+        max_volume: Maximum cavity volume (Å³) (Filter out unrealistic voids)
         atom_type: 'heavy' or 'ca'
         merge: Enable cavity merging (hierarchical clustering)
         hydrophobic: Enable hydrophobic filtering
@@ -350,12 +352,8 @@ def find_cavities(pdb_file: str,
     2. merge_cavities() - Cluster adjacent vertices
     3. calculate_cavity_properties() - Dual radii + centroid
     4. filter_hydrophobic() - Druggability prediction
-    5. Sort by volume (descending)
-    
-    ChatGPT Senior PI Note:
-    "Backward compatibility korunmuş → büyük artı. find_voids() yaşıyor, 
-    Faz 2.3 sonuçları reproducible, Yeni API net: find_cavities(). 
-    Bu 'Bu projede panik refactor yok' mesajını verir. Çok profesyonel."
+    5. Filter by max_volume
+    6. Sort by volume (descending)
     """
     # 1. Get vertex-level voids (Phase 2.3)
     voids = find_voids(pdb_file, min_volume=min_volume, atom_type=atom_type)
@@ -394,8 +392,11 @@ def find_cavities(pdb_file: str,
             cavity['druggable'] = None
             cavity['hydrophobic_ratio'] = None
             cavity['polar_atoms'] = None
+            
+    # 5. Filter unrealistic voids (Max Volume Safety)
+    cavities = [c for c in cavities if c['volume'] <= max_volume]
     
-    # 5. Sort by volume (descending)
+    # 6. Sort by volume (descending)
     cavities = sorted(cavities, key=lambda x: x['volume'], reverse=True)
     
     return cavities

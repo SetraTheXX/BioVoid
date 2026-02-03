@@ -372,6 +372,7 @@ def run_nma_simulation(pdb_path: str,
         'hessian': hessian,  # For validation
         'conformations': conformations,
         'saved_files': saved_files,
+        'output_dir': str(output_dir) if output_dir else None,
         'timing': timing,
         'params': {
             'cutoff': cutoff,
