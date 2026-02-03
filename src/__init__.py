@@ -3,7 +3,7 @@ Bio-Void Hunter: Core Modules
 ==============================
 """
 
-__version__ = "0.2.0"  # Phase 2: Core Engine
+__version__ = "0.3.0"  # Phase 2: Core Engine + Geometry
 __author__ = "Bio-Void Hunter Team"
 
 # Fetcher module
@@ -24,6 +24,20 @@ from .dynamics import (
     DEFAULT_GAMMA,
 )
 
+# Geometry module (Voronoi Scanner)
+from .geometry import (
+    find_voids,
+    extract_atom_coords,
+    calculate_voronoi,
+    filter_surface_voids,
+    calculate_void_properties,
+    MIN_DISTANCE,
+    MAX_DISTANCE,
+    MIN_VOLUME,
+    HULL_EPS,
+    HEAVY_ATOMS,
+)
+
 __all__ = [
     # Fetcher
     "fetch_pdb",
@@ -42,4 +56,15 @@ __all__ = [
     "validate_trivial_modes",
     "DEFAULT_CUTOFF",
     "DEFAULT_GAMMA",
+    # Geometry
+    "find_voids",
+    "extract_atom_coords",
+    "calculate_voronoi",
+    "filter_surface_voids",
+    "calculate_void_properties",
+    "MIN_DISTANCE",
+    "MAX_DISTANCE",
+    "MIN_VOLUME",
+    "HULL_EPS",
+    "HEAVY_ATOMS",
 ]
