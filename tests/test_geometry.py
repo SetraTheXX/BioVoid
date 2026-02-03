@@ -31,11 +31,10 @@ from src.geometry import (
     extract_atom_coords,
     calculate_voronoi,
     filter_surface_voids,
-    calculate_void_properties,
+    calculate_vertex_void_properties,
     MIN_DISTANCE,
     MAX_DISTANCE,
     MIN_VOLUME,
-    HULL_EPS,
     HEAVY_ATOMS,
 )
 
@@ -218,7 +217,7 @@ def test_void_properties():
     
     # Test first buried vertex
     vertex = buried_vertices[0]
-    props = calculate_void_properties(vertex, coords)
+    props = calculate_vertex_void_properties(vertex, coords)
     
     print(f"\n✓ Testing void properties...")
     print(f"   Center: {props['center']}")

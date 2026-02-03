@@ -38,8 +38,8 @@ MAX_DISTANCE = 8.0  # Above this: surface valley, not pocket
 # Volume threshold for ligand binding
 MIN_VOLUME = 200.0  # Å³ (minimum volume for small molecule binding)
 
-# ConvexHull floating-point tolerance (Elite++)
-HULL_EPS = 1e-6
+# NOTE: ConvexHull filtering uses Delaunay.find_simplex (more stable)
+# Floating-point tolerance not needed for this approach
 
 # Heavy atom elements (bilimsel zorunluluk)
 HEAVY_ATOMS = {'C', 'N', 'O', 'S'}
@@ -156,8 +156,7 @@ def calculate_voronoi(coords: np.ndarray) -> Voronoi:
 # 3. SURFACE VOID FILTERING (FAZ 1.2 İNTİKAMI!)
 # ============================================================================
 
-def filter_surface_voids(voronoi: Voronoi, coords: np.ndarray, 
-                        eps: float = HULL_EPS) -> List[np.ndarray]:
+def filter_surface_voids(voronoi: Voronoi, coords: np.ndarray) -> List[np.ndarray]:
     """
     Filter Voronoi vertices to keep only buried (internal) vertices.
     
@@ -166,14 +165,14 @@ def filter_surface_voids(voronoi: Voronoi, coords: np.ndarray,
     Args:
         voronoi: Voronoi diagram
         coords: Atom coordinates
-        eps: Floating-point tolerance for ConvexHull check
     
     Returns:
         buried_vertices: List of vertices inside ConvexHull
     
-    Elite++ Refinements:
-    - Floating-point tolerans (eps=1e-6)
-    - Uses Delaunay triangulation (from test_voronoi.py)
+    Method:
+    - Uses Delaunay.find_simplex for point-in-hull check (stable)
+    - Returns -1 if point is outside, >= 0 if inside
+    - More robust than hull.equations approach
     
     FAZ 1.2 İNTİKAMI: This function eliminates ghost voids!
     """
@@ -208,9 +207,12 @@ def filter_surface_voids(voronoi: Voronoi, coords: np.ndarray,
 # 4. VOID PROPERTIES CALCULATION
 # ============================================================================
 
-def calculate_void_properties(vertex: np.ndarray, coords: np.ndarray) -> Dict:
+def calculate_vertex_void_properties(vertex: np.ndarray, coords: np.ndarray) -> Dict:
     """
-    Calculate void properties (volume, radius, center).
+    Calculate void properties for a single Voronoi vertex.
+    
+    IMPORTANT: Properties are calculated per Voronoi vertex (maximal inscribed sphere),
+    NOT per merged cavity. Cavity merging will be implemented in Phase 2.4+.
     
     Extracted from: test_voronoi.py:find_voids()
     
@@ -221,10 +223,13 @@ def calculate_void_properties(vertex: np.ndarray, coords: np.ndarray) -> Dict:
     Returns:
         properties: {'center', 'radius', 'volume'}
     
-    Elite Refinements:
-    - Radius: min_dist(center → nearest_atom) - Açık tanım
-    - Volume: (4/3) * π * radius³ (sphere approximation)
-    - Center: Simple mean (weighted centroid opsiyonel)
+    Method:
+    - Radius: min_dist(center → nearest_atom) - Explicit definition for Phase 3 docking
+    - Volume: (4/3) * π * radius³ (spherical approximation)
+    - Center: Vertex position (weighted centroid optional for future)
+    
+    Note: True Voronoi region volume (ConvexHull-based) will be added in Phase 2.4
+    when implementing cavity merging and clustering.
     """
     # Calculate distances to all atoms
     distances = np.linalg.norm(coords - vertex, axis=1)
@@ -303,7 +308,7 @@ def find_voids(pdb_file: str, min_volume: float = MIN_VOLUME,
             continue
         
         # Calculate void properties
-        void_props = calculate_void_properties(vertex, coords)
+        void_props = calculate_vertex_void_properties(vertex, coords)
         
         # Volume filter
         if void_props['volume'] < min_volume:
