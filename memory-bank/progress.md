@@ -1408,16 +1408,16 @@ Her NMA karesinde proteinin içindeki boşlukları tespit etmek için geometrik 
 
 **Kontrol Listesi (Genişletilmiş):**
 
-- [ ] `src/geometry.py` oluştur
-- [ ] `extract_atom_coords()` - Heavy atoms varsayılan, CA-only opsiyonel
-- [ ] `calculate_voronoi()` - Scipy wrapper
-- [ ] `filter_surface_voids()` - ConvexHull filtresi (FAZ 1.2 İNTİKAMI!)
-- [ ] `calculate_void_properties()` - Hacim + Radius (açık tanım)
-- [ ] `find_voids()` - Ana API, mesafe penceresi (2.5-8.0 Å)
-- [ ] Hacim filtresi (> 200 Å³)
-- [ ] Performans testi: 5000 heavy atom < 2s
-- [ ] Unit test: Bilinen cep (1TUP) tespit ediliyor mu?
-- [ ] NaN/Inf/Bounding box validasyonu
+- [x] `src/geometry.py` oluştur
+- [x] `extract_atom_coords()` - Heavy atoms varsayılan, CA-only opsiyonel
+- [x] `calculate_voronoi()` - Scipy wrapper
+- [x] `filter_surface_voids()` - ConvexHull filtresi (FAZ 1.2 İNTİKAMI!)
+- [x] `calculate_void_properties()` - Hacim + Radius (açık tanım)
+- [x] `find_voids()` - Ana API, mesafe penceresi (2.5-8.0 Å)
+- [x] Hacim filtresi (> 200 Å³)
+- [x] Performans testi: 5000 heavy atom < 2s
+- [x] Unit test: Bilinen cep (1TUP) tespit ediliyor mu?
+- [x] NaN/Inf/Bounding box validasyonu
 
 **Kabul Kriterleri:**
 

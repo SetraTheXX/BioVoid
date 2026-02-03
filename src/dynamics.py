@@ -216,6 +216,10 @@ def save_frames_as_pdb(conformations: List[np.ndarray],
     Returns:
         saved_files: List of saved file paths
     """
+    # Convert to Path if string
+    if isinstance(output_dir, str):
+        output_dir = Path(output_dir)
+    
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Load template structure for atom names etc.
