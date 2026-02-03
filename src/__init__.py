@@ -30,11 +30,10 @@ from .geometry import (
     extract_atom_coords,
     calculate_voronoi,
     filter_surface_voids,
-    calculate_void_properties,
+    calculate_vertex_void_properties,
     MIN_DISTANCE,
     MAX_DISTANCE,
     MIN_VOLUME,
-    HULL_EPS,
     HEAVY_ATOMS,
 )
 
@@ -61,10 +60,9 @@ __all__ = [
     "extract_atom_coords",
     "calculate_voronoi",
     "filter_surface_voids",
-    "calculate_void_properties",
+    "calculate_vertex_void_properties",
     "MIN_DISTANCE",
     "MAX_DISTANCE",
     "MIN_VOLUME",
-    "HULL_EPS",
     "HEAVY_ATOMS",
 ]

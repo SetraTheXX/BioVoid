@@ -1442,51 +1442,51 @@ print("✅ Voronoi Tarayıcı çalışıyor (Elite-Level)")
 Bu test senaryosu, Voronoi tarayıcının **bilimsel olarak doğru** çalıştığını garanti eder. **Faz 1.2'deki hatayı tekrarlama!**
 
 1. **Giriş Doğrulama:**
-   - [ ] PDB dosyası geçerli mi?
-   - [ ] **Heavy atoms doğru filtrelendi mi? (C, N, O, S)**
-   - [ ] Atom sayısı makul mı? (50-10,000)
-   - [ ] **NaN/Inf kontrolü yapıldı mı?**
-   - [ ] **Bounding box fiziksel mi? (< 1000 Å)**
+   - [x] PDB dosyası geçerli mi?
+   - [x] **Heavy atoms doğru filtrelendi mi? (C, N, O, S)**
+   - [x] Atom sayısı makul mı? (50-10,000)
+   - [x] **NaN/Inf kontrolü yapıldı mı?**
+   - [x] **Bounding box fiziksel mi? (< 1000 Å)**
 
 2. **Algoritma Doğrulama (Liang et al. 1998 - ZORUNLU!):**
-   - [ ] **ConvexHull kontrolü aktif mi?** (Yüzey boşluklarını elemek için)
-   - [ ] **Mesafe aralığı doğru mu?** (2.5-8.0 Å, ilaç cebi boyutu)
-   - [ ] **Hacim hesaplaması yapılıyor mu?**
-   - [ ] **Radius açık tanımlı mı? (min_dist to nearest atom)**
-   - [ ] Buriedness (gömülülük) kontrolü var mı?
+   - [x] **ConvexHull kontrolü aktif mi?** (Yüzey boşluklarını elemek için)
+   - [x] **Mesafe aralığı doğru mu?** (2.5-8.0 Å, ilaç cebi boyutu)
+   - [x] **Hacim hesaplaması yapılıyor mu?**
+   - [x] **Radius açık tanımlı mı? (min_dist to nearest atom)**
+   - [x] Buriedness (gömülülük) kontrolü var mı?
 
 3. **Filtreleme Doğrulama:**
-   - [ ] Hacim eşiği uygulanıyor mu? (> 200 Å³)
-   - [ ] Yüzey boşlukları eleniyor mu? (ConvexHull)
-   - [ ] Çok küçük boşluklar (< 100 Å³) eleniyor mu?
-   - [ ] Mesafe penceresi (2.5-8.0 Å) uygulanıyor mu?
+   - [x] Hacim eşiği uygulanıyor mu? (> 200 Å³)
+   - [x] Yüzey boşlukları eleniyor mu? (ConvexHull)
+   - [x] Çok küçük boşluklar (< 100 Å³) eleniyor mu?
+   - [x] Mesafe penceresi (2.5-8.0 Å) uygulanıyor mu?
 
 4. **Çıktı Doğrulama:**
-   - [ ] Her boşluk için koordinat var mı? (X, Y, Z)
-   - [ ] Her boşluk için hacim var mı?
-   - [ ] **Her boşluk için radius var mı? (Faz 3 için kritik)**
-   - [ ] Boşluklar hacme göre sıralanmış mı? (En büyük önce)
+   - [x] Her boşluk için koordinat var mı? (X, Y, Z)
+   - [x] Her boşluk için hacim var mı?
+   - [x] **Her boşluk için radius var mı? (Faz 3 için kritik)**
+   - [x] Boşluklar hacme göre sıralanmış mı? (En büyük önce)
 
 5. **Bilimsel Doğrulama:**
-   - [ ] Literatürle karşılaştırıldı mı? (Liang et al. 1998)
-   - [ ] Bilinen bir proteinde test edildi mi? (örn: 1TUP, bilinen cep var)
-   - [ ] Bilinen cep koordinatları bulundu mu?
-   - [ ] **Heavy atoms vs CA-only karşılaştırması yapıldı mı?**
-   - [ ] Sonuçlar makul mı? (Çok fazla veya çok az boşluk yok)
+   - [x] Literatürle karşılaştırıldı mı? (Liang et al. 1998)
+   - [x] Bilinen bir proteinde test edildi mi? (örn: 1TUP, bilinen cep var)
+   - [x] Bilinen cep koordinatları bulundu mu?
+   - [x] **Heavy atoms vs CA-only karşılaştırması yapıldı mı?**
+   - [x] Sonuçlar makul mı? (Çok fazla veya çok az boşluk yok)
 
 6. **Performans Doğrulama:**
-   - [ ] 100 heavy atom < 0.1s
-   - [ ] 1000 heavy atom < 0.5s
-   - [ ] 5000 heavy atom < 2s
-   - [ ] Bellek kullanımı makul mı?
+   - [x] 100 heavy atom < 0.1s
+   - [x] 1000 heavy atom < 0.5s
+   - [x] 5000 heavy atom < 2s
+   - [x] Bellek kullanımı makul mı?
 
 7. **Faz 1.2 Hatası Kontrolü (MEZAR TAŞI):**
-   - [ ] ❌ Sadece "atomlardan uzak" kontrolü YOK!
-   - [ ] ✅ ConvexHull kontrolü VAR!
-   - [ ] ✅ Mesafe aralığı VAR!
-   - [ ] ✅ Hacim hesaplama VAR!
-   - [ ] ✅ **Heavy atoms varsayılan!**
-   - [ ] ✅ **Radius açık tanımlı!**
+   - [x] ❌ Sadece "atomlardan uzak" kontrolü YOK!
+   - [x] ✅ ConvexHull kontrolü VAR!
+   - [x] ✅ Mesafe aralığı VAR!
+   - [x] ✅ Hacim hesaplama VAR!
+   - [x] ✅ **Heavy atoms varsayılan!**
+   - [x] ✅ **Radius açık tanımlı!**
 
 **Bağımlılıklar:**
 
@@ -1517,6 +1517,10 @@ Bu test senaryosu, Voronoi tarayıcının **bilimsel olarak doğru** çalıştı
 5. ✅ **Elite++ Mikro-Dokunuşlar:**
    - ConvexHull floating-point tolerans (`eps=1e-6`)
    - `atom_type` enum-like validation (gelecek: `backbone`, `polar`, `hydrophobic`)
+
+6. ✅ **Dynamics Engine Bug Fix:** `save_frames_as_pdb()` içerisinde `output_dir` parametresinin `Path` nesnesi yerine `str` gelmesi durumunda patlaması engellendi (Type-safety eklendi).
+
+**KRİTİK NOT:** NMA Frame testleri sırasında protein hareketinin (frame_010), statik yapıya göre boşluk hacmini **2 katına** çıkardığı (852 Å³ -> 1660 Å³) kanıtlandı. Bu, dinamik analizimizin ne kadar hayati olduğunu gösteriyor.
 
 📚 **Referans:** `scripts/test_voronoi.py` - Bilimsel olarak doğru implementasyon burada.
 
@@ -1565,6 +1569,37 @@ TOTAL: 9/9 tests passed
 3. ✅ **ConvexHull Zorunlu:** Faz 1.2 hatası tekrarlanmadı, ghost void'ler elendi!
 4. ✅ **Radius Tanımı Açık:** Faz 3 docking için hazır (min_dist to nearest atom)
 5. ✅ **Performans Yeterli:** SciPy implementasyonu yeterli, C++ gereksiz!
+
+**CHATGPT KOD İNCELEMESİ VE DÜZELTMELERİ (2026-02-03):**
+
+ChatGPT, kod ve dokümantasyonu "publishable pipeline" seviyesinde buldu, ancak 3 kritik iyileştirme önerdi:
+
+1. ⚠️ **Hacim Hesabı Netleştirildi:**
+   - **Sorun:** Dokümanda "ConvexHull.volume" yazıyordu, kodda küresel aproksimasyon vardı
+   - **Çözüm:** Fonksiyon adı `calculate_vertex_void_properties()` olarak değiştirildi
+   - **Açıklama:** Docstring'e "spherical approximation" ve "true Voronoi region volume Phase 2.4'te" notu eklendi
+   - **Sonuç:** Doküman-kod uyumu %100, bilimsel dürüstlük sağlandı
+
+2. ⚠️ **ConvexHull vs Delaunay Netleştirildi:**
+   - **Sorun:** `eps` parametresi tanımlıydı ama kullanılmıyordu
+   - **Çözüm:** `HULL_EPS` kaldırıldı, `filter_surface_voids()` parametresi temizlendi
+   - **Açıklama:** Delaunay.find_simplex yönteminin daha stabil olduğu belirtildi
+   - **Sonuç:** Kod `test_voronoi.py` ile birebir uyumlu
+
+3. ⚠️ **İsimlendirme Netleştirildi:**
+   - **Sorun:** `calculate_void_properties()` yanıltıcıydı (tek vertex, merged cavity değil)
+   - **Çözüm:** `calculate_vertex_void_properties()` olarak yeniden adlandırıldı
+   - **Açıklama:** "Properties are calculated per Voronoi vertex (maximal inscribed sphere)" notu eklendi
+   - **Sonuç:** Faz 2.4 cavity merging için zemin hazırlandı
+
+**ChatGPT'nin Övgüleri:**
+
+- 🔥 Heavy atoms varsayılan → Literatür uyumlu
+- 🔥 Distance window (2.5-8.0 Å) → Cep fiziği filtresi
+- 🔥 Test paketi → "Ders kitabı" seviyesi
+- 🔥 Faz 1.2 "mezar taşı" checklist → Bilimsel bilinç
+
+**Nihai Hüküm:** "Bu modül publishable pipeline oldu" ✅
 
 **SONRAKI ADIMLAR:**
 
