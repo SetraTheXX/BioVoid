@@ -3,7 +3,7 @@ Bio-Void Hunter: Core Modules
 ==============================
 """
 
-__version__ = "0.3.0"  # Phase 2: Core Engine + Geometry
+__version__ = "0.4.0"  # Phase 2.4: Cavity Analysis Engine
 __author__ = "Bio-Void Hunter Team"
 
 # Fetcher module
@@ -24,7 +24,7 @@ from .dynamics import (
     DEFAULT_GAMMA,
 )
 
-# Geometry module (Voronoi Scanner)
+# Geometry module (Voronoi Scanner - Phase 2.3)
 from .geometry import (
     find_voids,
     extract_atom_coords,
@@ -35,6 +35,18 @@ from .geometry import (
     MAX_DISTANCE,
     MIN_VOLUME,
     HEAVY_ATOMS,
+)
+
+# Cavities module (Cavity Analysis - Phase 2.4)
+from .cavities import (
+    find_cavities,
+    merge_cavities,
+    calculate_cavity_properties,
+    filter_hydrophobic,
+    calculate_region_volume,
+    MERGE_THRESHOLD,
+    HYDROPHOBIC_RESIDUES,
+    POLAR_THRESHOLD,
 )
 
 __all__ = [
@@ -55,7 +67,7 @@ __all__ = [
     "validate_trivial_modes",
     "DEFAULT_CUTOFF",
     "DEFAULT_GAMMA",
-    # Geometry
+    # Geometry (Phase 2.3)
     "find_voids",
     "extract_atom_coords",
     "calculate_voronoi",
@@ -65,4 +77,13 @@ __all__ = [
     "MAX_DISTANCE",
     "MIN_VOLUME",
     "HEAVY_ATOMS",
+    # Cavities (Phase 2.4)
+    "find_cavities",
+    "merge_cavities",
+    "calculate_cavity_properties",
+    "filter_hydrophobic",
+    "calculate_region_volume",
+    "MERGE_THRESHOLD",
+    "HYDROPHOBIC_RESIDUES",
+    "POLAR_THRESHOLD",
 ]
