@@ -1609,64 +1609,127 @@ ChatGPT, kod ve dokümantasyonu "publishable pipeline" seviyesinde buldu, ancak 
 
 ---
 
-#### 2.4 Hidrofobik Filtre
+#### 2.4 Cavity Merging & True Volume Calculation
 
 **Sahip:** Geliştirici  
 **Durum:** ⚪ Başlanmadı  
-**Tahmini Süre:** 8 saat
+**Tahmini Süre:** 12 saat
 
 **NEDEN:**  
-Her boşluk ilaç cebi değil. İlaçlar genellikle hidrofobik (yağlı) yüzeylere bağlanır.
+Faz 2.3'te her Voronoi vertex için **küresel aproksimasyon** (spherical approximation) kullandık. Bu, ChatGPT'nin de belirttiği gibi, **geçici bir çözümdü**. Gerçek ilaç cebi analizi için:
+
+1. **True Voronoi Region Volume:** Her vertex'in gerçek Voronoi region hacmi (ConvexHull-based)
+2. **Cavity Merging:** Bitişik vertex'leri birleştirerek gerçek cepler oluşturma
+3. **Hydrophobic Filtering:** İlaçlanabilir cepleri belirleme
 
 **NASIL:**
 
-⚠️ **KRİTİK OPTİMİZASYON: KD-Tree ZORUNLU!**
+⚠️ **KRİTİK STRATEJİ: ChatGPT Önerilerini Uygula!**
 
-- Bir boşluk (X,Y,Z) ile binlerce atom arasındaki mesafeyi tek tek ölçmek O(N²) karmaşıklığı yaratır ve işlemciyi öldürür.
-- **scipy.spatial.KDTree** kullanarak "Bu noktanın 5 Å çevresindeki atomları getir" sorgusunu milisaniyeler içinde yap.
+ChatGPT'nin "Opsiyon B" önerisi: Gerçek Voronoi region hacmi hesapla.
 
-**Adımlar:**
+**Adımlar (Elite-Level Implementation):**
 
-1. Protein yapısından tüm atom koordinatlarını al.
-2. `scipy.spatial.KDTree` ile 3D uzaysal indeks oluştur.
-3. Her boşluk merkezi için `kdtree.query_ball_point(void_center, radius=5.0)` ile çevre atomları bul.
-4. Bu atomların amino asit tiplerini kontrol et.
-5. Hidrofobik amino asit oranını hesapla (Leu, Ile, Val, Phe, Trp, Met).
-6. Oran > %50 ise "ilaçlanabilir" işaretle.
+1. **True Voronoi Region Volume Calculation**
+   - Her Voronoi vertex için bağlı region'ı bul (`voronoi.regions[voronoi.point_region[i]]`)
+   - Region vertex'lerinden ConvexHull oluştur
+   - Gerçek hacim: `ConvexHull(region_vertices).volume`
+   - Küresel aproksimasyon ile karşılaştır (validation)
 
-**KURALLAR:**
+2. **Cavity Merging (Clustering)**
+   - Bitişik Voronoi vertex'leri tespit et (distance threshold: 3.0 Å)
+   - DBSCAN veya hierarchical clustering ile grupla
+   - Her cluster = bir gerçek cep (cavity)
+   - Merged cavity properties:
+     - Volume: Sum of region volumes
+     - Center: Weighted centroid (volume-weighted)
+     - Radius: Max distance from center to any vertex
 
-- Hidrofobik amino asit listesi sabit kodlanmış olmalı.
-- Filtre sonrası yanlış pozitif oranı < %20 (test verisi ile doğrula).
+3. **Hydrophobic Filtering**
+   - **KD-Tree ile uzaysal indeks** (scipy.spatial.KDTree) - O(log N) performans
+   - Her cavity center için çevre atomları bul (radius: 5.0 Å)
+   - Hidrofobik amino asit oranı hesapla (Leu, Ile, Val, Phe, Trp, Met)
+   - Oran > %50 ise "druggable" işaretle
 
-**Kontrol Listesi:**
+4. **API Refactoring**
+   - `find_voids()` → `find_cavities()` (merged cavities döndürür)
+   - `calculate_vertex_void_properties()` → Faz 2.3'te kalsın (backward compatibility)
+   - `calculate_cavity_properties()` → Yeni fonksiyon (merged cavity için)
 
-- [ ] `src/geometry.py` içine `filter_hydrophobic(voids, structure)` ekle
-- [ ] **KD-Tree ile uzaysal indeks oluştur** (scipy.spatial.KDTree)
-- [ ] Her boşluk için çevre atomları hızlıca bul (query_ball_point)
-- [ ] Boşluk çevresindeki residue'ları tespit et
-- [ ] Hidrofobik oranı hesapla
-- [ ] Eşik kontrolü (> %50)
-- [ ] **Performans testi:** 1000 atom, 100 boşluk < 1 saniye
-- [ ] Unit test: Bilinen hidrofobik cep geçiyor mu?
+**KURALLAR (ChatGPT Standartları):**
+
+- **Bilimsel Doğruluk:** True Voronoi region volume zorunlu (küresel aproksimasyon artık opsiyonel)
+- **Performans:** KD-Tree kullanımı zorunlu (O(N²) → O(N log N))
+- **Backward Compatibility:** Faz 2.3 API'si korunmalı (breaking change yok)
+- **Validation:** Küresel vs gerçek hacim karşılaştırması test edilmeli
+
+**Kontrol Listesi (Genişletilmiş):**
+
+- [ ] `src/geometry.py` içine `calculate_region_volume()` ekle
+  - [ ] Voronoi region vertex'lerini al
+  - [ ] ConvexHull ile gerçek hacim hesapla
+  - [ ] Küresel aproksimasyon ile karşılaştır (test)
+- [ ] `merge_cavities()` fonksiyonu ekle
+  - [ ] Bitişik vertex'leri tespit et (distance threshold)
+  - [ ] DBSCAN clustering uygula
+  - [ ] Merged cavity properties hesapla
+- [ ] `calculate_cavity_properties()` fonksiyonu ekle
+  - [ ] Volume: Sum of region volumes
+  - [ ] Center: Weighted centroid
+  - [ ] Radius: Max distance from center
+- [ ] `filter_hydrophobic()` fonksiyonu ekle
+  - [ ] **KD-Tree ile uzaysal indeks oluştur**
+  - [ ] Her cavity için çevre atomları bul (query_ball_point)
+  - [ ] Hidrofobik amino asit oranı hesapla
+  - [ ] Eşik kontrolü (> %50)
+- [ ] `find_cavities()` ana API ekle
+  - [ ] find_voids() çağır (vertex-level)
+  - [ ] merge_cavities() çağır (clustering)
+  - [ ] calculate_cavity_properties() çağır
+  - [ ] filter_hydrophobic() çağır (opsiyonel)
+- [ ] **Performans testi:** 1000 atom, 100 cavity < 2 saniye
+- [ ] **Validation test:** Küresel vs gerçek hacim farkı < %20
+- [ ] Unit test: Bilinen hidrofobik cep (1TUP) tespit ediliyor mu?
 
 **Kabul Kriterleri:**
 
 ```python
-from src.geometry import find_voids, filter_hydrophobic
-voids = find_voids('data/frames/1cbs_frame_10.pdb')
-druggable = filter_hydrophobic(voids, structure)
-assert len(druggable) < len(voids)  # Bazıları elendi
-print("✅ Hidrofobik Filtre çalışıyor")
+from src.geometry import find_cavities
+
+# Yeni API (merged cavities)
+cavities = find_cavities('data/frames/1cbs/frame_010.pdb',
+                        merge=True,           # Cavity merging aktif
+                        hydrophobic=True)     # Hidrofobik filtre aktif
+
+assert len(cavities) > 0
+assert cavities[0]['volume'] > 200  # Gerçek Voronoi region hacmi
+assert cavities[0]['druggable'] == True  # Hidrofobik filtre geçti
+assert 'merged_vertices' in cavities[0]  # Kaç vertex birleşti?
+
+# Eski API (backward compatibility)
+from src.geometry import find_voids
+voids = find_voids('data/frames/1cbs/frame_010.pdb')  # Hala çalışıyor
+assert len(voids) > 0  # Küresel aproksimasyon
+
+print("✅ Cavity Merging & True Volume çalışıyor")
 ```
 
 **Bağımlılıklar:**
 
-- Gerektirir: 2.3 (Voronoi Tarayıcı) ⚪
+- Gerektirir: 2.3 (Voronoi Tarayıcı) ✅
 
 **Engelleyiciler:**
 
-- Yok
+- Voronoi region volume hesaplaması karmaşık olabilir → SciPy ConvexHull yeterli
+
+**Öğrenilenler (ChatGPT'den):**
+
+1. **Küresel Aproksimasyon Geçici:** Faz 2.3'te kabul edilebilir, ama Faz 2.4'te gerçek hacim şart
+2. **Cavity Merging Kritik:** Tek vertex = tek cep değil, bitişik vertex'ler birleştirilmeli
+3. **Weighted Centroid:** Hacim ağırlıklı merkez daha doğru
+4. **KD-Tree Zorunlu:** Hidrofobik filtre için O(N²) performans kabul edilemez
+
+**SONUÇ:** Bu faz, modülü "publishable pipeline"dan "production-ready drug discovery tool"a çıkaracak! 🚀
 
 ---
 
