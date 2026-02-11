@@ -12,7 +12,7 @@ Orchestrates the complete cryptic pocket discovery workflow:
 6. Generate JSON report
 
 Author: Bio-Void Hunter Team
-Version: 0.4.0 (Phase 2.5)
+Version: 0.6.0 (Phase 4)
 """
 
 import argparse
@@ -22,12 +22,17 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import numpy as np
+
 # Core modules
 from src.fetcher import fetch_pdb, FetchError
 from src.dynamics import run_nma_simulation
 from src.geometry import find_voids
 from src.cavities import find_cavities
+from src.scoring import rank_pockets
+from src.geometry import extract_atom_coords
 from src.visualizer import BioVoidVisualizer
+from src.docking import dock_elite_pockets, DockingError
 
 
 class Logger:
@@ -57,11 +62,14 @@ class BioVoidPipeline:
     """Main orchestrator for Bio-Void Hunter pipeline"""
     
     def __init__(self, pdb_id: str, n_frames: int = 50, 
-                 verbose: bool = False, output_dir: str = "data/results"):
+                 verbose: bool = False, output_dir: str = "data/results",
+                 profile: str = "default", dock: bool = False):
         self.pdb_id = pdb_id.upper()
         self.n_frames = n_frames
         self.verbose = verbose
         self.output_dir = Path(output_dir)
+        self.profile = profile
+        self.dock = dock
         self.logger = Logger(verbose)
         self.visualizer = BioVoidVisualizer(output_dir)
         
@@ -73,6 +81,8 @@ class BioVoidPipeline:
         self.frames_dir: Optional[str] = None
         self.voids: List[Dict] = []
         self.cavities: List[Dict] = []
+        self.atom_coords: Optional[np.ndarray] = None
+        self.docking_report: Optional[Dict] = None
         self.start_time: float = 0.0
     
     def run(self) -> Dict:
@@ -92,13 +102,20 @@ class BioVoidPipeline:
             # Step 4: Merge cavities
             self._merge_cavities()
             
-            # Step 5: Generate report
+            # Step 5: Score druggability (Phase 3)
+            self._score_druggability()
+            
+            # Step 5b: Targeted Docking (Phase 4, optional)
+            if self.dock:
+                self._run_docking()
+            
+            # Step 6: Generate report
             report = self._generate_report()
             
-            # Step 6: Visualize Results (Phase 2.6)
+            # Step 7: Visualize Results (Phase 2.6)
             self._visualize_results()
             
-            # Step 7: Save results
+            # Step 8: Save results
             self._save_report(report)
             
             return report
@@ -199,18 +216,104 @@ class BioVoidPipeline:
         self.logger.info("FILTER", 
             f"{druggable_count} druggable pockets remain")
     
+    def _score_druggability(self):
+        """Step 5: Score and rank cavities for druggability (Phase 3)"""
+        self.logger.info("SCORING", 
+            f"Scoring {len(self.cavities)} cavities (profile: {self.profile})...")
+        
+        # Get atom coordinates for depth/enclosure calculation
+        if self.frames_dir:
+            frame_file = Path(self.frames_dir) / f"frame_{self.n_frames//2:03d}.pdb"
+            if not frame_file.exists():
+                frame_file = Path(self.frames_dir) / "frame_001.pdb"
+        else:
+            frame_file = Path(self.pdb_file)
+        
+        self.atom_coords = extract_atom_coords(str(frame_file), atom_type='heavy')
+        
+        # Rank all cavities
+        self.cavities = rank_pockets(
+            self.cavities,
+            self.atom_coords,
+            profile=self.profile,
+            top_n=None  # Keep all, just rank them
+        )
+        
+        # Summary stats
+        high = sum(1 for c in self.cavities 
+                   if c.get('druggability_class') == 'high')
+        medium = sum(1 for c in self.cavities 
+                     if c.get('druggability_class') == 'medium')
+        low = sum(1 for c in self.cavities 
+                  if c.get('druggability_class') == 'low')
+        
+        self.logger.info("SCORING", 
+            f"Druggability: {high} high, {medium} medium, {low} low")
+        
+        if len(self.cavities) > 0:
+            top = self.cavities[0]
+            self.logger.info("SCORING", 
+                f"Top pocket: rank #{top.get('rank', '?')} | "
+                f"bio_score={top.get('bio_score', 0):.4f} | "
+                f"class={top.get('druggability_class', '?')}")
+    
+    def _run_docking(self):
+        """Step 5b: Targeted docking validation (Phase 4)"""
+        self.logger.info("DOCKING", 
+            f"Starting targeted docking for top pockets...")
+        
+        # Determine PDB file to use
+        if self.frames_dir:
+            frame_file = Path(self.frames_dir) / f"frame_{self.n_frames//2:03d}.pdb"
+            if not frame_file.exists():
+                frame_file = Path(self.frames_dir) / "frame_001.pdb"
+            pdb_for_dock = str(frame_file)
+        else:
+            pdb_for_dock = self.pdb_file
+        
+        try:
+            self.docking_report = dock_elite_pockets(
+                cavities=self.cavities,
+                protein_pdb=pdb_for_dock,
+                profile=self.profile,
+                top_n=min(5, len(self.cavities)),
+                output_dir=str(self.output_dir / 'docking'),
+            )
+            
+            n_dock = self.docking_report.get('n_successful', 0)
+            n_drug = self.docking_report.get('n_druggable', 0)
+            best = self.docking_report.get('best_affinity', 0.0)
+            
+            self.logger.info("DOCKING",
+                f"Complete: {n_dock} successful docks, "
+                f"{n_drug} druggable, best={best:.1f} kcal/mol")
+                
+        except DockingError as e:
+            self.logger.warning("DOCKING", f"Docking failed: {e}")
+            self.docking_report = None
+        except Exception as e:
+            self.logger.warning("DOCKING", f"Unexpected docking error: {e}")
+            self.docking_report = None
+    
     def _generate_report(self) -> Dict:
-        """Step 5: Generate comprehensive JSON report"""
+        """Step 6: Generate comprehensive JSON report"""
         runtime = time.time() - self.start_time
         
         # Count druggable cavities
         druggable_count = sum(1 for c in self.cavities if c.get('druggable', False))
         
+        # Count by druggability class (Phase 3)
+        high_count = sum(1 for c in self.cavities 
+                        if c.get('druggability_class') == 'high')
+        medium_count = sum(1 for c in self.cavities 
+                          if c.get('druggability_class') == 'medium')
+        
         # Build cavity list for report
         cavity_list = []
         for i, cavity in enumerate(self.cavities):
             cavity_data = {
-                "id": i,
+                "id": cavity.get('id', i),
+                "rank": cavity.get('rank', i + 1),
                 "volume": round(cavity['volume'], 2),
                 "center": [round(x, 2) for x in cavity['center']],
                 "radius_geom": round(cavity['radius_geom'], 2),
@@ -224,17 +327,38 @@ class BioVoidPipeline:
                 cavity_data['polar_atoms'] = cavity['polar_atoms']
                 cavity_data['druggable'] = cavity['druggable']
             
+            # Add scoring data (Phase 3)
+            if 'bio_score' in cavity:
+                cavity_data['bio_score'] = cavity['bio_score']
+                cavity_data['druggability_class'] = cavity['druggability_class']
+                cavity_data['score_components'] = cavity['score_components']
+                cavity_data['profile_used'] = cavity['profile_used']
+            
             cavity_list.append(cavity_data)
         
         report = {
             "pdb_id": self.pdb_id,
             "n_frames": self.n_frames,
+            "scoring_profile": self.profile,
+            "docking_enabled": self.dock,
             "total_voids": len(self.voids),
             "total_cavities": len(self.cavities),
             "druggable_cavities": druggable_count,
+            "high_druggability": high_count,
+            "medium_druggability": medium_count,
             "runtime_seconds": round(runtime, 2),
             "cavities": cavity_list
         }
+        
+        # Add docking results if available (Phase 4)
+        if self.docking_report:
+            report['docking'] = {
+                'n_pockets_docked': self.docking_report.get('n_pockets_docked', 0),
+                'n_successful': self.docking_report.get('n_successful', 0),
+                'n_druggable': self.docking_report.get('n_druggable', 0),
+                'best_affinity': self.docking_report.get('best_affinity', 0.0),
+                'vina_version': self.docking_report.get('vina_version', 'unknown'),
+            }
         
         return report
     
@@ -312,6 +436,20 @@ Examples:
         help='Output directory for results (default: data/results)'
     )
     
+    parser.add_argument(
+        '--profile',
+        type=str,
+        default='default',
+        choices=['enzyme', 'ppi', 'gpcr', 'default'],
+        help='Scoring profile for druggability (default: default)'
+    )
+    
+    parser.add_argument(
+        '--dock',
+        action='store_true',
+        help='Enable Phase 4 targeted docking validation'
+    )
+    
     args = parser.parse_args()
     
     # Run pipeline
@@ -319,7 +457,9 @@ Examples:
         pdb_id=args.pdb_id,
         n_frames=args.n_frames,
         verbose=args.verbose,
-        output_dir=args.output
+        output_dir=args.output,
+        profile=args.profile,
+        dock=args.dock
     )
     
     try:
@@ -331,9 +471,12 @@ Examples:
         print("=" * 70)
         print(f"PDB ID: {report['pdb_id']}")
         print(f"Frames: {report['n_frames']}")
+        print(f"Profile: {report['scoring_profile']}")
         print(f"Voids: {report['total_voids']}")
         print(f"Cavities: {report['total_cavities']}")
         print(f"Druggable: {report['druggable_cavities']}")
+        print(f"High Score: {report['high_druggability']}")
+        print(f"Medium Score: {report['medium_druggability']}")
         print(f"Runtime: {report['runtime_seconds']:.2f}s")
         print("=" * 70)
         
