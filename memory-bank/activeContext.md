@@ -1,24 +1,73 @@
+<!-- cspell:disable -->
+
 # Aktif Bağlam
 
 ## Şu Anki Odak
 
-Şu anda **Başlatma & Mimari Tasarım Aşaması**ndayız.
-Birincil hedef, gelişmiş biyolojik simülasyonlar gerçekleştirmek için tüketici donanımından (RX 580) yararlanan "Bio-Void Hunter" için sağlam, bilimsel olarak geçerli bir boru hattı oluşturmaktır.
+**Faz 6 Öncesi Düzenleme ve Validasyon — ✅ TAMAMLANDI**
+Plan dosyası: `Bio-Void_Hunter__Faz_6_Öncesi_Düzenleme_ve_Validas-02101819.plan.md`
+Acceptance Test: **17/17 geçti (100%)**
 
-## Son Kararlar
+---
 
-- **Astronomiden Biyolojiye Geçiş:** "Matteo Paz" metodolojisini (Gürültülü verideki gizli sinyaller) protein yapılarındaki Gizli Cepleri bulmaya uyarlama.
-- **Dinamik Analiz (NMA):** Yalnızca statik yapıları kullanmamaya karar verdik. Protein nefes alma hareketlerini simüle etmek için Normal Mod Analizi (ProDy) kullanacağız.
-- **Geometrik Çekirdek:** Çıkarım motoru için ağır Derin Öğrenme eğitiminden kaçınıyor, hızlı, fizik tabanlı geometrik algoritmaları (Voronoi) tercih ediyoruz. Bu, VRAM-ağır LLM eğitiminden daha iyi RX 580'in hesaplama yeteneklerine uyuyor.
+## Tamamlanan Adımlar
+
+### ✅ FAZ 1: Bilimsel Validasyon
+
+- `data/validation/known_cryptic_pockets.json` — 20 literatür test case
+- `scripts/validate_known_pockets.py` — Otomatik validasyon scripti
+- `docs/validation_report.md` — Detaylı rapor
+- **Recall: %30** (eşik: %30) → PASS
+
+### ✅ FAZ 2: Altyapı ve Pilot Çalışma
+
+- **1000 protein pilot taraması tamamlandı:**
+  - Başarılı: 932 (%93.2)
+  - Başarısız: 68
+  - Runtime: 2855.7s (~47.5 dakika)
+  - Throughput: 0.35 protein/saniye
+- **atlas.db:** 8.7MB, 932 protein, 39,085 pocket
+- **Dashboard import doğrulandı**
+
+### ✅ FAZ 3: Kod Kalitesi ve Temizlik
+
+- **docker.py Refactoring:** Monolitik 1318 satır → `src/docking/` paketi:
+  - `vina_wrapper.py` — VinaDocking engine, GridBox, DockingResult
+  - `interactions.py` — Protein-ligand interaction analysis
+  - `validation.py` — validate_known_ligand, dock_nma_frames
+  - `__init__.py` — Backward-compatible re-exports
+- **requirements.txt:** Temizlendi (11 direct deps + transitive = 61 total)
+- **Import path migration:** `src.docker` → `src.docking` tüm dosyalarda
+- **Backward compatibility:** Eski `from src.docker import *` çalışıyor
+- **Streamlit lazy import:** CLI araçları bağımsız çalışıyor
+
+### ⚪ FAZ 4: Opsiyonel İyileştirmeler (Atlandı - Faz 6 sonrasına bırakıldı)
+
+- fpocket benchmark
+- ProDy NMA karşılaştırması
+- False positive rate analizi
+
+---
+
+## Top 5 Keşif (Bio-Score)
+
+| PDB ID | Bio-Score | Toplam Kavite | Druggable |
+| ------ | --------- | ------------- | --------- |
+| 1UCS   | 0.980     | 26            | 16        |
+| 3ZOJ   | 0.977     | 190           | 78        |
+| 3X0J   | 0.975     | 123           | 50        |
+| 4EA9   | 0.974     | 141           | 77        |
+| 4Y9V   | 0.973     | 577           | 140       |
+
+---
 
 ## Sonraki Adımlar
 
-1.  **Ortam Kurulumu:** `ProDy`, `Scipy`, `AutoDock Vina` kur.
-2.  **NMA Prototipi:** Bir protein al (örn: p53), 50 konformasyon simüle et ve kaydet.
-3.  **Voronoi Prototipi:** Bu konformasyonlarda boşlukları bulmak için geometrik tarayıcıyı yaz.
-4.  **Entegrasyon:** Bunları `BioBuildContext` boru hattında birleştir.
+1. **Faz 6'ya Geçiş:** 120K protein taraması planlaması
+2. **Dashboard ile interaktif analiz:** Streamlit ile keşif verilerini incele
+3. **FAZ 4 opsiyonel işler:** fpocket benchmark, ProDy karşılaştırma
+4. **Yayın hazırlığı:** Validasyon raporunu genişlet
 
-## Aktif Sorular
+## DB Konumu
 
-- Kullanıcıda `AutoDock Vina` kurulu mu yoksa kurulumu yönlendirmemiz mi gerekiyor?
-- RX 580, Vina için OpenCL üzerinden mi kullanılacak, yoksa ilk prototip için CPU'ya mı güveneceğiz? (Öneri: Stabilite için CPU ile başla, daha sonra GPU ile optimize et).
+- `data/atlas.db` — 8.7MB, 932 protein + 39,085 pocket

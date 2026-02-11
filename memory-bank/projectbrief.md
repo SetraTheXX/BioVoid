@@ -1,3 +1,5 @@
+<!-- cspell:disable -->
+
 # Proje Özeti: Bio-Void Hunter
 
 ## Temel Felsefe
