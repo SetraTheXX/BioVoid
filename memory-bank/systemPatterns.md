@@ -1,3 +1,5 @@
+<!-- cspell:disable -->
+
 # Sistem Kalıpları
 
 ## Mimari Genel Bakış

@@ -1,3 +1,5 @@
+<!-- cspell:disable -->
+
 # Ürün Bağlamı
 
 ## Problem Tanımı
