@@ -1,0 +1,17 @@
+{
+    "pythonVersion": "3.13",
+    "pythonPlatform": "Windows",
+    "venvPath": "C:/Users/tunca/miniconda3/envs",
+    "venv": "biovoid",
+    "reportMissingImports": "warning",
+    "reportUnknownMemberType": "none",
+    "reportUnknownVariableType": "none",
+    "reportUnknownArgumentType": "none",
+    "reportUnknownParameterType": "none",
+    "reportUnknownLambdaType": "none",
+    "reportMissingParameterType": "none",
+    "reportMissingTypeArgument": "none",
+    "reportUntypedFunctionDecorator": "none",
+    "reportUnusedImport": "warning",
+    "typeCheckingMode": "standard"
+}
