@@ -40,10 +40,11 @@ import pickle
 import time
 import traceback
 from concurrent.futures import (
+    FIRST_COMPLETED,
     ProcessPoolExecutor,
     ThreadPoolExecutor,
-    TimeoutError as FutureTimeoutError,
     as_completed,
+    wait,
 )
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -429,20 +430,28 @@ class ParallelCrawler:
 
         # Resume logic
         state = self.checkpoint.load() if resume else None
-        if state and state.processed_ids:
+        if state is None:
+            state = CrawlerState()
+        # P0.3 rule: do not trust stale checkpoint total_ids; normalize to current target list.
+        state.total_ids = len(pdb_ids)
+
+        if state.processed_ids:
             already = set(state.processed_ids)
             remaining = [pid for pid in pdb_ids if pid not in already]
             self.log.info(
                 f"Resuming: {len(already)} done, {len(remaining)} remaining"
             )
         else:
-            state = CrawlerState(total_ids=len(pdb_ids))
             remaining = list(pdb_ids)
 
         if not remaining:
             self.log.info("All proteins already processed.")
+            # Keep checkpoint + summary coherent with current target list size.
+            self.checkpoint.save(state)
+            self._save_summary(state)
             return state.results
 
+        prev_elapsed = float(state.elapsed_seconds or 0.0)
         t_start = time.time()
 
         self.log.info(
@@ -471,11 +480,11 @@ class ParallelCrawler:
                 self.checkpoint.append_log(res)
 
             # Auto-checkpoint
-            state.elapsed_seconds = time.time() - t_start
+            state.elapsed_seconds = prev_elapsed + (time.time() - t_start)
             self.checkpoint.save(state)
 
             done = len(state.processed_ids)
-            total = state.total_ids or len(pdb_ids)
+            total = state.total_ids
             ok = len(state.successful_ids)
             fail = len(state.failed_ids)
             skip = len(state.skipped_ids)
@@ -485,7 +494,9 @@ class ParallelCrawler:
             )
 
         elapsed = time.time() - t_start
-        state.elapsed_seconds += elapsed
+        # Elapsed must be accumulated once (checkpointed value + this run).
+        state.elapsed_seconds = prev_elapsed + elapsed
+        self.checkpoint.save(state)
 
         self.log.info(
             f"Done: {len(state.successful_ids)} success, "
@@ -502,11 +513,16 @@ class ParallelCrawler:
     def _process_batch(
         self, pdb_ids: list[str]
     ) -> list[dict[str, Any]]:
-        """Process a batch of PDB IDs using ProcessPoolExecutor."""
+        """Process a batch with wall-clock timeout enforcement."""
         results: list[dict[str, Any]] = []
+        executor = self._executor_class(max_workers=self.max_workers)
+        timed_out_count = 0
 
-        with self._executor_class(max_workers=self.max_workers) as executor:
-            future_to_pid = {}
+        try:
+            future_to_pid: dict[Any, str] = {}
+            start_time: dict[Any, float] = {}
+            pending: set[Any] = set()
+
             for pid in pdb_ids:
                 fut = executor.submit(
                     _analyze_single_protein,
@@ -516,32 +532,71 @@ class ParallelCrawler:
                     self.output_dir,
                 )
                 future_to_pid[fut] = pid
+                start_time[fut] = time.time()
+                pending.add(fut)
 
-            for fut in as_completed(future_to_pid):
-                pid = future_to_pid[fut]
-                try:
-                    res = fut.result(timeout=self.timeout)
-                    results.append(res)
-                except FutureTimeoutError:
-                    self.log.warning(f"Timeout: {pid} (>{self.timeout}s)")
+            while pending:
+                now = time.time()
+                nearest_deadline = min(
+                    max(0.0, (start_time[fut] + self.timeout) - now)
+                    for fut in pending
+                )
+                done, _ = wait(
+                    pending,
+                    timeout=nearest_deadline,
+                    return_when=FIRST_COMPLETED,
+                )
+
+                # Collect completed futures first.
+                for fut in done:
+                    pending.discard(fut)
+                    pid = future_to_pid[fut]
+                    try:
+                        res = fut.result()
+                        results.append(res)
+                    except Exception as exc:
+                        self.log.error(f"Worker crash: {pid} — {exc}")
+                        results.append(
+                            {
+                                "pdb_id": pid,
+                                "status": "error",
+                                "error": str(exc),
+                                "error_type": type(exc).__name__,
+                                "runtime": 0.0,
+                            }
+                        )
+
+                # Wall-clock timeout sweep.
+                now = time.time()
+                overdue: list[Any] = []
+                for fut in pending:
+                    if now - start_time[fut] >= self.timeout:
+                        overdue.append(fut)
+
+                for fut in overdue:
+                    pending.discard(fut)
+                    pid = future_to_pid[fut]
+                    fut.cancel()
+                    timed_out_count += 1
+                    self.log.warning(
+                        f"Timeout: {pid} (wall-clock >{self.timeout}s)"
+                    )
                     results.append(
                         {
                             "pdb_id": pid,
                             "status": "timeout",
-                            "runtime": self.timeout,
+                            "runtime": float(self.timeout),
                         }
                     )
-                except Exception as exc:
-                    self.log.error(f"Worker crash: {pid} — {exc}")
-                    results.append(
-                        {
-                            "pdb_id": pid,
-                            "status": "error",
-                            "error": str(exc),
-                            "error_type": type(exc).__name__,
-                            "runtime": 0.0,
-                        }
-                    )
+        finally:
+            # Hung worker isolation: detach timed-out workers from batch completion.
+            if timed_out_count > 0:
+                self.log.warning(
+                    f"Hung worker isolation active: {timed_out_count} timed-out task(s) detached."
+                )
+                executor.shutdown(wait=False, cancel_futures=True)
+            else:
+                executor.shutdown(wait=True)
 
         return results
 

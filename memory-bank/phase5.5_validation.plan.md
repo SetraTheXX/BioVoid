@@ -241,8 +241,8 @@ Atlas DB'deki pocket merkezlerinin %88.16'sı [0,0,0]. Bu, overlap ve FPR analiz
 
 #### **P0.3 - Accounting Fix (1 gün)**
 
-**Sahip:** TBD  
-**Durum:** ⚪ Başlanmadı  
+**Sahip:** Codex  
+**Durum:** ✅ Tamamlandı (2026-02-13)  
 **Öncelik:** 🟡 HIGH
 
 **NEDEN:**  
@@ -267,17 +267,36 @@ Atlas DB'deki pocket merkezlerinin %88.16'sı [0,0,0]. Bu, overlap ve FPR analiz
 
 **Kontrol Listesi:**
 
-- [ ] Elapsed double-count düzelt
-- [ ] ⚠️ total_ids → normalize with current list (checkpoint'tan kör almak yerine)
-- [ ] Throughput metriklerini yeniden hesapla
-- [ ] Test: 50 proteinlik smoke test
-- [ ] Test proving consistency yaz
+- [x] Elapsed double-count düzelt
+- [x] ⚠️ total_ids → normalize with current list (checkpoint'tan kör almak yerine)
+- [x] Throughput metriklerini yeniden hesapla
+- [x] Test: 50 proteinlik smoke test
+- [x] Test proving consistency yaz
 
 **Kabul Kriterleri:**
 
-- [ ] Elapsed time tutarlı
-- [ ] total_ids doğru (current list ile)
-- [ ] Smoke test PASS
+- [x] Elapsed time tutarlı
+- [x] total_ids doğru (current list ile)
+- [x] Smoke test PASS
+
+**Tamamlanma Sonuçları (2026-02-13):**
+
+- Kod değişiklikleri (`src/parallel_crawler.py`):
+  - Resume/fresh ayrımı sonrası `state.total_ids = len(current_target_list)` normalize edildi.
+  - `elapsed_seconds` bir run için tek kez biriktirilecek şekilde düzeltildi:
+    - Batch checkpoint: `prev_elapsed + (now - t_start)`
+    - Final: `prev_elapsed + (now - t_start)` (double-add kaldırıldı)
+  - `remaining == 0` durumunda checkpoint + summary kaydedilerek `total_ids`/summary tutarlılığı garanti edildi.
+- Metric/summary etkisi:
+  - `crawler_summary.json` içindeki `total`, `elapsed_seconds`, `throughput_per_second` artık current list + tekil elapsed hesabıyla üretiliyor.
+- Testler:
+  - Yeni regression dosyası: `tests/test_parallel_accounting.py`
+    - `test_resume_total_ids_normalized_to_current_list`
+    - `test_elapsed_not_double_counted_and_metrics_consistent`
+    - `test_smoke_50_proteins_summary_coherent`
+  - Sonuç: `python -m pytest tests/test_parallel_accounting.py -q` → **3 passed**
+  - Ek güvence: `python -m pytest tests/test_parallel_crawler.py::TestParallelCrawler::test_resume_skips_processed tests/test_parallel_crawler.py::TestParallelCrawler::test_process_with_mock_worker -q` → **2 passed**
+  - Sözdizimi: `python -m py_compile src/parallel_crawler.py tests/test_parallel_accounting.py` → **PASS**
 
 **Tahmini Süre:** 1 gün
 
@@ -285,8 +304,8 @@ Atlas DB'deki pocket merkezlerinin %88.16'sı [0,0,0]. Bu, overlap ve FPR analiz
 
 #### **P0.4 - Timeout Enforcement (1 gün)**
 
-**Sahip:** TBD  
-**Durum:** ⚪ Başlanmadı  
+**Sahip:** Codex  
+**Durum:** ✅ Tamamlandı (2026-02-13)  
 **Öncelik:** 🟡 HIGH
 
 **NEDEN:**  
@@ -300,16 +319,34 @@ Timeout enforcement zayıf, hung worker'lar timeout'u aşabiliyor.
 
 **Kontrol Listesi:**
 
-- [ ] Wall-clock timeout enforcement ekle
-- [ ] Hung worker isolation ekle
-- [ ] Deterministic test yaz (synthetic sleeper worker)
-- [ ] Timeout behavior tests yaz
+- [x] Wall-clock timeout enforcement ekle
+- [x] Hung worker isolation ekle
+- [x] Deterministic test yaz (synthetic sleeper worker)
+- [x] Timeout behavior tests yaz
 
 **Kabul Kriterleri:**
 
-- [ ] Timeout tests PASS
-- [ ] Hung worker isolated
-- [ ] Deterministic test PASS
+- [x] Timeout tests PASS
+- [x] Hung worker isolated
+- [x] Deterministic test PASS
+
+**Tamamlanma Sonuçları (2026-02-13):**
+
+- Kod değişiklikleri (`src/parallel_crawler.py`):
+  - `_process_batch()` wall-clock timeout bazlı yeniden yazıldı (`wait(..., return_when=FIRST_COMPLETED)` + deadline sweep).
+  - Timeout aşan future'lar `status=timeout` olarak işaretleniyor, batch sonuç üretimi beklemeye takılmıyor.
+  - Hung worker isolation eklendi:
+    - Timeout varsa `executor.shutdown(wait=False, cancel_futures=True)`
+    - Timeout yoksa normal `shutdown(wait=True)`
+- Deterministic testler (`tests/test_parallel_timeout.py`):
+  - `test_wall_clock_timeout_with_synthetic_sleeper`
+  - `test_hung_worker_isolation_keeps_fast_results`
+  - `test_timeout_uses_nonblocking_shutdown`
+  - Sonuç: `python -m pytest tests/test_parallel_timeout.py -q` → **3 passed**
+- Ek regresyon güvence:
+  - `python -m pytest tests/test_parallel_crawler.py::TestParallelCrawler::test_process_with_mock_worker tests/test_parallel_crawler.py::TestParallelCrawler::test_resume_skips_processed -q` → **2 passed**
+  - `python -m pytest tests/test_parallel_accounting.py -q` → **3 passed**
+  - `python -m py_compile src/parallel_crawler.py tests/test_parallel_timeout.py` → **PASS**
 
 **Tahmini Süre:** 1 gün
 
@@ -317,10 +354,10 @@ Timeout enforcement zayıf, hung worker'lar timeout'u aşabiliyor.
 
 **Hafta 1 Exit Criteria:**
 
-- [ ] No silent zero-center writes
-- [ ] Resume writes correctly to DB (or explicit checkpoint-only)
-- [ ] Summary totals coherent
-- [ ] Timeout tests pass
+- [x] No silent zero-center writes
+- [x] Resume writes correctly to DB (or explicit checkpoint-only)
+- [x] Summary totals coherent
+- [x] Timeout tests pass
 
 ---
 
