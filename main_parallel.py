@@ -110,8 +110,22 @@ def cmd_scan(args: argparse.Namespace) -> int:
 def cmd_resume(args: argparse.Namespace) -> int:
     """Resume interrupted scan from checkpoint."""
     print("=" * 60)
-    print("PHASE 5.1 — Resume from Checkpoint")
+    print("PHASE 5.1 - Resume from Checkpoint")
     print("=" * 60)
+
+    # P0.2 safety rule: resume must write to DB explicitly.
+    if not args.db:
+        print(
+            "[ERROR] --db is required for resume. "
+            "Resume without DB is blocked to prevent checkpoint/DB divergence.",
+            file=sys.stderr,
+        )
+        return 1
+
+    db_path = Path(args.db)
+    if not db_path.exists() or not db_path.is_file():
+        print(f"[ERROR] DB file not found: {db_path}", file=sys.stderr)
+        return 1
 
     crawler = ParallelCrawler(
         max_workers=args.workers,
@@ -119,28 +133,40 @@ def cmd_resume(args: argparse.Namespace) -> int:
         profile=args.profile,
         timeout=args.timeout,
         checkpoint_dir=args.checkpoint_dir,
+        db_path=str(db_path),
     )
 
-    state = crawler.get_checkpoint_state()
-    if not state:
-        print("[INFO] No checkpoint found. Nothing to resume.")
+    try:
+        state = crawler.get_checkpoint_state()
+        if not state:
+            print("[INFO] No checkpoint found. Nothing to resume.")
+            return 0
+
+        # Need original PDB list to know remaining
+        if not args.input:
+            print(
+                "[ERROR] --input required for resume (original PDB list)",
+                file=sys.stderr,
+            )
+            return 1
+
+        input_path = Path(args.input)
+        if not input_path.exists():
+            print(f"[ERROR] Input file not found: {input_path}", file=sys.stderr)
+            return 1
+
+        with open(input_path) as f:
+            data = json.load(f)
+        pdb_ids = data.get("pdb_ids", data) if isinstance(data, dict) else data
+        if not isinstance(pdb_ids, list):
+            print("[ERROR] Invalid input format", file=sys.stderr)
+            return 1
+
+        results = crawler.process_pdb_list(pdb_ids, resume=True)
+        print(f"Resume complete: {len(results)} total results.")
         return 0
-
-    # Need original PDB list to know remaining
-    if not args.input:
-        print(
-            "[ERROR] --input required for resume (original PDB list)",
-            file=sys.stderr,
-        )
-        return 1
-
-    with open(args.input) as f:
-        data = json.load(f)
-    pdb_ids = data.get("pdb_ids", data) if isinstance(data, dict) else data
-
-    results = crawler.process_pdb_list(pdb_ids, resume=True)
-    print(f"Resume complete: {len(results)} total results.")
-    return 0
+    finally:
+        crawler.close_db()
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -209,6 +235,12 @@ def main() -> int:
     p_resume.add_argument("--n-frames", type=int, default=20)
     p_resume.add_argument("--profile", type=str, default="default")
     p_resume.add_argument("--timeout", type=int, default=120)
+    p_resume.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="SQLite database path for resume writes (required)",
+    )
     p_resume.add_argument(
         "--checkpoint-dir", type=str, default="data/checkpoints"
     )

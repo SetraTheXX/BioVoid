@@ -1,8 +1,8 @@
 # Bio-Void Hunter Validation Report
 
-> **Generated:** 2026-02-10T18:17:10.144494
-> **Test Set:** 10 known cryptic pockets
-> **Tolerance:** 15.0 Angstrom
+> **Generated:** 2026-02-13T00:58:32.387447
+> **Test Set:** 20 known cryptic pockets
+> **Tolerance:** 8.0 Angstrom
 
 ---
 
@@ -10,19 +10,19 @@
 
 | Metric | Value |
 |--------|-------|
-| **Recall (Sensitivity)** | **30.0%** (3/10) |
-| Precision | 0.08% |
-| F1-Score | 0.2% |
-| True Positives | 3 |
-| False Negatives | 7 |
+| **Recall (Sensitivity)** | **10.0%** (2/20) |
+| Precision | 0.03% |
+| F1-Score | 0.1% |
+| True Positives | 2 |
+| False Negatives | 18 |
 | Failed Runs | 0 |
-| Avg Best Distance | 27.3 A |
-| Total Runtime | 61.0s |
+| Avg Best Distance | 23.8 A |
+| Total Runtime | 62.5s |
 
-### Decision: PASS
+### Decision: NEEDS IMPROVEMENT
 
-Recall (30.0%) meets the minimum threshold (30%).
-**Proceed to Phase 6.**
+Recall (10.0%) is below the minimum threshold (30%).
+**Method improvement required before Phase 6.**
 
 ---
 
@@ -34,7 +34,7 @@ Recall (30.0%) meets the minimum threshold (30%).
 | AlphaFold+MD | 60-85% | Hours-days | ~100 proteins/month |
 | AlphaFold Solo | 60% | Hours | ~1K proteins/month |
 | fpocket (Voronoi) | 40-60% | Seconds | Unlimited |
-| **BioVoid (NMA)** | **30%** | **Seconds** | **Unlimited** |
+| **BioVoid (NMA)** | **10%** | **Seconds** | **Unlimited** |
 
 ---
 
@@ -42,16 +42,26 @@ Recall (30.0%) meets the minimum threshold (30%).
 
 | PDB | Protein | Type | Status | Distance | Bio-Score | Volume |
 |-----|---------|------|--------|----------|-----------|--------|
-| 1CBS | Cellular Retinoic Acid-Bi | side-chain_flip | HIT | 0.2 | 0.883 | 2494 |
-| 3C79 | TEM-1 Beta-Lactamase | loop_rearrangement | MISS | 27.7 | 0.813 | 2006 |
-| 1F41 | Interleukin-2 (IL-2) | side-chain_flip | MISS | 17.8 | 0.663 | 576 |
-| 1YET | Bcl-xL | helix_displacement | MISS | 78.9 | 0.685 | 1489 |
-| 1G4E | p38 MAP Kinase | DFG-out | MISS | 21.4 | 0.761 | 1720 |
-| 1OHR | Plasmepsin II | flap_opening | MISS | 27.0 | 0.697 | 447 |
-| 2BXR | Niemann-Pick C2 | domain_motion | MISS | 25.4 | 0.768 | 1104 |
-| 2VTA | Adenylate Kinase (Adk) -  | domain_motion | HIT | 13.6 | 0.754 | 2327 |
-| 1AKE | Adenylate Kinase (Adk) -  | domain_motion | HIT | 12.7 | 0.870 | 2725 |
-| 1STP | Streptavidin | loop_closure | MISS | 47.9 | 0.616 | 668 |
+| 1CBS | Cellular Retinoic Acid-Bi | side-chain_flip | HIT | 2.8 | 0.799 | 1312 |
+| 3C79 | TEM-1 Beta-Lactamase | loop_rearrangement | MISS | 33.3 | 0.830 | 2034 |
+| 1F41 | Interleukin-2 (IL-2) | side-chain_flip | MISS | 19.6 | 0.856 | 2757 |
+| 1YET | Bcl-xL | helix_displacement | MISS | 81.4 | 0.900 | 2596 |
+| 1G4E | p38 MAP Kinase | DFG-out | MISS | 24.8 | 0.813 | 2020 |
+| 1OHR | Plasmepsin II | flap_opening | MISS | 26.9 | 0.696 | 446 |
+| 2BXR | Niemann-Pick C2 | domain_motion | MISS | 33.0 | 0.851 | 2124 |
+| 2VTA | Adenylate Kinase (Adk) -  | domain_motion | MISS | 13.6 | 0.754 | 2331 |
+| 1AKE | Adenylate Kinase (Adk) -  | domain_motion | MISS | 12.8 | 0.870 | 2723 |
+| 1STP | Streptavidin | loop_closure | MISS | 50.9 | 0.721 | 944 |
+| 1LI2 | Lipocalin-type Prostaglan | side-chain_flip | MISS | 9.4 | 0.655 | 1030 |
+| 3ERT | Estrogen Receptor alpha | helix_displacement | MISS | 21.4 | 0.760 | 1997 |
+| 1T46 | HIV-1 Reverse Transcripta | allosteric | MISS | 18.0 | 0.806 | 2529 |
+| 1M17 | EGFR Kinase | DFG-out | MISS | 39.8 | 0.827 | 1906 |
+| 2HYY | Chk1 Kinase | side-chain_flip | MISS | 13.0 | 0.827 | 1507 |
+| 3K5V | PDK1 Kinase | PIF pocket | HIT | 3.6 | 0.820 | 1920 |
+| 1GWR | Cytochrome c Peroxidase | loop_rearrangement | MISS | 27.6 | 0.806 | 1890 |
+| 2P2I | Glutamate Receptor (iGluR | domain_motion | MISS | 12.1 | 0.919 | 2305 |
+| 1JWP | Fatty Acid Binding Protei | portal_opening | MISS | 13.6 | 0.879 | 2390 |
+| 1RX4 | Immunophilin FKBP12 | loop_rearrangement | MISS | 18.6 | 0.811 | 1738 |
 
 ---
 
@@ -60,44 +70,91 @@ Recall (30.0%) meets the minimum threshold (30%).
 ### Missed Pockets
 
 - **3C79** (TEM-1 Beta-Lactamase): loop_rearrangement
-  - Best distance: 27.7A (threshold: 15.0A)
+  - Best distance: 33.3A (threshold: 8.0A)
   - Reference: Horn & Bhagat 2009, Horn & Shoichet 2010
 
 - **1F41** (Interleukin-2 (IL-2)): side-chain_flip
-  - Best distance: 17.8A (threshold: 15.0A)
+  - Best distance: 19.6A (threshold: 8.0A)
   - Reference: Arkin et al. 2003, PNAS
 
 - **1YET** (Bcl-xL): helix_displacement
-  - Best distance: 78.9A (threshold: 15.0A)
+  - Best distance: 81.4A (threshold: 8.0A)
   - Reference: Oltersdorf et al. 2005, Nature
 
 - **1G4E** (p38 MAP Kinase): DFG-out
-  - Best distance: 21.4A (threshold: 15.0A)
+  - Best distance: 24.8A (threshold: 8.0A)
   - Reference: Pargellis et al. 2002, Nature Struct Biol
 
 - **1OHR** (Plasmepsin II): flap_opening
-  - Best distance: 27.0A (threshold: 15.0A)
+  - Best distance: 26.9A (threshold: 8.0A)
   - Reference: Meller et al. 2023
 
 - **2BXR** (Niemann-Pick C2): domain_motion
-  - Best distance: 25.4A (threshold: 15.0A)
+  - Best distance: 33.0A (threshold: 8.0A)
   - Reference: Meller et al. 2023, AlphaFold successful case
 
+- **2VTA** (Adenylate Kinase (Adk) - closed): domain_motion
+  - Best distance: 13.6A (threshold: 8.0A)
+  - Reference: Henzler-Wildman et al. 2007, Nature
+
+- **1AKE** (Adenylate Kinase (Adk) - open): domain_motion
+  - Best distance: 12.8A (threshold: 8.0A)
+  - Reference: Muller et al. 1996, Structure
+
 - **1STP** (Streptavidin): loop_closure
-  - Best distance: 47.9A (threshold: 15.0A)
+  - Best distance: 50.9A (threshold: 8.0A)
   - Reference: Weber et al. 1989
+
+- **1LI2** (Lipocalin-type Prostaglandin D Synthase): side-chain_flip
+  - Best distance: 9.4A (threshold: 8.0A)
+  - Reference: Inoue et al. 2008
+
+- **3ERT** (Estrogen Receptor alpha): helix_displacement
+  - Best distance: 21.4A (threshold: 8.0A)
+  - Reference: Shiau et al. 1998, Cell
+
+- **1T46** (HIV-1 Reverse Transcriptase): allosteric
+  - Best distance: 18.0A (threshold: 8.0A)
+  - Reference: Ren et al. 2001
+
+- **1M17** (EGFR Kinase): DFG-out
+  - Best distance: 39.8A (threshold: 8.0A)
+  - Reference: Stamos et al. 2002
+
+- **2HYY** (Chk1 Kinase): side-chain_flip
+  - Best distance: 13.0A (threshold: 8.0A)
+  - Reference: Converso et al. 2009
+
+- **1GWR** (Cytochrome c Peroxidase): loop_rearrangement
+  - Best distance: 27.6A (threshold: 8.0A)
+  - Reference: Bowman Lab benchmark
+
+- **2P2I** (Glutamate Receptor (iGluR)): domain_motion
+  - Best distance: 12.1A (threshold: 8.0A)
+  - Reference: Bhatt et al. 2016
+
+- **1JWP** (Fatty Acid Binding Protein): portal_opening
+  - Best distance: 13.6A (threshold: 8.0A)
+  - Reference: Richieri et al. 2000
+
+- **1RX4** (Immunophilin FKBP12): loop_rearrangement
+  - Best distance: 18.6A (threshold: 8.0A)
+  - Reference: Van Duyne et al. 1993
 
 ### Performance by Pocket Type
 
 | Pocket Type | Hits | Total | Rate |
 |-------------|------|-------|------|
-| DFG-out | 0 | 1 | 0% |
-| domain_motion | 2 | 3 | 67% |
+| DFG-out | 0 | 2 | 0% |
+| PIF pocket | 1 | 1 | 100% |
+| allosteric | 0 | 1 | 0% |
+| domain_motion | 0 | 4 | 0% |
 | flap_opening | 0 | 1 | 0% |
-| helix_displacement | 0 | 1 | 0% |
+| helix_displacement | 0 | 2 | 0% |
 | loop_closure | 0 | 1 | 0% |
-| loop_rearrangement | 0 | 1 | 0% |
-| side-chain_flip | 1 | 2 | 50% |
+| loop_rearrangement | 0 | 3 | 0% |
+| portal_opening | 0 | 1 | 0% |
+| side-chain_flip | 1 | 4 | 25% |
 
 ---
 
@@ -121,9 +178,10 @@ Recall (30.0%) meets the minimum threshold (30%).
 
 ## Publication Readiness
 
-**Assessment: CONDITIONALLY READY**
+**Assessment: NOT READY**
 
-Consider additional benchmarks (fpocket comparison) before submission.
+Method improvement or alternative positioning required.
+Consider: negative result paper, or pivot to screening-only tool.
 
 ---
 

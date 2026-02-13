@@ -1,0 +1,214 @@
+{
+  "aggregate": {
+    "common_proteins": 99,
+    "distance_only_matches": 498,
+    "distance_plus_volume_matches": 89,
+    "distance_to_volume_drop": 409,
+    "distance_fail": 616,
+    "volume_fail": 409,
+    "invalid_center": 0,
+    "fpocket_valid_total": 1114
+  },
+  "top20_transition_drop": [
+    {
+      "pdb_id": "8PB6",
+      "fpocket_valid": 20,
+      "distance_only": 10,
+      "distance_plus_volume": 0,
+      "transition_drop": 10,
+      "distance_fail": 10,
+      "volume_fail": 10,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "4YXI",
+      "fpocket_valid": 15,
+      "distance_only": 10,
+      "distance_plus_volume": 0,
+      "transition_drop": 10,
+      "distance_fail": 5,
+      "volume_fail": 10,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "6ZX4",
+      "fpocket_valid": 20,
+      "distance_only": 8,
+      "distance_plus_volume": 0,
+      "transition_drop": 8,
+      "distance_fail": 12,
+      "volume_fail": 8,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "7OTU",
+      "fpocket_valid": 17,
+      "distance_only": 9,
+      "distance_plus_volume": 1,
+      "transition_drop": 8,
+      "distance_fail": 8,
+      "volume_fail": 8,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "9HDW",
+      "fpocket_valid": 15,
+      "distance_only": 8,
+      "distance_plus_volume": 0,
+      "transition_drop": 8,
+      "distance_fail": 7,
+      "volume_fail": 8,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "5RC2",
+      "fpocket_valid": 13,
+      "distance_only": 8,
+      "distance_plus_volume": 0,
+      "transition_drop": 8,
+      "distance_fail": 5,
+      "volume_fail": 8,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "5R2O",
+      "fpocket_valid": 13,
+      "distance_only": 9,
+      "distance_plus_volume": 1,
+      "transition_drop": 8,
+      "distance_fail": 4,
+      "volume_fail": 8,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "5R35",
+      "fpocket_valid": 12,
+      "distance_only": 8,
+      "distance_plus_volume": 0,
+      "transition_drop": 8,
+      "distance_fail": 4,
+      "volume_fail": 8,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "2FVY",
+      "fpocket_valid": 20,
+      "distance_only": 7,
+      "distance_plus_volume": 0,
+      "transition_drop": 7,
+      "distance_fail": 13,
+      "volume_fail": 7,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "9QAB",
+      "fpocket_valid": 20,
+      "distance_only": 7,
+      "distance_plus_volume": 0,
+      "transition_drop": 7,
+      "distance_fail": 13,
+      "volume_fail": 7,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "4A7U",
+      "fpocket_valid": 20,
+      "distance_only": 8,
+      "distance_plus_volume": 1,
+      "transition_drop": 7,
+      "distance_fail": 12,
+      "volume_fail": 7,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "6T3P",
+      "fpocket_valid": 18,
+      "distance_only": 7,
+      "distance_plus_volume": 0,
+      "transition_drop": 7,
+      "distance_fail": 11,
+      "volume_fail": 7,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "8AUU",
+      "fpocket_valid": 18,
+      "distance_only": 7,
+      "distance_plus_volume": 0,
+      "transition_drop": 7,
+      "distance_fail": 11,
+      "volume_fail": 7,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "3G9X",
+      "fpocket_valid": 14,
+      "distance_only": 7,
+      "distance_plus_volume": 0,
+      "transition_drop": 7,
+      "distance_fail": 7,
+      "volume_fail": 7,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "3VOR",
+      "fpocket_valid": 13,
+      "distance_only": 9,
+      "distance_plus_volume": 2,
+      "transition_drop": 7,
+      "distance_fail": 4,
+      "volume_fail": 7,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "6Y1P",
+      "fpocket_valid": 20,
+      "distance_only": 6,
+      "distance_plus_volume": 0,
+      "transition_drop": 6,
+      "distance_fail": 14,
+      "volume_fail": 6,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "8SH6",
+      "fpocket_valid": 20,
+      "distance_only": 7,
+      "distance_plus_volume": 1,
+      "transition_drop": 6,
+      "distance_fail": 13,
+      "volume_fail": 6,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "9V69",
+      "fpocket_valid": 19,
+      "distance_only": 6,
+      "distance_plus_volume": 0,
+      "transition_drop": 6,
+      "distance_fail": 13,
+      "volume_fail": 6,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "7TWT",
+      "fpocket_valid": 18,
+      "distance_only": 6,
+      "distance_plus_volume": 0,
+      "transition_drop": 6,
+      "distance_fail": 12,
+      "volume_fail": 6,
+      "invalid_center": 0
+    },
+    {
+      "pdb_id": "8AQP",
+      "fpocket_valid": 18,
+      "distance_only": 7,
+      "distance_plus_volume": 1,
+      "transition_drop": 6,
+      "distance_fail": 11,
+      "volume_fail": 6,
+      "invalid_center": 0
+    }
+  ]
+}
