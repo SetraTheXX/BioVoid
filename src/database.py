@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import logging
 import shutil
 import sqlite3
 import time
@@ -31,6 +32,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Generator, Sequence
+
+LOGGER = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -400,20 +403,80 @@ class AtlasDB:
         pdb_id = record["pdb_id"].upper().strip()
         pocket_id = record["pocket_id"]
 
-        # Extract center coordinates
+        # Extract center coordinates (supports list/tuple/ndarray/string)
         center = record.get("center", [0.0, 0.0, 0.0])
         if isinstance(center, (list, tuple)) and len(center) >= 3:
             cx, cy, cz = center[0], center[1], center[2]
+        elif isinstance(center, str):
+            raw = center.strip().replace(",", " ")
+            if raw.startswith("[") and raw.endswith("]"):
+                raw = raw[1:-1]
+            parts = [p for p in raw.split() if p]
+            if len(parts) >= 3:
+                cx, cy, cz = parts[0], parts[1], parts[2]
+            else:
+                cx = record.get("center_x", 0.0)
+                cy = record.get("center_y", 0.0)
+                cz = record.get("center_z", 0.0)
+        elif hasattr(center, "__len__") and not isinstance(center, (bytes, bytearray)):
+            try:
+                if len(center) >= 3:
+                    cx, cy, cz = center[0], center[1], center[2]
+                else:
+                    cx = record.get("center_x", 0.0)
+                    cy = record.get("center_y", 0.0)
+                    cz = record.get("center_z", 0.0)
+            except Exception:
+                cx = record.get("center_x", 0.0)
+                cy = record.get("center_y", 0.0)
+                cz = record.get("center_z", 0.0)
         else:
             cx = record.get("center_x", 0.0)
             cy = record.get("center_y", 0.0)
             cz = record.get("center_z", 0.0)
 
+        try:
+            cx = float(cx)
+            cy = float(cy)
+            cz = float(cz)
+        except Exception:
+            cx, cy, cz = 0.0, 0.0, 0.0
+
         # Extract score components
         sc = record.get("score_components", {})
-        metadata = record.get("metadata") or record.get("metadata_json")
-        if isinstance(metadata, dict):
-            metadata = json.dumps(metadata, default=str)
+        metadata_input = record.get("metadata") or record.get("metadata_json")
+        metadata: str | None = None
+        metadata_dict: dict[str, Any] | None = None
+
+        if isinstance(metadata_input, dict):
+            metadata_dict = dict(metadata_input)
+        elif isinstance(metadata_input, str):
+            metadata = metadata_input
+            try:
+                parsed = json.loads(metadata_input)
+                if isinstance(parsed, dict):
+                    metadata_dict = parsed
+            except Exception:
+                metadata_dict = None
+
+        is_zero_center = abs(cx) < 1e-12 and abs(cy) < 1e-12 and abs(cz) < 1e-12
+        if is_zero_center:
+            if metadata_dict is None:
+                metadata_dict = {}
+                if metadata:
+                    metadata_dict["legacy_metadata_raw"] = metadata
+            metadata_dict["invalid_center"] = 1
+            metadata_dict.setdefault("invalid_center_reason", "zero_center_on_write")
+            metadata_dict.setdefault("center_guard_mode", "soft_warning")
+            metadata = json.dumps(metadata_dict, default=str)
+            LOGGER.warning(
+                "Soft-guard: [0,0,0] center detected for %s pocket_id=%s. "
+                "Marked metadata invalid_center=1.",
+                pdb_id,
+                pocket_id,
+            )
+        elif metadata_dict is not None:
+            metadata = json.dumps(metadata_dict, default=str)
 
         cursor = self.conn.execute(
             """

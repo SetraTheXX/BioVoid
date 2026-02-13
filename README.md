@@ -21,6 +21,22 @@ cd BioVoid
 pip install -r requirements.txt
 ```
 
+### Faz 5.5 Hazırbulunuşluk (fpocket)
+
+```bash
+# fpocket (önerilen)
+conda install -c bioconda fpocket=4.1
+
+# alternatif (mamba)
+mamba install -c bioconda fpocket=4.1
+```
+
+Kurulum sonrası doğrulama:
+
+```bash
+fpocket -h
+```
+
 ## 📂 Dizin Yapısı
 
 - `src/`: Ana kaynak kodları (dynamics, geometry, docking).
