@@ -8,6 +8,24 @@
 > **Revizyon:** ChatGPT feedback + Gate Rerun sonuÃ§larÄ± ile gÃ¼ncellendi
 > **SoT:** Nihai gate metrikleri ve karar icin tek referans `docs/phase5_5_gate_decision.md` dosyasidir
 
+## Recovery v2 Current Snapshot (2026-02-17)
+
+This section is the authoritative execution snapshot for the current loop.
+
+- Current phase: Phase 5.5 Recovery v2
+- Stage location: Post-SG1, CP-A pivot completed (mini-set)
+- CP-A decision: FAIL (`PIVOT_REQUIRED`)
+- Best CP-A mini result: recall `1/7 = 0.1429`, domain-motion `1/4`, `error_count=0`
+- WS-B status: CP-B prep package generated (`docs/recovery_v2_overlap_cp_b_prep.md`)
+- WS-C status: guard PASS (`docs/recovery_v2_regression_guard_report.md`)
+- Phase 6 status: BLOCKED
+
+Immediate next actions:
+1. WS-A: start CP-A pivot iteration-2 (mini-set only, no full-20 run yet).
+2. WS-B: run CP-B Option-1 spike (quantile-calibrated volume representation) on focused candidate set.
+3. WS-C: rerun guard + drift + alignment after each WS-A/WS-B code change.
+4. Trigger SG4 final gate rerun only after clear upward signal (`recall >= 0.22` on mini-set and overlap pilot signal retained).
+
 ---
 
 ## âš ï¸ **KRÄ°TÄ°K NOTLAR (ChatGPT Feedback)**
