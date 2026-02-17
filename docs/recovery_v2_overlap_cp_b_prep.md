@@ -36,6 +36,16 @@
 | 9 | 4A7U | 18.0000 | 0.0500 | 0.2000 | 0.1500 | 3 | 6 |
 | 10 | 8SH6 | 18.0000 | 0.0500 | 0.2000 | 0.1500 | 3 | 6 |
 
+## Option-1 Spike v1 (Measured)
+
+- Pilot top25 overlap: `0.0871 -> 0.3010` (`+0.2139`)
+- Top10 CP-B candidate-set overlap: `0.1087 -> 0.4043` (`+0.2957`)
+- Focus proteins:
+  - 5R35: `0.0000 -> 0.3750` (matched `0 -> 6`)
+  - 1GQV: `0.0714 -> 0.4286` (matched `1 -> 6`)
+  - 9HDW: `0.0000 -> 0.3429` (matched `0 -> 6`)
+- Official global gate metric: **unchanged** (`0.0577`, threshold `0.40`)
+
 ## CP-B Technical Options (3)
 
 ### Option 1 - Quantile-Calibrated Volume Representation
@@ -43,9 +53,9 @@
 - Pocket representation improvement step:
   - Matched-center alt kumesinde fpocket/BioVoid volume dagilimlari arasina monotonic quantile mapping ekle.
   - Evaluation yine official rule ile kalir: `0.50 <= ratio <= 2.00`.
-- Expected effect (full benchmark target band):
-  - Official overlap: **0.09 - 0.14**
-  - Candidate proteins on Top-10 set: median `delta_overlap` +0.08 ila +0.15
+- Measured effect (v1 spike):
+  - Pilot top25 overlap: **0.0871 -> 0.3010**
+  - Top10 candidate-set overlap: **0.1087 -> 0.4043**
 - Risk / regression effect:
   - Dusuk/orta risk. Global pocket ranking dagilimini kaydirabilir.
   - Guard ihtiyaci: FPR smoke + MD smoke + drift lock.
