@@ -26,6 +26,8 @@ import argparse
 import json
 import sys
 import time
+import io
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
@@ -38,9 +40,16 @@ sys.path.insert(0, str(ROOT))
 
 from src.fetcher import fetch_pdb, FetchError
 from src.dynamics import run_nma_simulation
-from src.geometry import find_voids, extract_atom_coords
-from src.cavities import find_cavities
-from src.scoring import rank_pockets
+from src.multiframe import (
+    ConsensusConfig,
+    analyze_structure_file,
+    list_frame_files,
+    run_multiframe_consensus,
+)
+from src.frame_reconstruction import (
+    reconstruct_all_atom_frame_from_ca,
+    stats_to_dict,
+)
 
 
 @dataclass
@@ -59,6 +68,15 @@ class ValidationResult:
     best_pocket_volume: Optional[float]
     n_pockets_found: int
     n_druggable_pockets: int
+    aggregation_mode: str
+    frames_analyzed: int
+    consensus_clusters: int
+    avg_consensus_support: Optional[float]
+    avg_center_stability: Optional[float]
+    avg_volume_cv: Optional[float]
+    analysis_atom_mode: str
+    reconstruction_coverage: Optional[float]
+    reconstruction_mean_displacement: Optional[float]
     error: Optional[str]
     runtime_seconds: float
 
@@ -75,6 +93,12 @@ class ValidationSummary:
     precision: float
     f1_score: float
     avg_best_distance: float
+    avg_frames_analyzed: float
+    avg_consensus_support: float
+    avg_center_stability: float
+    avg_volume_cv: float
+    avg_reconstruction_coverage: float
+    avg_reconstruction_mean_displacement: float
     total_runtime_seconds: float
     timestamp: str
     config: Dict[str, Any]
@@ -130,59 +154,382 @@ def check_pocket_match(
         return False, None, None
 
 
+def _extract_ca_coords_from_pdb(pdb_path: str | Path) -> Optional[np.ndarray]:
+    """Extract CA atom coordinates from a PDB file."""
+    coords: list[list[float]] = []
+    path = Path(pdb_path)
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            for line in handle:
+                if not line.startswith(("ATOM", "HETATM")):
+                    continue
+                atom_name = line[12:16].strip()
+                if atom_name != "CA":
+                    continue
+                try:
+                    x = float(line[30:38])
+                    y = float(line[38:46])
+                    z = float(line[46:54])
+                except ValueError:
+                    continue
+                coords.append([x, y, z])
+    except OSError:
+        return None
+
+    if not coords:
+        return None
+    return np.asarray(coords, dtype=float)
+
+
+def _frame_displacement_rmsd(
+    reference_ca: Optional[np.ndarray],
+    frame_file: Path,
+    *,
+    fallback_index: int = 0,
+) -> float:
+    """Approximate frame displacement with CA RMSD to a reference frame."""
+    if reference_ca is None:
+        return float(fallback_index)
+
+    frame_ca = _extract_ca_coords_from_pdb(frame_file)
+    if frame_ca is None or frame_ca.shape != reference_ca.shape:
+        return float(fallback_index)
+
+    deltas = frame_ca - reference_ca
+    rmsd = float(np.sqrt(np.mean(np.sum(deltas * deltas, axis=1))))
+    if not np.isfinite(rmsd):
+        return float(fallback_index)
+    return rmsd
+
+
+def _select_frame_subset(
+    frame_files: List[Path],
+    *,
+    selection_mode: str,
+    selection_fraction: float,
+    min_required_frames: int = 3,
+) -> Tuple[List[Path], Dict[str, Any]]:
+    """
+    Select a subset of frames for multi-frame analysis.
+
+    Modes:
+    - all: all frames
+    - uniform: evenly spaced subset
+    - domain_motion_weighted: displacement-biased subset + anchors
+    """
+    if not frame_files:
+        return [], {
+            "frame_selection_mode": selection_mode,
+            "frame_selection_fraction": selection_fraction,
+            "selected_frames": 0,
+            "total_frames": 0,
+            "selection_note": "no_frame_files",
+        }
+
+    mode = selection_mode.lower().strip()
+    if mode not in {"all", "uniform", "domain_motion_weighted"}:
+        mode = "all"
+
+    total = len(frame_files)
+    fraction = max(0.05, min(1.0, float(selection_fraction)))
+
+    if mode == "all" or fraction >= 0.999:
+        return list(frame_files), {
+            "frame_selection_mode": mode,
+            "frame_selection_fraction": fraction,
+            "selected_frames": total,
+            "total_frames": total,
+            "selection_note": "all_frames",
+        }
+
+    target = max(min_required_frames, int(round(total * fraction)))
+    target = min(total, target)
+
+    if mode == "uniform":
+        idx = np.linspace(0, total - 1, num=target, dtype=int)
+        selected_idx = sorted({int(i) for i in idx.tolist()})
+        selected = [frame_files[i] for i in selected_idx]
+        return selected, {
+            "frame_selection_mode": mode,
+            "frame_selection_fraction": fraction,
+            "selected_frames": len(selected),
+            "total_frames": total,
+            "selection_note": "uniform_sampling",
+        }
+
+    # domain_motion_weighted
+    reference_ca = _extract_ca_coords_from_pdb(frame_files[0])
+    displacement_rows = []
+    for idx, frame_file in enumerate(frame_files):
+        displacement_rows.append(
+            (idx, _frame_displacement_rmsd(reference_ca, frame_file, fallback_index=idx))
+        )
+    displacement_rows.sort(key=lambda row: row[1], reverse=True)
+
+    anchor_idx = {0, total // 2, total - 1}
+    high_motion_n = max(min_required_frames, int(round(target * 0.70)))
+    selected_idx = {idx for idx, _ in displacement_rows[:high_motion_n]}
+    selected_idx |= anchor_idx
+
+    if len(selected_idx) < target:
+        fill_idx = np.linspace(0, total - 1, num=target, dtype=int)
+        selected_idx |= {int(i) for i in fill_idx.tolist()}
+
+    if len(selected_idx) > target:
+        selected_idx_sorted = sorted(selected_idx)
+        trimmed = np.linspace(0, len(selected_idx_sorted) - 1, num=target, dtype=int)
+        selected_idx = {selected_idx_sorted[int(i)] for i in trimmed.tolist()}
+
+    selected_idx_sorted = sorted(selected_idx)
+    selected = [frame_files[i] for i in selected_idx_sorted]
+    selected_displacements = [
+        score for idx, score in displacement_rows if idx in selected_idx
+    ]
+    all_displacements = [score for _, score in displacement_rows]
+    return selected, {
+        "frame_selection_mode": mode,
+        "frame_selection_fraction": fraction,
+        "selected_frames": len(selected),
+        "total_frames": total,
+        "selection_note": "domain_motion_weighted",
+        "avg_selected_displacement": (
+            float(np.mean(selected_displacements)) if selected_displacements else 0.0
+        ),
+        "avg_all_displacement": (
+            float(np.mean(all_displacements)) if all_displacements else 0.0
+        ),
+        "max_selected_displacement": (
+            float(np.max(selected_displacements)) if selected_displacements else 0.0
+        ),
+    }
+
+
 def run_pipeline_for_protein(
     pdb_id: str,
     n_frames: int = 20,
-    output_dir: str = "data/validation/results"
-) -> Tuple[List[Dict], Optional[str]]:
+    output_dir: str = "data/validation/results",
+    aggregation_mode: str = "single",
+    analysis_atom_mode: str = "frame_ca",
+    consensus_min_frames: int = 3,
+    consensus_distance: float = 4.0,
+    per_frame_top_n: int = 20,
+    center_stability_max: float = 2.0,
+    volume_cv_max: float = 0.20,
+    reuse_existing_frames: bool = False,
+    frame_selection_mode: str = "all",
+    frame_selection_fraction: float = 1.0,
+) -> Tuple[List[Dict], Dict[str, Any], Optional[str]]:
     """
     Run BioVoid pipeline for a single protein.
     
     Returns:
-        (cavities_list, error_message)
+        (cavities_list, diagnostics, error_message)
     """
+    mode = aggregation_mode.lower().strip()
+    if mode not in {"single", "multi"}:
+        return [], {}, f"Unsupported aggregation mode: {aggregation_mode}"
+    atom_mode = analysis_atom_mode.lower().strip()
+    if atom_mode not in {"frame_ca", "reconstructed_heavy"}:
+        return [], {}, f"Unsupported analysis atom mode: {analysis_atom_mode}"
+
     try:
-        pdb_file = fetch_pdb(pdb_id)
-        
+        sink = io.StringIO()
+        with redirect_stdout(sink), redirect_stderr(sink):
+            pdb_file = fetch_pdb(pdb_id)
+
+        frames_dir: Optional[str] = None
+        frame_files: List[Path] = []
         try:
-            nma_result = run_nma_simulation(
-                pdb_path=pdb_file,
-                n_modes=10,
-                n_frames=n_frames,
-                output_dir=f"data/frames/{pdb_id.lower()}"
-            )
-            frames_dir = nma_result['output_dir']
-            frame_file = Path(frames_dir) / f"frame_{n_frames//2:03d}.pdb"
-            if not frame_file.exists():
-                frame_file = Path(frames_dir) / "frame_001.pdb"
-            analysis_file = str(frame_file)
+            frames_output_dir = ROOT / "data" / "frames" / pdb_id.lower()
+            expected_min_frames = max(1, n_frames * 10)
+            if reuse_existing_frames and frames_output_dir.exists():
+                existing_frames = list_frame_files(str(frames_output_dir))
+                if len(existing_frames) == expected_min_frames:
+                    frames_dir = str(frames_output_dir)
+                    frame_files = existing_frames
+
+            if not frame_files:
+                if frames_output_dir.exists():
+                    for stale in frames_output_dir.glob("frame_*.pdb"):
+                        stale.unlink()
+                with redirect_stdout(sink), redirect_stderr(sink):
+                    nma_result = run_nma_simulation(
+                        pdb_path=pdb_file,
+                        n_modes=10,
+                        n_frames=n_frames,
+                        output_dir=f"data/frames/{pdb_id.lower()}",
+                        verbose=False,
+                    )
+                frames_dir = nma_result["output_dir"]
+                frame_files = list_frame_files(frames_dir)
         except Exception:
+            frames_dir = None
+            frame_files = []
+        temp_run_root = ROOT / "data" / "validation" / "tmp_reconstructed_frames"
+        temp_run_root.mkdir(parents=True, exist_ok=True)
+        run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        temp_run_dir = temp_run_root / f"{pdb_id.lower()}_{run_stamp}"
+
+        def _frame_mapper(frame_file: Path):
+            if atom_mode == "frame_ca":
+                return frame_file
+            if atom_mode != "reconstructed_heavy":
+                raise ValueError(f"Unsupported analysis atom mode: {atom_mode}")
+            temp_run_dir.mkdir(parents=True, exist_ok=True)
+            out_path = tmp_dir_path / frame_file.name
+            stats = reconstruct_all_atom_frame_from_ca(
+                template_pdb=pdb_file,
+                ca_frame_pdb=frame_file,
+                output_pdb=out_path,
+            )
+            return out_path, {
+                "reconstruction_coverage": stats.mapping_coverage,
+                "reconstruction_mean_ca_displacement": stats.mean_ca_displacement,
+            }
+
+        if mode == "multi" and frame_files:
+            selected_frame_files, frame_selection_stats = _select_frame_subset(
+                frame_files,
+                selection_mode=frame_selection_mode,
+                selection_fraction=frame_selection_fraction,
+                min_required_frames=max(3, consensus_min_frames),
+            )
+            if atom_mode == "reconstructed_heavy":
+                temp_run_dir.mkdir(parents=True, exist_ok=True)
+            tmp_dir_path = temp_run_dir
+            config = ConsensusConfig(
+                profile="default",
+                per_frame_top_n=per_frame_top_n,
+                min_support_frames=consensus_min_frames,
+                cluster_distance=consensus_distance,
+                center_stability_max=center_stability_max,
+                volume_cv_max=volume_cv_max,
+            )
+            multi = run_multiframe_consensus(
+                frames_dir,
+                config=config,
+                frame_mapper=(_frame_mapper if atom_mode == "reconstructed_heavy" else None),
+                frame_files_override=selected_frame_files,
+            )
+            cavities = multi["consensus_pockets"]
+            stats = multi["consensus_stats"]
+            coverage_vals = [
+                float(s.get("reconstruction_coverage", 0.0))
+                for s in multi.get("frame_stats", [])
+                if s.get("reconstruction_coverage") is not None
+            ]
+            disp_vals = [
+                float(s.get("reconstruction_mean_ca_displacement", 0.0))
+                for s in multi.get("frame_stats", [])
+                if s.get("reconstruction_mean_ca_displacement") is not None
+            ]
+            diagnostics = {
+                "aggregation_mode": "multi",
+                "analysis_atom_mode": atom_mode,
+                "frames_analyzed": multi["frames_analyzed"],
+                "frame_files_total": multi["frame_files_total"],
+                "consensus_clusters": stats.get("consensus_clusters", 0),
+                "avg_consensus_support": stats.get("avg_support_frames", 0.0),
+                "avg_center_stability": stats.get("avg_center_stability", 0.0),
+                "avg_volume_cv": stats.get("avg_volume_cv", 0.0),
+                "frame_errors": len(multi.get("frame_errors", [])),
+                "min_support_frames": consensus_min_frames,
+                "selected_frames": frame_selection_stats.get("selected_frames", 0),
+                "frame_selection_mode": frame_selection_stats.get(
+                    "frame_selection_mode", frame_selection_mode
+                ),
+                "frame_selection_fraction": frame_selection_stats.get(
+                    "frame_selection_fraction", frame_selection_fraction
+                ),
+                "avg_selected_displacement": frame_selection_stats.get(
+                    "avg_selected_displacement"
+                ),
+                "avg_all_displacement": frame_selection_stats.get(
+                    "avg_all_displacement"
+                ),
+                "avg_reconstruction_coverage": (
+                    float(np.mean(coverage_vals)) if coverage_vals else None
+                ),
+                "avg_reconstruction_mean_displacement": (
+                    float(np.mean(disp_vals)) if disp_vals else None
+                ),
+            }
+
+            if cavities:
+                return cavities, diagnostics, None
+
+        if frame_files:
+            # True middle frame among generated ensemble.
+            frame_file = frame_files[len(frame_files) // 2]
+            if atom_mode == "reconstructed_heavy":
+                temp_run_dir.mkdir(parents=True, exist_ok=True)
+                out_path = temp_run_dir / frame_file.name
+                stats = reconstruct_all_atom_frame_from_ca(
+                    template_pdb=pdb_file,
+                    ca_frame_pdb=frame_file,
+                    output_pdb=out_path,
+                )
+                analysis_file = str(out_path)
+                cavities = analyze_structure_file(
+                    analysis_file, profile="default"
+                )
+                diagnostics = {
+                    "aggregation_mode": "single",
+                    "analysis_atom_mode": atom_mode,
+                    "frames_analyzed": len(frame_files),
+                    "frame_files_total": len(frame_files),
+                    "consensus_clusters": 0,
+                    "avg_consensus_support": None,
+                    "avg_center_stability": None,
+                    "avg_volume_cv": None,
+                    "frame_errors": 0,
+                    "min_support_frames": consensus_min_frames,
+                    "avg_reconstruction_coverage": stats.mapping_coverage,
+                    "avg_reconstruction_mean_displacement": (
+                        stats.mean_ca_displacement
+                    ),
+                }
+                return cavities, diagnostics, None
+            analysis_file = str(frame_file)
+            frames_analyzed = len(frame_files)
+        else:
             analysis_file = pdb_file
-        
-        cavities = find_cavities(
-            analysis_file,
-            merge=True,
-            hydrophobic=True,
-            atom_type='heavy'
-        )
-        
-        for i, cavity in enumerate(cavities):
-            cavity['id'] = i
-        
-        atom_coords = extract_atom_coords(analysis_file, atom_type='heavy')
-        cavities = rank_pockets(
-            cavities,
-            atom_coords,
-            profile='default',
-            top_n=None
-        )
-        
-        return cavities, None
-        
+            frames_analyzed = 1
+
+        cavities = analyze_structure_file(analysis_file, profile="default")
+        diagnostics = {
+            "aggregation_mode": "single",
+            "analysis_atom_mode": atom_mode,
+            "frames_analyzed": frames_analyzed,
+            "frame_files_total": len(frame_files),
+            "consensus_clusters": 0,
+            "avg_consensus_support": None,
+            "avg_center_stability": None,
+            "avg_volume_cv": None,
+            "frame_errors": 0,
+            "min_support_frames": consensus_min_frames,
+            "selected_frames": (
+                len(frame_files) if mode == "multi" else None
+            ),
+            "frame_selection_mode": (
+                frame_selection_mode if mode == "multi" else None
+            ),
+            "frame_selection_fraction": (
+                frame_selection_fraction if mode == "multi" else None
+            ),
+            "avg_selected_displacement": None,
+            "avg_all_displacement": None,
+            "avg_reconstruction_coverage": None,
+            "avg_reconstruction_mean_displacement": None,
+        }
+        return cavities, diagnostics, None
+
     except FetchError as e:
-        return [], f"Fetch error: {str(e)}"
+        return [], {}, f"Fetch error: {str(e)}"
     except Exception as e:
-        return [], f"Pipeline error: {str(e)}"
+        return [], {}, f"Pipeline error: {str(e)}"
 
 
 def validate_single_case(
@@ -190,15 +537,42 @@ def validate_single_case(
     tolerance: float,
     n_frames: int,
     top_n: int,
-    druggable_only: bool
+    druggable_only: bool,
+    aggregation_mode: str = "single",
+    analysis_atom_mode: str = "frame_ca",
+    consensus_min_frames: int = 3,
+    consensus_distance: float = 4.0,
+    per_frame_top_n: int = 20,
+    center_stability_max: float = 2.0,
+    volume_cv_max: float = 0.20,
+    reuse_existing_frames: bool = False,
+    frame_selection_mode: str = "all",
+    frame_selection_fraction: float = 1.0,
 ) -> ValidationResult:
     """Validate a single test case"""
     pdb_id = test_case['pdb_id']
     start_time = time.time()
     
-    print(f"  Processing {pdb_id} ({test_case['name']})...", end=" ", flush=True)
+    print(
+        f"  Processing {pdb_id} ({test_case['name']}) [{aggregation_mode}]...",
+        end=" ",
+        flush=True,
+    )
     
-    cavities, error = run_pipeline_for_protein(pdb_id, n_frames=n_frames)
+    cavities, diagnostics, error = run_pipeline_for_protein(
+        pdb_id,
+        n_frames=n_frames,
+        aggregation_mode=aggregation_mode,
+        analysis_atom_mode=analysis_atom_mode,
+        consensus_min_frames=consensus_min_frames,
+        consensus_distance=consensus_distance,
+        per_frame_top_n=per_frame_top_n,
+        center_stability_max=center_stability_max,
+        volume_cv_max=volume_cv_max,
+        reuse_existing_frames=reuse_existing_frames,
+        frame_selection_mode=frame_selection_mode,
+        frame_selection_fraction=frame_selection_fraction,
+    )
     
     if error:
         print(f"ERROR: {error}")
@@ -216,6 +590,15 @@ def validate_single_case(
             best_pocket_volume=None,
             n_pockets_found=0,
             n_druggable_pockets=0,
+            aggregation_mode=aggregation_mode,
+            frames_analyzed=0,
+            consensus_clusters=0,
+            avg_consensus_support=None,
+            avg_center_stability=None,
+            avg_volume_cv=None,
+            analysis_atom_mode=analysis_atom_mode,
+            reconstruction_coverage=None,
+            reconstruction_mean_displacement=None,
             error=error,
             runtime_seconds=time.time() - start_time
         )
@@ -232,7 +615,10 @@ def validate_single_case(
     
     status = "HIT" if matched else "MISS"
     dist_str = f"{best_dist:.1f}A" if best_dist else "N/A"
-    print(f"{status} (dist={dist_str}, pockets={len(cavities)}, druggable={n_druggable})")
+    print(
+        f"{status} (dist={dist_str}, pockets={len(cavities)}, "
+        f"druggable={n_druggable}, frames={diagnostics.get('frames_analyzed', 0)})"
+    )
     
     return ValidationResult(
         pdb_id=pdb_id,
@@ -248,6 +634,38 @@ def validate_single_case(
         best_pocket_volume=best_pocket.get('volume') if best_pocket else None,
         n_pockets_found=len(cavities),
         n_druggable_pockets=n_druggable,
+        aggregation_mode=str(diagnostics.get("aggregation_mode", aggregation_mode)),
+        frames_analyzed=int(diagnostics.get("frames_analyzed", 0)),
+        consensus_clusters=int(diagnostics.get("consensus_clusters", 0)),
+        avg_consensus_support=(
+            float(diagnostics["avg_consensus_support"])
+            if diagnostics.get("avg_consensus_support") is not None
+            else None
+        ),
+        avg_center_stability=(
+            float(diagnostics["avg_center_stability"])
+            if diagnostics.get("avg_center_stability") is not None
+            else None
+        ),
+        avg_volume_cv=(
+            float(diagnostics["avg_volume_cv"])
+            if diagnostics.get("avg_volume_cv") is not None
+            else None
+        ),
+        analysis_atom_mode=str(
+            diagnostics.get("analysis_atom_mode", analysis_atom_mode)
+        ),
+        reconstruction_coverage=(
+            float(diagnostics["avg_reconstruction_coverage"])
+            if diagnostics.get("avg_reconstruction_coverage") is not None
+            else None
+        ),
+        reconstruction_mean_displacement=(
+            float(diagnostics["avg_reconstruction_mean_displacement"])
+            if diagnostics.get("avg_reconstruction_mean_displacement")
+            is not None
+            else None
+        ),
         error=None,
         runtime_seconds=time.time() - start_time
     )
@@ -277,6 +695,36 @@ def calculate_summary(
     
     distances = [r.best_distance for r in successful if r.best_distance is not None]
     avg_distance = np.mean(distances) if distances else 0.0
+    avg_frames = (
+        float(np.mean([r.frames_analyzed for r in successful]))
+        if successful
+        else 0.0
+    )
+    support_vals = [
+        r.avg_consensus_support
+        for r in successful
+        if r.avg_consensus_support is not None
+    ]
+    center_vals = [
+        r.avg_center_stability
+        for r in successful
+        if r.avg_center_stability is not None
+    ]
+    volume_vals = [
+        r.avg_volume_cv
+        for r in successful
+        if r.avg_volume_cv is not None
+    ]
+    recon_cov_vals = [
+        r.reconstruction_coverage
+        for r in successful
+        if r.reconstruction_coverage is not None
+    ]
+    recon_disp_vals = [
+        r.reconstruction_mean_displacement
+        for r in successful
+        if r.reconstruction_mean_displacement is not None
+    ]
     
     total_runtime = sum(r.runtime_seconds for r in results)
     
@@ -290,6 +738,16 @@ def calculate_summary(
         precision=precision,
         f1_score=f1,
         avg_best_distance=avg_distance,
+        avg_frames_analyzed=avg_frames,
+        avg_consensus_support=float(np.mean(support_vals)) if support_vals else 0.0,
+        avg_center_stability=float(np.mean(center_vals)) if center_vals else 0.0,
+        avg_volume_cv=float(np.mean(volume_vals)) if volume_vals else 0.0,
+        avg_reconstruction_coverage=(
+            float(np.mean(recon_cov_vals)) if recon_cov_vals else 0.0
+        ),
+        avg_reconstruction_mean_displacement=(
+            float(np.mean(recon_disp_vals)) if recon_disp_vals else 0.0
+        ),
         total_runtime_seconds=total_runtime,
         timestamp=datetime.now().isoformat(),
         config=config
@@ -308,6 +766,8 @@ def generate_markdown_report(
         f"> **Generated:** {summary.timestamp}",
         f"> **Test Set:** {summary.total_cases} known cryptic pockets",
         f"> **Tolerance:** {summary.config.get('tolerance', 8.0)} Angstrom",
+        f"> **Aggregation Mode:** {summary.config.get('aggregation_mode', 'single')}",
+        f"> **Analysis Atom Mode:** {summary.config.get('analysis_atom_mode', 'frame_ca')}",
         "",
         "---",
         "",
@@ -322,9 +782,31 @@ def generate_markdown_report(
         f"| False Negatives | {summary.false_negatives} |",
         f"| Failed Runs | {summary.failed_runs} |",
         f"| Avg Best Distance | {summary.avg_best_distance:.1f} A |",
+        f"| Avg Frames Analyzed | {summary.avg_frames_analyzed:.1f} |",
         f"| Total Runtime | {summary.total_runtime_seconds:.1f}s |",
         "",
     ]
+
+    if summary.config.get("aggregation_mode") == "multi":
+        lines.extend(
+            [
+                f"| Avg Consensus Support (frames) | {summary.avg_consensus_support:.2f} |",
+                f"| Avg Center Stability | {summary.avg_center_stability:.2f} A |",
+                f"| Avg Volume CV | {summary.avg_volume_cv:.3f} |",
+                "",
+            ]
+        )
+    if summary.config.get("analysis_atom_mode") == "reconstructed_heavy":
+        lines.extend(
+            [
+                f"| Avg Reconstruction Coverage | {summary.avg_reconstruction_coverage:.3f} |",
+                (
+                    f"| Avg Reconstruction Mean CA Displacement | "
+                    f"{summary.avg_reconstruction_mean_displacement:.3f} A |"
+                ),
+                "",
+            ]
+        )
     
     if summary.recall >= 0.30:
         lines.extend([
@@ -360,8 +842,8 @@ def generate_markdown_report(
         "",
         "## Per-Protein Results",
         "",
-        "| PDB | Protein | Type | Status | Distance | Bio-Score | Volume |",
-        "|-----|---------|------|--------|----------|-----------|--------|",
+        "| PDB | Protein | Type | Status | Distance | Bio-Score | Volume | Mode | AtomMode |",
+        "|-----|---------|------|--------|----------|-----------|--------|------|----------|",
     ])
     
     for r in results:
@@ -369,7 +851,10 @@ def generate_markdown_report(
         dist = f"{r.best_distance:.1f}" if r.best_distance else "-"
         score = f"{r.best_pocket_score:.3f}" if r.best_pocket_score else "-"
         vol = f"{r.best_pocket_volume:.0f}" if r.best_pocket_volume else "-"
-        lines.append(f"| {r.pdb_id} | {r.protein_name[:25]} | {r.pocket_type} | {status} | {dist} | {score} | {vol} |")
+        lines.append(
+            f"| {r.pdb_id} | {r.protein_name[:25]} | {r.pocket_type} | "
+            f"{status} | {dist} | {score} | {vol} | {r.aggregation_mode} | {r.analysis_atom_mode} |"
+        )
     
     lines.extend([
         "",
@@ -384,8 +869,16 @@ def generate_markdown_report(
         lines.append("### Missed Pockets")
         lines.append("")
         for r in misses:
+            best_dist = (
+                f"{r.best_distance:.1f}A"
+                if r.best_distance is not None
+                else "N/A"
+            )
             lines.append(f"- **{r.pdb_id}** ({r.protein_name}): {r.pocket_type}")
-            lines.append(f"  - Best distance: {r.best_distance:.1f}A (threshold: {summary.config.get('tolerance', 8.0)}A)")
+            lines.append(
+                "  - Best distance: "
+                f"{best_dist} (threshold: {summary.config.get('tolerance', 8.0)}A)"
+            )
             lines.append(f"  - Reference: {r.reference}")
             lines.append("")
     
@@ -494,6 +987,23 @@ def main():
         help='NMA frames to generate (default: 20)'
     )
     parser.add_argument(
+        "--aggregation-mode",
+        type=str,
+        default="single",
+        choices=["single", "multi"],
+        help="Pocket aggregation mode: single frame or multi-frame consensus",
+    )
+    parser.add_argument(
+        "--analysis-atom-mode",
+        type=str,
+        default="frame_ca",
+        choices=["frame_ca", "reconstructed_heavy"],
+        help=(
+            "Structure representation used for cavity analysis: "
+            "CA frame directly or CA-displacement reconstructed heavy-atom frame"
+        ),
+    )
+    parser.add_argument(
         '--top-n',
         type=int,
         default=20,
@@ -517,6 +1027,55 @@ def main():
         default=None,
         help='Limit number of test cases (for quick testing)'
     )
+    parser.add_argument(
+        "--consensus-min-frames",
+        type=int,
+        default=3,
+        help="Minimum supporting frames for multi-frame consensus (default: 3)",
+    )
+    parser.add_argument(
+        "--consensus-distance",
+        type=float,
+        default=4.0,
+        help="Center clustering distance for consensus in Angstrom (default: 4.0)",
+    )
+    parser.add_argument(
+        "--per-frame-top-n",
+        type=int,
+        default=20,
+        help="Top-N pockets per frame used in consensus (default: 20)",
+    )
+    parser.add_argument(
+        "--center-stability-max",
+        type=float,
+        default=2.0,
+        help="Center stability threshold in Angstrom (default: 2.0)",
+    )
+    parser.add_argument(
+        "--volume-cv-max",
+        type=float,
+        default=0.20,
+        help="Volume coefficient of variation threshold (default: 0.20)",
+    )
+    parser.add_argument(
+        "--frame-selection-mode",
+        type=str,
+        default="all",
+        choices=["all", "uniform", "domain_motion_weighted"],
+        help=(
+            "Frame selection policy for multi-frame mode "
+            "(default: all)"
+        ),
+    )
+    parser.add_argument(
+        "--frame-selection-fraction",
+        type=float,
+        default=1.0,
+        help=(
+            "Fraction of frame ensemble to analyze in multi-frame mode "
+            "(default: 1.0)"
+        ),
+    )
     
     args = parser.parse_args()
     
@@ -530,7 +1089,18 @@ def main():
     print(f"Test Set: {test_set_path}")
     print(f"Tolerance: {args.tolerance} Angstrom")
     print(f"NMA Frames: {args.n_frames}")
+    print(f"Aggregation: {args.aggregation_mode}")
+    print(f"Atom Mode: {args.analysis_atom_mode}")
     print(f"Top-N: {args.top_n}")
+    if args.aggregation_mode == "multi":
+        print(
+            f"Consensus: min_frames={args.consensus_min_frames}, "
+            f"distance={args.consensus_distance}A, per_frame_top_n={args.per_frame_top_n}"
+        )
+        print(
+            f"Frame selection: {args.frame_selection_mode} "
+            f"(fraction={args.frame_selection_fraction:.2f})"
+        )
     print("=" * 70)
     print()
     
@@ -539,6 +1109,15 @@ def main():
     config['n_frames'] = args.n_frames
     config['top_n'] = args.top_n
     config['druggable_only'] = args.druggable_only
+    config["aggregation_mode"] = args.aggregation_mode
+    config["analysis_atom_mode"] = args.analysis_atom_mode
+    config["consensus_min_frames"] = args.consensus_min_frames
+    config["consensus_distance"] = args.consensus_distance
+    config["per_frame_top_n"] = args.per_frame_top_n
+    config["center_stability_max"] = args.center_stability_max
+    config["volume_cv_max"] = args.volume_cv_max
+    config["frame_selection_mode"] = args.frame_selection_mode
+    config["frame_selection_fraction"] = args.frame_selection_fraction
     
     if args.limit:
         test_cases = test_cases[:args.limit]
@@ -554,7 +1133,16 @@ def main():
             tolerance=args.tolerance,
             n_frames=args.n_frames,
             top_n=args.top_n,
-            druggable_only=args.druggable_only
+            druggable_only=args.druggable_only,
+            aggregation_mode=args.aggregation_mode,
+            analysis_atom_mode=args.analysis_atom_mode,
+            consensus_min_frames=args.consensus_min_frames,
+            consensus_distance=args.consensus_distance,
+            per_frame_top_n=args.per_frame_top_n,
+            center_stability_max=args.center_stability_max,
+            volume_cv_max=args.volume_cv_max,
+            frame_selection_mode=args.frame_selection_mode,
+            frame_selection_fraction=args.frame_selection_fraction,
         )
         results.append(result)
     
@@ -574,6 +1162,19 @@ def main():
     print(f"Precision:       {summary.precision*100:.2f}%")
     print(f"F1-Score:        {summary.f1_score*100:.1f}%")
     print(f"Avg Distance:    {summary.avg_best_distance:.1f} Angstrom")
+    print(f"Avg Frames:      {summary.avg_frames_analyzed:.1f}")
+    if args.analysis_atom_mode == "reconstructed_heavy":
+        print(
+            f"Recon Coverage:  {summary.avg_reconstruction_coverage:.3f}"
+        )
+        print(
+            "Recon Disp:      "
+            f"{summary.avg_reconstruction_mean_displacement:.3f} Angstrom"
+        )
+    if args.aggregation_mode == "multi":
+        print(f"Avg Support:     {summary.avg_consensus_support:.2f} frames")
+        print(f"Center Stability:{summary.avg_center_stability:.2f} Angstrom")
+        print(f"Volume CV:       {summary.avg_volume_cv:.3f}")
     print(f"Total Runtime:   {summary.total_runtime_seconds:.1f}s")
     print("=" * 70)
     

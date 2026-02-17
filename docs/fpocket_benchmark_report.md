@@ -1,6 +1,6 @@
 # fpocket vs Bio-Void Hunter Benchmark Report (Phase 5.5 / Faz 1)
 
-- Generated at (UTC): 2026-02-12T20:38:29Z
+- Generated at (UTC): 2026-02-13T15:31:49Z
 - Benchmark protein count: 100
 - Canonical tolerance (Å): 8.0
 - Canonical Top-N: 20
@@ -23,7 +23,7 @@
 | 1BYZ | ok | 3 | 3 | 2 | 0.6667 | 1 | 1 |
 | 1GQV | ok | 8 | 20 | 1 | 0.0714 | 7 | 19 |
 | 1GVT | ok | 10 | 20 | 1 | 0.0667 | 9 | 19 |
-| 1GWR | missing_input | 0 | 0 | 0 | 0.0000 | 0 | 0 |
+| 1GWR | missing_output | 0 | 0 | 0 | 0.0000 | 0 | 0 |
 | 1I1W | ok | 15 | 20 | 0 | 0.0000 | 15 | 20 |
 | 1KTH | ok | 1 | 0 | 0 | 0.0000 | 1 | 0 |
 | 1L9L | ok | 7 | 15 | 4 | 0.3636 | 3 | 11 |

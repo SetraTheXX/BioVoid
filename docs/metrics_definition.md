@@ -9,6 +9,11 @@
 
 ## FPR variants in this report
 
+- Weighted support score:
+  - `score = 0.2*known + 0.3*ligand + 0.3*fpocket + 0.2*docking`
+  - `supported` if `score >= 0.30`
+- Explicit unknown handling: `unknown` if available sources < 2
+
 - Conservative FPR: `unsupported / (supported + unsupported)`
 - Strict FPR: `(unsupported + unknown) / total_candidates`
 - Unknown rate: `unknown / total_candidates`

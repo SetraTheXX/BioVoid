@@ -3712,3 +3712,141 @@ Bu proje artık sadece bir araç değil; **"Milyonlarca Protein Verisini Milisan
 ---
 
 **Not:** Bu dosya her faz sonunda güncellenecek.
+
+
+---
+
+## Faz 5.5 Guncelleme (2026-02-13) - P1.1.4 Gate Rerun
+
+**Durum:** FAIL (gate gecilemedi)
+
+**Calistirilan kosu:**
+- `python scripts/run_recall_recovery_experiments.py --analysis-atom-mode frame_ca --n-frames 20 --output-json data/validation/recall_recovery_experiments_v2.json --output-md docs/recall_recovery_experiments_v2.md --checkpoint-file data/validation/recall_recovery_experiments_v2.checkpoint.json --no-resume`
+
+**Sonuclar (Multi-mode):**
+- Recall: **15.0% (3/20)**
+- Precision: **0.691%**
+- F1: **1.322%**
+- Avg best distance: **17.80A**
+- Domain motion recall: **0/4 (0.0%)**
+- HIT seti: **1CBS, 1STP, 3K5V**
+
+**v1 -> v2 ilerleme:**
+- Recall: **10.0% -> 15.0%** (+5.0 puan)
+- Avg distance: **23.46A -> 17.80A** (-5.66A)
+- Domain motion: **0/4 -> 0/4** (degismedi)
+
+**Karar:**
+- P1.1.4 tamamlandi, ancak gate sonucu FAIL.
+- Faz 6 hala **BLOCKED**.
+- Siradaki recovery adimi: **P1.2 (Overlap Recovery)**, ardindan **P1.3 (FPR Recovery)**.
+
+---
+
+## Faz 5.5 Guncelleme (2026-02-13) - P1.2 Overlap Recovery
+
+**Durum:** Kismi basari / FAIL (overlap gate gecilemedi)
+
+**Calistirilan adimlar:**
+- `python scripts/extract_biovoid_results.py`
+- `python scripts/generate_benchmark_report.py`
+- `python scripts/phase55_gate_recovery_diag.py`
+
+**Not (fpocket rerun):**
+- Ortamda `fpocket` binary bulunmadigi icin (`WinError 2`) fpocket tarafi mevcut
+  `data/benchmark/fpocket_results/*_out` ciktilarindan deterministik olarak yeniden derlendi.
+- Rebuild sonucu: `processed=100`, `ok=99`, `missing_output=1` (1GWR).
+
+**Sonuclar:**
+- Global overlap: **0.0577** (v1: 0.0577, degisim: **+0.0000 / +0.00 puan**)
+- Matched pockets: **84**
+- fpocket valid-center total: **1114**
+- BioVoid valid-center total: **1797**
+- Distance-only match: **498/1114 = 44.70%**
+- Distance+volume match: **89/1114 = 7.99%**
+- Volume-gate drop: **409 pocket** (**36.71 puan**)
+- Invalid center: **0**
+
+**Kabul Kriterleri:**
+- Overlap artisi >= %20 (5.77% -> 25%+): **FAIL** (5.77% -> 5.77%)
+- Distance-only match >= %30: **PASS** (44.70%)
+
+**Karar:**
+- P1.2 adimi teknik olarak tamamlandi.
+- Gate acisindan kismi; overlap recovery hedefi kapanmadi.
+- Sonraki adim: **P1.3 - FPR Recovery**.
+
+---
+
+## Faz 5.5 Guncelleme (2026-02-13) - P1.3 FPR Recovery
+
+**Durum:** PASS (kabul kriterleri karsilandi)
+
+**Calistirilan komut:**
+- `python scripts/false_positive_analysis.py`
+
+**Yapilan iyilestirmeler:**
+- Weighted evidence fusion eklendi:
+  - Known: 0.2
+  - Ligand: 0.3
+  - fpocket: 0.3
+  - Docking: 0.2
+- Explicit unknown handling eklendi:
+  - `center_missing`
+  - `no_evidence_sources`
+  - `low_evidence_coverage`
+- Manual review raporu otomatik uretilir hale getirildi:
+  - `docs/false_positive_manual_review.md`
+
+**Sonuclar:**
+- Candidate pockets: **645**
+- Supported: **159**
+- Unsupported: **24**
+- Unknown: **462**
+- Conservative FPR: **0.1311** (**PASS**, hedef <= 0.60)
+- Strict FPR: **0.7535**
+- Unknown rate: **0.7163**
+
+**Manual review (Top-20 unsupported):**
+- likely_false_positive: **20**
+- borderline_needs_followup: **0**
+- Sonuc: manual review tamamlandi.
+
+**Karar:**
+- P1.3 kabul kriterleri tamamlandi.
+- Sonraki adim: **Gate Rerun** (Recall + Overlap + FPR + MD konsolidasyonu).
+
+---
+
+## Faz 5.5 Guncelleme (2026-02-13) - Final Gate Rerun
+
+**Durum:** FAIL (Phase 6 hala BLOCKED)
+
+**Calistirilan adimlar:**
+- `python scripts/validate_known_pockets.py --tolerance 8.0 --n-frames 20 --top-n 20 --aggregation-mode single --analysis-atom-mode frame_ca`
+- `python scripts/generate_benchmark_report.py`
+- `python scripts/false_positive_analysis.py`
+- `python scripts/generate_phase5_5_gate_decision.py`
+
+**Final Gate Sonuclari:**
+- Recall: **0.1500 (3/20)** -> **FAIL** (hedef >= 0.30)
+- fpocket overlap: **0.0577** -> **FAIL** (hedef >= 0.40)
+- MD validation proteins: **1** -> **PASS**
+- Conservative FPR: **0.1311** -> **PASS** (hedef <= 0.60)
+- Final decision (`docs/phase5_5_gate_decision.md`): **FAIL**
+
+**Drift ve hizalama kontrolu:**
+- Tolerance: **8.0A** (aligned)
+- Top-N: **20** (aligned)
+- Druggable filter: **true** (aligned)
+- Rapor zaman damgalari hizali:
+  - `data/validation/validation_results.json` -> `2026-02-13T18:31:42`
+  - `docs/fpocket_benchmark_report.md` -> `2026-02-13T18:31:49`
+  - `data/validation/false_positive_results.json` -> `2026-02-13T18:31:52`
+  - `docs/phase5_5_gate_decision.md` -> `2026-02-13T18:31:56`
+- Center integrity eki: `docs/center_integrity_report.md` (zero-center=0, recovery=%100)
+
+**Nihai karar:**
+- Faz 5.5 recovery sprint teknik olarak tamamlandi.
+- Gate strict kurallarina gore **PASS degil** (Recall + Overlap fail).
+- Faz 6'ya gecis **engelli**; bir sonraki adim Recall + Overlap odakli algoritmik recovery v2.

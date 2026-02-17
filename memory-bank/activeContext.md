@@ -1,73 +1,50 @@
-<!-- cspell:disable -->
+# Aktif Baglam
 
-# Aktif Bağlam
+## Su Anki Faz
 
-## Şu Anki Odak
+- Faz: **5.5 Recovery v2**
+- Konum: **SG1 sonrasi CP-A pivot**
+- SoT: `docs/phase5_5_gate_decision.md`
+- Faz 6 durumu: **BLOCKED**
 
-**Faz 6 Öncesi Düzenleme ve Validasyon — ✅ TAMAMLANDI**
-Plan dosyası: `Bio-Void_Hunter__Faz_6_Öncesi_Düzenleme_ve_Validas-02101819.plan.md`
-Acceptance Test: **17/17 geçti (100%)**
+## Son Dogrulanmis Gate Sonucu (2026-02-13)
 
----
+- Recall: **0.1500 (3/20)** -> FAIL (hedef >= 0.30)
+- fpocket overlap: **0.0577** -> FAIL (hedef >= 0.40)
+- Conservative FPR: **0.1311** -> PASS (hedef <= 0.60)
+- MD validated proteins: **1** -> PASS (hedef >= 1)
+- Final karar: **FAIL**
 
-## Tamamlanan Adımlar
+## Recovery v2 Workstream Ozeti
 
-### ✅ FAZ 1: Bilimsel Validasyon
+### WS-A (Recall Specialist)
 
-- `data/validation/known_cryptic_pockets.json` — 20 literatür test case
-- `scripts/validate_known_pockets.py` — Otomatik validasyon scripti
-- `docs/validation_report.md` — Detaylı rapor
-- **Recall: %30** (eşik: %30) → PASS
+- SG1 tamamlandi ancak checkpoint gecilemedi.
+- `docs/recall_recovery_experiments_v3.md`:
+  - Recall: **15.0% (3/20)**
+  - Domain-motion: **0/4**
+  - SG1 checkpoint (>=0.22): **FAIL**
+- Durum: **CP-A pivot zorunlu** (yalniz mini-set).
 
-### ✅ FAZ 2: Altyapı ve Pilot Çalışma
+### WS-B (Overlap Specialist)
 
-- **1000 protein pilot taraması tamamlandı:**
-  - Başarılı: 932 (%93.2)
-  - Başarısız: 68
-  - Runtime: 2855.7s (~47.5 dakika)
-  - Throughput: 0.35 protein/saniye
-- **atlas.db:** 8.7MB, 932 protein, 39,085 pocket
-- **Dashboard import doğrulandı**
+- B0-B3 tamamlandi ve merge-ready birakildi.
+- `docs/fpocket_benchmark_report_v3.md`:
+  - Official overlap: **0.0577** (FAIL)
+  - Center-only overlap: **0.3099**
+  - Center-only upper bound: **0.3188**
+- Durum: resmi gate metriği degismeden overlap sorunu acik.
 
-### ✅ FAZ 3: Kod Kalitesi ve Temizlik
+### WS-C (Guard/QA Specialist)
 
-- **docker.py Refactoring:** Monolitik 1318 satır → `src/docking/` paketi:
-  - `vina_wrapper.py` — VinaDocking engine, GridBox, DockingResult
-  - `interactions.py` — Protein-ligand interaction analysis
-  - `validation.py` — validate_known_ligand, dock_nma_frames
-  - `__init__.py` — Backward-compatible re-exports
-- **requirements.txt:** Temizlendi (11 direct deps + transitive = 61 total)
-- **Import path migration:** `src.docker` → `src.docking` tüm dosyalarda
-- **Backward compatibility:** Eski `from src.docker import *` çalışıyor
-- **Streamlit lazy import:** CLI araçları bağımsız çalışıyor
+- `docs/recovery_v2_regression_guard_report.md`: **PASS**
+- Drift guard: **PASS**
+- Report alignment: **PASS**
+- Durum: Recall/Overlap disinda aktif regression riski yok.
 
-### ⚪ FAZ 4: Opsiyonel İyileştirmeler (Atlandı - Faz 6 sonrasına bırakıldı)
+## Hemen Sonraki Adimlar
 
-- fpocket benchmark
-- ProDy NMA karşılaştırması
-- False positive rate analizi
+1. WS-A: CP-A mini-set pivot kosusu (full 20 yok).
+2. WS-B: yeni algoritmik degisikligi bekle; SoT kalibrasyon uyumunu koru.
+3. WS-C: WS-A patch sonrasi guard + drift + alignment rerun.
 
----
-
-## Top 5 Keşif (Bio-Score)
-
-| PDB ID | Bio-Score | Toplam Kavite | Druggable |
-| ------ | --------- | ------------- | --------- |
-| 1UCS   | 0.980     | 26            | 16        |
-| 3ZOJ   | 0.977     | 190           | 78        |
-| 3X0J   | 0.975     | 123           | 50        |
-| 4EA9   | 0.974     | 141           | 77        |
-| 4Y9V   | 0.973     | 577           | 140       |
-
----
-
-## Sonraki Adımlar
-
-1. **Faz 6'ya Geçiş:** 120K protein taraması planlaması
-2. **Dashboard ile interaktif analiz:** Streamlit ile keşif verilerini incele
-3. **FAZ 4 opsiyonel işler:** fpocket benchmark, ProDy karşılaştırma
-4. **Yayın hazırlığı:** Validasyon raporunu genişlet
-
-## DB Konumu
-
-- `data/atlas.db` — 8.7MB, 932 protein + 39,085 pocket
