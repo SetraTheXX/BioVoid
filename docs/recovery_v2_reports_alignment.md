@@ -1,7 +1,7 @@
 ﻿# Recovery v2 Reports Alignment Check (Codex-C)
 
-- Generated at (UTC): 2026-02-17T17:25:58Z
-- Scope: Post-integration SoT alignment verification
+- Generated at (UTC): 2026-02-17T20:03:52Z
+- Scope: WS-A/WS-B post-change SoT alignment verification
 - SoT: `docs/phase5_5_gate_decision.md`
 - Sources:
   - `docs/phase5_5_gate_decision.md`
@@ -12,17 +12,17 @@
   - `memory-bank/phase5.5_validation.plan.md`
   - `data/validation/recovery_v2_regression_guard.json`
 
-## Checked Areas
+## Kontrol Edilen Alanlar
 
-1. SoT gate metrics vs source artifacts
-2. SoT decision vs expected decision from artifacts
-3. memory-bank top gate summary vs SoT
+1. SoT gate metrikleri ile kaynak artifact metriklerinin birebir uyumu
+2. SoT karar metni (`FAIL/PASS`) ile artifactlerden turetilen karar uyumu
+3. `memory-bank/phase5.5_validation.plan.md` ust gate ozetinin SoT ile hizasi
 
-## PASS/FAIL Findings
+## PASS/FAIL Bulgulari
 
 ### 1) SoT Metric Alignment: PASS
 
-| Metric | SoT value | Source value | Status |
+| Metric | SoT | Source | Status |
 | --- | ---: | ---: | --- |
 | Recall | 0.1500 | 0.1500 | PASS |
 | fpocket overlap | 0.0577 | 0.0577 | PASS |
@@ -31,13 +31,13 @@
 
 ### 2) SoT Decision Alignment: PASS
 
-- Reported decision (`docs/phase5_5_gate_decision.md`): `FAIL`
-- Expected decision (from artifacts): `FAIL`
+- Reported decision: `FAIL`
+- Expected decision from artifacts: `FAIL`
 - Result: aligned.
 
 ### 3) Memory-Bank Top Summary Alignment: PASS
 
-`memory-bank/phase5.5_validation.plan.md` top gate summary is aligned with SoT:
+`memory-bank/phase5.5_validation.plan.md` top summary values SoT ile uyumlu:
 - Recall: `15.0% (3/20)`
 - fpocket overlap: `5.77%`
 - Conservative FPR: `13.11%`
@@ -45,15 +45,15 @@
 
 ### 4) Legacy Numeric Residue Risk: PASS (watch)
 
-- Historical sections in memory-bank may contain legacy experiment numbers.
-- Current evidence shows no SoT conflict in top summary or decision-critical sections.
+- Dokumanin tarihsel bolumlerinde eski deney sayilari bulunabilir.
+- Bu checkpointte karar-kritik SoT metrikleriyle celiski tespit edilmedi.
 
-## Blockers
+## Blokerler
 
-1. No WS-C alignment blocker detected.
-2. System-level blocker remains: final gate FAIL due to recall + overlap.
+1. WS-C alignment blokeri yok.
+2. Sistem blokeri devam ediyor: final gate recall + overlap nedeniyle FAIL.
 
-## Recommended Actions
+## Ana Ekibe Onerilen Aksiyon
 
-1. Keep SoT alignment check mandatory before each integration merge.
-2. Continue treating `docs/phase5_5_gate_decision.md` as the single decision source.
+1. SoT alignment kontrolunu her entegrasyon oncesi zorunlu tutun.
+2. Nihai karar icin tek referansi `docs/phase5_5_gate_decision.md` olarak koruyun.

@@ -1,7 +1,7 @@
 ﻿# Recovery v2 Drift Check Report (Codex-C)
 
-- Generated at (UTC): 2026-02-17T17:25:58Z
-- Scope: Post-integration drift lock verification (WS-C)
+- Generated at (UTC): 2026-02-17T20:03:52Z
+- Scope: Post-change drift lock verification (WS-C)
 - SoT: `docs/phase5_5_gate_decision.md`
 - Sources:
   - `data/validation/pre_registered_config.json`
@@ -11,48 +11,46 @@
   - `docs/phase5_5_gate_decision.md`
   - `data/validation/recovery_v2_regression_guard.json`
 
-## Checked Areas
+## Kontrol Edilen Alanlar
 
-1. Canonical gate lock: `tolerance/top_n/druggable`
-2. Drift statements in SoT decision report
-3. Exploratory-to-gate separation
+1. Canonical lock: `tolerance=8.0`, `top_n=20`, `druggable=true`
+2. SoT gate dokumanindaki drift satirlari ile artifact uyumu
+3. Exploratory parametrelerin gate sonucuna yazilmamasi
 
-## PASS/FAIL Findings
+## PASS/FAIL Bulgulari
 
-### 1) Canonical Lock: PASS
+### 1) Canonical Parameter Lock: PASS
 
-- Canonical (pre-registered):
-  - `tolerance = 8.0`
-  - `top_n = 20`
-  - `druggable = true`
-- Observed (`validation_results.json`):
-  - `tolerance = 8.0`
-  - `top_n = 20`
-  - `druggable_only = true`
-- Observed (`false_positive_results.json`):
-  - `canonical_tolerance = 8.0`
-  - `canonical_top_n = 20`
-  - `canonical_druggable_filter = true`
+- `pre_registered_config.json` canonical:
+  - tolerance: `8.0`
+  - top_n: `20`
+  - druggable_filter: `true`
+- `validation_results.json` observed:
+  - tolerance: `8.0`
+  - top_n: `20`
+  - druggable_only: `true`
+- `false_positive_results.json` canonical fields:
+  - canonical_tolerance: `8.0`
+  - canonical_top_n: `20`
+  - canonical_druggable_filter: `true`
 
 ### 2) SoT Drift Statements: PASS
 
-`docs/phase5_5_gate_decision.md` includes:
+`docs/phase5_5_gate_decision.md`:
 - Validation tolerance aligned with canonical: `YES`
 - Validation top-N aligned with canonical: `YES`
 
-These statements are consistent with the JSON artifacts.
+### 3) Exploratory-to-Gate Separation: PASS
 
-### 3) Exploratory Isolation: PASS
+- Gate decision metrikleri canonical artifact setinden geliyor.
+- Exploratory kosularin gate sonucuna yazildigina dair bulgu yok.
 
-- Gate decision values are sourced from canonical artifacts.
-- No evidence that exploratory parameter runs were used in gate metrics.
+## Blokerler
 
-## Blockers
+1. Drift ihlali yok.
+2. Sistem blokeri devam ediyor: final gate recall + overlap nedeniyle FAIL.
 
-1. No WS-C drift blocker detected.
-2. System-level blocker remains: final gate is FAIL because recall and overlap are below threshold.
+## Ana Ekibe Onerilen Aksiyon
 
-## Recommended Actions
-
-1. Keep canonical lock validation as a mandatory pre-merge check.
-2. Keep explicit reporting of `tolerance/top_n/druggable` in every gate-candidate report.
+1. Her gate-aday kosuda `tolerance/top_n/druggable` satirlarini zorunlu raporlayin.
+2. Drift lock kontrolunu merge-oncesi zorunlu adim olarak koruyun.
