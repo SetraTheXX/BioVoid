@@ -64,6 +64,15 @@ NON_LIGAND_RESNAMES = {
     "ACT",
 }
 
+EVIDENCE_WEIGHTS = {
+    "known_match": 0.2,
+    "ligand_nearby": 0.3,
+    "fpocket_match": 0.3,
+    "docking_validated": 0.2,
+}
+DEFAULT_SUPPORT_THRESHOLD = 0.3
+DEFAULT_MIN_EVIDENCE_SOURCES = 2
+
 
 @dataclass
 class CanonicalParams:
@@ -140,6 +149,24 @@ def parse_args() -> argparse.Namespace:
         help="Bootstrap iterations for CI estimation.",
     )
     parser.add_argument(
+        "--support-threshold",
+        type=float,
+        default=DEFAULT_SUPPORT_THRESHOLD,
+        help=(
+            "Weighted evidence threshold for 'supported' class "
+            "(default: 0.3)."
+        ),
+    )
+    parser.add_argument(
+        "--min-evidence-sources",
+        type=int,
+        default=DEFAULT_MIN_EVIDENCE_SOURCES,
+        help=(
+            "Minimum available external evidence sources required "
+            "to classify as supported/unsupported (default: 2)."
+        ),
+    )
+    parser.add_argument(
         "--output-json",
         default="data/validation/false_positive_results.json",
         help="Output JSON path.",
@@ -163,6 +190,17 @@ def parse_args() -> argparse.Namespace:
         "--output-stat",
         default="docs/statistical_appendix.md",
         help="Output statistical appendix Markdown path.",
+    )
+    parser.add_argument(
+        "--output-manual-review",
+        default="docs/false_positive_manual_review.md",
+        help="Output manual-review Markdown path.",
+    )
+    parser.add_argument(
+        "--manual-review-top-n",
+        type=int,
+        default=20,
+        help="Number of unsupported pockets to include in manual review.",
     )
     parser.add_argument(
         "--dry-run",
@@ -336,6 +374,32 @@ def bootstrap_ci(values: list[int], n_iter: int = 3000, seed: int = 55) -> tuple
     return float(np.percentile(boot, 2.5)), float(np.percentile(boot, 97.5))
 
 
+def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def compute_weighted_score(evidence_flags: dict[str, bool]) -> float:
+    score = 0.0
+    for key, weight in EVIDENCE_WEIGHTS.items():
+        if evidence_flags.get(key, False):
+            score += float(weight)
+    return score
+
+
+def unknown_reason_counts(records: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in records:
+        if row.get("classification") != "unknown":
+            continue
+        reason = str(row.get("unknown_reason") or "unspecified")
+        counts[reason] = counts.get(reason, 0) + 1
+    return counts
+
+
 def load_validation_recall(project_root: Path) -> dict[str, Any] | None:
     path = project_root / "data" / "validation" / "validation_results.json"
     if not path.exists():
@@ -361,7 +425,13 @@ def load_validation_recall(project_root: Path) -> dict[str, Any] | None:
     }
 
 
-def write_protocol(path: Path) -> None:
+def write_protocol(
+    path: Path,
+    *,
+    support_threshold: float,
+    min_evidence_sources: int,
+    ligand_radius: float,
+) -> None:
     lines = [
         "# False-Positive Analysis Protocol (Phase 5.5 / Phase 3)",
         "",
@@ -370,13 +440,24 @@ def write_protocol(path: Path) -> None:
         "3. Repair missing pocket centers via cavity recomputation on local structures (frame or raw PDB).",
         "4. Evaluate support evidence per pocket:",
         "   - Known-cryptic set proximity (`<= 8A`)",
-        "   - Ligand proximity in raw PDB (`<= 10A` to non-water HETATM atoms)",
+        f"   - Ligand proximity in raw PDB (`<= {ligand_radius:.1f}A` to non-water HETATM atoms)",
         "   - fpocket overlap in benchmark summary (`<= 8A`)",
-        "5. Classify pockets:",
-        "   - `supported`: at least one evidence source",
-        "   - `unsupported`: no evidence despite available checks",
-        "   - `unknown`: insufficient evidence inputs (e.g., unresolved center)",
-        "6. Compute:",
+        "   - Docking validation flag (`validated = 1`)",
+        "5. Compute weighted evidence score:",
+        "   - known_match: 0.2",
+        "   - ligand_nearby: 0.3",
+        "   - fpocket_match: 0.3",
+        "   - docking_validated: 0.2",
+        f"   - supported if weighted_score >= {support_threshold:.2f}",
+        "6. Apply explicit unknown handling:",
+        "   - `unknown` if center missing/recompute failed",
+        "   - `unknown` if available evidence sources are below minimum",
+        f"     (`available_sources < {min_evidence_sources}`)",
+        "7. Classification:",
+        "   - `supported`: weighted threshold met",
+        "   - `unsupported`: threshold not met, sufficient evidence coverage",
+        "   - `unknown`: insufficient inputs/coverage",
+        "8. Compute:",
         "   - Conservative FPR = unsupported / (supported + unsupported)",
         "   - Strict FPR = (unsupported + unknown) / total",
         "   - Unknown rate = unknown / total",
@@ -390,7 +471,13 @@ def write_protocol(path: Path) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_metrics_definition(path: Path, max_fpr: float) -> None:
+def write_metrics_definition(
+    path: Path,
+    *,
+    max_fpr: float,
+    support_threshold: float,
+    min_evidence_sources: int,
+) -> None:
     lines = [
         "# Metrics Definition (Phase 5.5)",
         "",
@@ -402,6 +489,11 @@ def write_metrics_definition(path: Path, max_fpr: float) -> None:
         f"- False Positive Rate (FPR) gate: `FPR <= {max_fpr:.2f}`",
         "",
         "## FPR variants in this report",
+        "",
+        "- Weighted support score:",
+        "  - `score = 0.2*known + 0.3*ligand + 0.3*fpocket + 0.2*docking`",
+        f"  - `supported` if `score >= {support_threshold:.2f}`",
+        f"- Explicit unknown handling: `unknown` if available sources < {min_evidence_sources}",
         "",
         "- Conservative FPR: `unsupported / (supported + unsupported)`",
         "- Strict FPR: `(unsupported + unknown) / total_candidates`",
@@ -445,14 +537,17 @@ def write_statistical_appendix(path: Path, payload: dict[str, Any]) -> None:
 def write_markdown_report(path: Path, payload: dict[str, Any]) -> None:
     summary = payload["summary"]
     fpr = summary["fpr"]
+    weighted_cfg = summary.get("weighted_scoring", {})
+    unknown_reasons = summary.get("unknown_reason_counts", {})
+    top_n = int(payload["config"].get("manual_review_top_n", 20))
     top_unsupported = sorted(
         [r for r in payload["records"] if r["classification"] == "unsupported"],
         key=lambda r: r.get("bio_score", 0.0),
         reverse=True,
-    )[:20]
+    )[:top_n]
 
     lines = [
-        "# False-Positive Analysis Report (Phase 5.5 / Phase 3)",
+        "# False-Positive Analysis Report (Phase 5.5 / Phase 3 v2)",
         "",
         f"- Generated at (UTC): {payload['generated_at_utc']}",
         f"- Sample size: {summary['sample_size']}",
@@ -485,18 +580,49 @@ def write_markdown_report(path: Path, payload: dict[str, Any]) -> None:
         f"- fpocket overlap: {summary['evidence_counts']['fpocket_match']}",
         f"- Docking validated: {summary['evidence_counts']['docking_validated']}",
         "",
+        "## Weighted Evidence Configuration",
+        "",
+        (
+            f"- Weights: known={weighted_cfg.get('known_match', 0.2):.1f}, "
+            f"ligand={weighted_cfg.get('ligand_nearby', 0.3):.1f}, "
+            f"fpocket={weighted_cfg.get('fpocket_match', 0.3):.1f}, "
+            f"docking={weighted_cfg.get('docking_validated', 0.2):.1f}"
+        ),
+        f"- Support threshold: {payload['config']['support_threshold']:.2f}",
+        f"- Min evidence sources: {payload['config']['min_evidence_sources']}",
+        "",
+        "## Unknown Handling Breakdown",
+        "",
+    ]
+    if unknown_reasons:
+        for reason, count in sorted(
+            unknown_reasons.items(), key=lambda kv: (-kv[1], kv[0])
+        ):
+            lines.append(f"- {reason}: {count}")
+    else:
+        lines.append("- none")
+
+    lines.extend(
+        [
+            "",
         "## Top Unsupported Candidates",
         "",
-        "| PDB | Pocket | Bio-Score | Volume | Center Source |",
-        "| --- | ---: | ---: | ---: | --- |",
-    ]
+            "| PDB | Pocket | Bio-Score | Volume | Weighted Score | Sources | Center Source |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
+        ]
+    )
     for row in top_unsupported:
         lines.append(
-            "| {pdb} | {pid} | {score:.4f} | {vol:.2f} | {src} |".format(
+            (
+                "| {pdb} | {pid} | {score:.4f} | {vol:.2f} | "
+                "{wscore:.2f} | {src_count} | {src} |"
+            ).format(
                 pdb=row["pdb_id"],
                 pid=row["pocket_id"],
                 score=float(row["bio_score"]),
                 vol=float(row["volume"]),
+                wscore=float(row.get("weighted_evidence_score", 0.0)),
+                src_count=int(row.get("available_sources_count", 0)),
                 src=row["center_source"],
             )
         )
@@ -506,11 +632,96 @@ def write_markdown_report(path: Path, payload: dict[str, Any]) -> None:
             "",
             "## Notes",
             "",
-            "- Unknown records are reported separately to avoid forcing unsupported labels when inputs are missing.",
+            "- Unknown records use explicit reasons (`center_missing`, `no_evidence_sources`, `low_evidence_coverage`).",
             "- Conservative FPR is used for decision-gate comparison.",
             "",
         ]
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_manual_review_report(path: Path, payload: dict[str, Any]) -> None:
+    summary = payload["summary"]
+    threshold = float(payload["config"]["support_threshold"])
+    top_n = int(payload["config"].get("manual_review_top_n", 20))
+    unsupported = sorted(
+        [r for r in payload["records"] if r["classification"] == "unsupported"],
+        key=lambda r: r.get("bio_score", 0.0),
+        reverse=True,
+    )[:top_n]
+
+    lines = [
+        "# False Positive Manual Review (Phase 5.5 / P1.3 v2)",
+        "",
+        f"- Generated at (UTC): {payload['generated_at_utc']}",
+        f"- Reviewed unsupported candidates: {len(unsupported)}",
+        f"- Manual review scope: top-{top_n} unsupported by bio-score",
+        "",
+        "## Review Rules",
+        "",
+        "- Rule 1: weighted_score < threshold and sufficient source coverage => unsupported review candidate.",
+        "- Rule 2: weighted_score near threshold (>= threshold-0.1) => borderline candidate.",
+        "- Rule 3: no near ligand/fpocket/known evidence with high score => likely false positive.",
+        "",
+        "## Top Unsupported Manual Review",
+        "",
+        "| PDB | Pocket | Bio-Score | Weighted | Sources | Near Ligand | Near fpocket | Near Known | Verdict | Notes |",
+        "| --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- |",
+    ]
+
+    verdict_counts = {
+        "likely_false_positive": 0,
+        "borderline_needs_followup": 0,
+    }
+
+    for row in unsupported:
+        evidence = row.get("evidence", {})
+        w_score = float(row.get("weighted_evidence_score", 0.0))
+        near_lig = bool(evidence.get("ligand_nearby", False))
+        near_fp = bool(evidence.get("fpocket_match", False))
+        near_known = bool(evidence.get("known_match", False))
+        if w_score >= max(0.0, threshold - 0.1):
+            verdict = "borderline_needs_followup"
+            notes = "Thresholda yakin; ek deneysel kanit veya docking onceliklendir."
+        else:
+            verdict = "likely_false_positive"
+            notes = "Yeterli kaynak var ama yakin destek yok; FP olasiligi yuksek."
+        verdict_counts[verdict] += 1
+
+        lines.append(
+            (
+                "| {pdb} | {pid} | {score:.4f} | {w:.2f} | {src} | {lig} | {fp} | {known} | {v} | {n} |"
+            ).format(
+                pdb=row["pdb_id"],
+                pid=row["pocket_id"],
+                score=float(row["bio_score"]),
+                w=w_score,
+                src=int(row.get("available_sources_count", 0)),
+                lig="yes" if near_lig else "no",
+                fp="yes" if near_fp else "no",
+                known="yes" if near_known else "no",
+                v=verdict,
+                n=notes,
+            )
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Review Summary",
+            "",
+            f"- likely_false_positive: {verdict_counts['likely_false_positive']}",
+            f"- borderline_needs_followup: {verdict_counts['borderline_needs_followup']}",
+            "",
+            "## Conclusion",
+            "",
+            "- Manual review tamamlandi (top unsupported listesi incelendi ve etiketlendi).",
+            "- Borderline adaylar P1.3 sonrasi hedefli docking/ligand check ile tekrar gozden gecirilmeli.",
+            "",
+        ]
+    )
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -528,18 +739,26 @@ def main() -> int:
     output_protocol = project_root / args.output_protocol
     output_metrics = project_root / args.output_metrics
     output_stat = project_root / args.output_stat
+    output_manual_review = project_root / args.output_manual_review
 
     cfg, canonical = load_pre_reg(pre_reg_path)
     if args.min_bio_score <= 0:
         raise ValueError("--min-bio-score must be > 0")
     if args.sample_size <= 0:
         raise ValueError("--sample-size must be > 0")
+    if args.support_threshold <= 0 or args.support_threshold > 1.0:
+        raise ValueError("--support-threshold must be in (0, 1]")
+    if args.min_evidence_sources <= 0:
+        raise ValueError("--min-evidence-sources must be >= 1")
+    if args.manual_review_top_n <= 0:
+        raise ValueError("--manual-review-top-n must be >= 1")
 
     known_centers = load_known_centers(known_set_path)
     fpocket_centers = load_fpocket_centers(fpocket_path)
 
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
+    has_docking_table = table_exists(conn, "docking_results")
 
     rng = random.Random(args.seed)
     proteins = [
@@ -618,63 +837,91 @@ def main() -> int:
             ligand_nearby = False
             fp_match = False
             docking_validated = False
+            known_min_distance: float | None = None
+            ligand_min_distance: float | None = None
+            fpocket_min_distance: float | None = None
+            known_available = False
+            ligand_available = False
+            fpocket_available = False
+            docking_available = False
             unknown_reason: str | None = None
+            weighted_score = 0.0
+            available_sources_count = 0
 
             if center_source == "invalid":
                 classification = "unknown"
                 unknown_reason = "center_missing"
             else:
-                if pdb_id in known_centers:
-                    known_match = any(
-                        _distance(center, kc) <= canonical.tolerance
-                        for kc in known_centers[pdb_id]
+                known_list = known_centers.get(pdb_id, [])
+                if known_list:
+                    known_available = True
+                    known_min_distance = min(_distance(center, kc) for kc in known_list)
+                    known_match = known_min_distance <= canonical.tolerance
+
+                fpocket_list = fpocket_centers.get(pdb_id, [])
+                if fpocket_list:
+                    fpocket_available = True
+                    fpocket_min_distance = min(
+                        _distance(center, fc) for fc in fpocket_list
                     )
-                if pdb_id in fpocket_centers:
-                    fp_match = any(
-                        _distance(center, fc) <= canonical.tolerance
-                        for fc in fpocket_centers[pdb_id]
-                    )
+                    fp_match = fpocket_min_distance <= canonical.tolerance
+
                 ligand_atoms = get_ligands(pdb_id)
                 if ligand_atoms:
-                    ligand_nearby = any(
-                        _distance(center, atom) <= args.ligand_radius for atom in ligand_atoms
+                    ligand_available = True
+                    ligand_min_distance = min(
+                        _distance(center, atom) for atom in ligand_atoms
                     )
+                    ligand_nearby = ligand_min_distance <= args.ligand_radius
 
-                docking_validated = (
-                    conn.execute(
+                if has_docking_table:
+                    dock_row = conn.execute(
                         """
-                        SELECT 1
+                        SELECT validated
                         FROM docking_results
-                        WHERE pdb_id = ? AND pocket_id = ? AND validated = 1
+                        WHERE pdb_id = ? AND pocket_id = ?
                         LIMIT 1
                         """,
                         (pdb_id, int(row["pocket_id"])),
                     ).fetchone()
-                    is not None
+                    if dock_row is not None:
+                        docking_available = True
+                        try:
+                            docking_validated = int(dock_row["validated"] or 0) == 1
+                        except (TypeError, ValueError):
+                            docking_validated = False
+
+                evidence_flags = {
+                    "known_match": known_match,
+                    "ligand_nearby": ligand_nearby,
+                    "fpocket_match": fp_match,
+                    "docking_validated": docking_validated,
+                }
+                weighted_score = compute_weighted_score(evidence_flags)
+
+                for key, flag in evidence_flags.items():
+                    if flag:
+                        evidence_counts[key] += 1
+
+                available_sources_count = sum(
+                    [
+                        1 if known_available else 0,
+                        1 if ligand_available else 0,
+                        1 if fpocket_available else 0,
+                        1 if docking_available else 0,
+                    ]
                 )
 
-                if known_match:
-                    evidence_counts["known_match"] += 1
-                if ligand_nearby:
-                    evidence_counts["ligand_nearby"] += 1
-                if fp_match:
-                    evidence_counts["fpocket_match"] += 1
-                if docking_validated:
-                    evidence_counts["docking_validated"] += 1
-
-                if known_match or ligand_nearby or fp_match or docking_validated:
+                if weighted_score >= args.support_threshold:
                     classification = "supported"
+                elif available_sources_count == 0:
+                    classification = "unknown"
+                    unknown_reason = "no_evidence_sources"
+                elif available_sources_count < args.min_evidence_sources:
+                    classification = "unknown"
+                    unknown_reason = "low_evidence_coverage"
                 else:
-                    has_external = (
-                        (pdb_id in known_centers)
-                        or (pdb_id in fpocket_centers)
-                        or bool(ligand_atoms)
-                    )
-                    if not has_external:
-                        classification = "unknown"
-                        unknown_reason = "no_evidence_sources"
-                    else:
-                        classification = "unsupported"
+                    classification = "unsupported"
 
             records.append(
                 {
@@ -690,7 +937,16 @@ def main() -> int:
                         "ligand_nearby": ligand_nearby,
                         "fpocket_match": fp_match,
                         "docking_validated": docking_validated,
+                        "known_available": known_available,
+                        "ligand_available": ligand_available,
+                        "fpocket_available": fpocket_available,
+                        "docking_available": docking_available,
+                        "known_min_distance": known_min_distance,
+                        "ligand_min_distance": ligand_min_distance,
+                        "fpocket_min_distance": fpocket_min_distance,
                     },
+                    "weighted_evidence_score": weighted_score,
+                    "available_sources_count": available_sources_count,
                     "classification": classification,
                     "unknown_reason": unknown_reason,
                 }
@@ -741,6 +997,9 @@ def main() -> int:
             "canonical_top_n": canonical.top_n,
             "canonical_druggable_filter": canonical.druggable_filter,
             "max_fpr": canonical.max_fpr,
+            "support_threshold": args.support_threshold,
+            "min_evidence_sources": args.min_evidence_sources,
+            "manual_review_top_n": args.manual_review_top_n,
         },
         "summary": {
             "sample_size": sample_size,
@@ -756,6 +1015,8 @@ def main() -> int:
                 "unknown_rate": unknown_rate,
             },
             "gate_status": gate_status,
+            "weighted_scoring": EVIDENCE_WEIGHTS,
+            "unknown_reason_counts": unknown_reason_counts(records),
             "evidence_counts": evidence_counts,
             "sampled_proteins": sampled_proteins,
             "pre_registration_phase": cfg.get("pre_registration", {}).get("phase"),
@@ -774,12 +1035,24 @@ def main() -> int:
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     write_markdown_report(output_md, payload)
-    write_protocol(output_protocol)
-    write_metrics_definition(output_metrics, canonical.max_fpr)
+    write_manual_review_report(output_manual_review, payload)
+    write_protocol(
+        output_protocol,
+        support_threshold=args.support_threshold,
+        min_evidence_sources=args.min_evidence_sources,
+        ligand_radius=args.ligand_radius,
+    )
+    write_metrics_definition(
+        output_metrics,
+        max_fpr=canonical.max_fpr,
+        support_threshold=args.support_threshold,
+        min_evidence_sources=args.min_evidence_sources,
+    )
     write_statistical_appendix(output_stat, payload)
 
     print(f"[OK] JSON: {output_json}")
     print(f"[OK] Markdown: {output_md}")
+    print(f"[OK] Manual review: {output_manual_review}")
     print(f"[OK] Protocol: {output_protocol}")
     print(f"[OK] Metrics: {output_metrics}")
     print(f"[OK] Statistical appendix: {output_stat}")
