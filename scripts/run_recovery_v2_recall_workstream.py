@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
+from time import monotonic
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -479,9 +480,12 @@ def _run_cp_a_pivot(
     *,
     test_cases: list[dict[str, Any]],
     per_frame_top_n: int,
+    cp_a_profile: str,
+    cp_a_trial_ids: list[str] | None,
+    cp_a_max_minutes: float | None,
 ) -> dict[str, Any]:
     mini_cases = _mini_set_cases(test_cases)
-    trial_specs = [
+    available_trial_specs = [
         {
             "trial_id": "t0_baseline",
             "title": "Baseline frame_ca + uniform + legacy",
@@ -524,8 +528,36 @@ def _run_cp_a_pivot(
         },
     ]
 
+    profile_map = {
+        "full": [spec["trial_id"] for spec in available_trial_specs],
+        "balanced": ["t0_baseline", "t2_sampling_weighted", "t4_atom_mode_heavy"],
+        "fast": ["t0_baseline", "t4_atom_mode_heavy"],
+    }
+    id_to_spec = {spec["trial_id"]: spec for spec in available_trial_specs}
+    requested_trial_ids = (
+        list(cp_a_trial_ids)
+        if cp_a_trial_ids
+        else list(profile_map.get(cp_a_profile, profile_map["balanced"]))
+    )
+    selected_specs: list[dict[str, Any]] = []
+    for trial_id in requested_trial_ids:
+        spec = id_to_spec.get(trial_id)
+        if spec is None:
+            raise ValueError(f"Unknown CP-A trial id: {trial_id}")
+        selected_specs.append(spec)
+    if not selected_specs:
+        raise ValueError("CP-A pivot selected zero trial specs.")
+
     trials: list[dict[str, Any]] = []
-    for spec in trial_specs:
+    start_ts = monotonic()
+    stop_reason: str | None = None
+    for idx, spec in enumerate(selected_specs, start=1):
+        if cp_a_max_minutes is not None and idx > 1:
+            elapsed_minutes = (monotonic() - start_ts) / 60.0
+            if elapsed_minutes >= cp_a_max_minutes:
+                stop_reason = f"time_budget_reached({cp_a_max_minutes:.1f}m)"
+                print(f"[CP-A] stopping early: {stop_reason}")
+                break
         trial = _run_cp_a_trial(
             trial_id=spec["trial_id"],
             title=spec["title"],
@@ -537,6 +569,9 @@ def _run_cp_a_pivot(
             per_frame_top_n=per_frame_top_n,
         )
         trials.append(trial)
+
+    if not trials:
+        raise ValueError("CP-A pivot executed zero trials.")
 
     baseline = trials[0]
     baseline_recall = float(baseline["summary"]["recall"])
@@ -555,6 +590,7 @@ def _run_cp_a_pivot(
     best_trial = _select_best_cp_a_trial(trials)
     best_recall = float(best_trial["summary"]["recall"])
     cp_a_decision = "PIVOT_REQUIRED" if best_recall < 0.22 else "SG2_CANDIDATE"
+    elapsed_total_minutes = (monotonic() - start_ts) / 60.0
 
     return {
         "generated_at_utc": _utc_now(),
@@ -567,6 +603,16 @@ def _run_cp_a_pivot(
         "mini_set_size": len(mini_cases),
         "mini_set_ids": [str(c["pdb_id"]).upper() for c in mini_cases],
         "trials": trials,
+        "execution_policy": {
+            "cp_a_profile": cp_a_profile,
+            "requested_trial_ids": requested_trial_ids,
+            "executed_trial_ids": [str(t["trial_id"]) for t in trials],
+            "available_trial_ids": [str(spec["trial_id"]) for spec in available_trial_specs],
+            "time_budget_minutes": cp_a_max_minutes,
+            "elapsed_minutes": round(elapsed_total_minutes, 3),
+            "stopped_early": bool(stop_reason),
+            "stop_reason": stop_reason,
+        },
         "best_trial": {
             "trial_id": best_trial["trial_id"],
             "title": best_trial["title"],
@@ -746,6 +792,24 @@ def _write_domain_motion_report(path: Path, payload: dict[str, Any]) -> None:
             "- Scope: CP-A pivot mini-set (domain_motion + loop_rearrangement)",
             "- Canonical lock: tolerance=8.0A, top-N=20, druggable=true",
             f"- Mini-set size: {payload['mini_set_size']}",
+            "",
+            "## Execution Policy",
+            "",
+            (
+                f"- Profile: `{payload.get('execution_policy', {}).get('cp_a_profile', 'unknown')}`"
+            ),
+            (
+                f"- Executed trials: "
+                f"`{', '.join(payload.get('execution_policy', {}).get('executed_trial_ids', []))}`"
+            ),
+            (
+                f"- Time budget (min): "
+                f"`{payload.get('execution_policy', {}).get('time_budget_minutes')}`"
+            ),
+            (
+                f"- Stopped early: "
+                f"`{payload.get('execution_policy', {}).get('stopped_early', False)}`"
+            ),
             "",
             "## Denenen Degisiklikler",
             "",
@@ -973,6 +1037,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run only CP-A mini-set trials and generate A1 outputs.",
     )
+    parser.add_argument(
+        "--cp-a-profile",
+        default="balanced",
+        choices=["fast", "balanced", "full"],
+        help="Trial profile for CP-A mini mode (default: balanced).",
+    )
+    parser.add_argument(
+        "--cp-a-trials",
+        default="",
+        help="Comma-separated CP-A trial ids overriding profile (e.g. t0_baseline,t4_atom_mode_heavy).",
+    )
+    parser.add_argument(
+        "--cp-a-max-minutes",
+        type=float,
+        default=90.0,
+        help="Hard time budget for CP-A mini mode. Stops before next trial if budget is reached.",
+    )
     return parser.parse_args()
 
 
@@ -981,9 +1062,17 @@ def main() -> int:
     test_cases, _ = load_test_set(ROOT / args.test_set)
 
     if args.cp_a_mini_only:
+        cp_a_trial_ids = [
+            item.strip()
+            for item in str(args.cp_a_trials).split(",")
+            if item.strip()
+        ]
         cp_a_payload = _run_cp_a_pivot(
             test_cases=test_cases,
             per_frame_top_n=args.per_frame_top_n,
+            cp_a_profile=args.cp_a_profile,
+            cp_a_trial_ids=cp_a_trial_ids if cp_a_trial_ids else None,
+            cp_a_max_minutes=args.cp_a_max_minutes,
         )
         _write_json(ROOT / args.a1_output_json, cp_a_payload)
         _write_domain_motion_report(ROOT / args.a1_output_md, cp_a_payload)
