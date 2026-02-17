@@ -7,7 +7,7 @@ Standardize how WS-A, WS-B, and WS-C outputs are received, validated, and merged
 ## Base Reference
 
 - Integration branch: `recovery-v2-integration`
-- Base commit used for current cycle: `7563f26`
+- Base commit used for current cycle: `96c0adf`
 
 ## Intake Order
 
@@ -45,6 +45,22 @@ Strict mode (for merge gate):
 
 ```bash
 python scripts/recovery_v2_intake_check.py --strict
+```
+
+## WS-A Runtime Guard
+
+Use CP-A mini mode with explicit runtime control to avoid multi-hour hangs.
+
+Recommended command:
+
+```bash
+python scripts/run_recovery_v2_recall_workstream.py --cp-a-mini-only --cp-a-profile balanced --cp-a-max-minutes 90
+```
+
+Fast sanity command:
+
+```bash
+python scripts/run_recovery_v2_recall_workstream.py --cp-a-mini-only --cp-a-profile fast --cp-a-max-minutes 45
 ```
 
 ## Decision Rule
