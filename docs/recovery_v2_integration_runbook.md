@@ -7,7 +7,7 @@ Standardize how WS-A, WS-B, and WS-C outputs are received, validated, and merged
 ## Base Reference
 
 - Integration branch: `recovery-v2-integration`
-- Base commit used for current cycle: `96c0adf`
+- Base commit used for current cycle: `2367583`
 
 ## Intake Order
 
