@@ -44,3 +44,12 @@ Not: Nihai gate metrikleri ve PASS/FAIL karari icin birincil referans `docs/phas
 1. Yeni rapor eklendiginde bu indexe bir satir eklenir.
 2. Eski/tekrarlayan raporlar dogrudan silinmez; once "archive adayi" olarak isaretlenir.
 3. SoT disi raporlar gate karari vermez, sadece kanit/analiz saglar.
+
+## 7) Archive (Temizlik Sonrasi)
+
+Asagidaki legacy dokumanlar kok `docs/` klasorunden tasinmistir:
+
+- `docs/archive/phase5_5_legacy/benchmark_dataset_card.md`
+- `docs/archive/phase5_5_legacy/fpocket_fairness_audit.md`
+- `docs/archive/phase5_5_legacy/p1.1_case_study.md`
+- `docs/archive/phase5_5_legacy/phase1_completion_report.md`
