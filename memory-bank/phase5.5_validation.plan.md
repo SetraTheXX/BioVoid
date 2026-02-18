@@ -16,14 +16,14 @@ This section is the authoritative execution snapshot for the current loop.
 - Stage location: Post-SG2, SG3 preflight pending WS-A result
 - CP-A status: latest completed mini result remains `PIVOT_REQUIRED`
 - Best completed CP-A mini result: recall `1/7 = 0.1429`, domain-motion `1/4`, `error_count=0`
-- WS-A status: CP-A iteration-2 run in progress (no new completed artifact yet)
+- WS-A status: CP-A iteration-2 long run was aborted; no new completed artifact
 - WS-B status: Option-1 lock completed; candidate-set SoT aligned to JSON (`0.0290 -> 0.3246`, delta `+0.2957`)
 - WS-C status: SG3 preflight checklist prepared; guard/drift/alignment rerun waits for WS-A output
 - Phase 6 status: BLOCKED
 
 Immediate next actions:
-1. WS-A: finalize CP-A iteration-2 mini-set run and publish new artifact pair (report + JSON).
-2. WS-C: immediately run post-A SG3 guard + drift + SoT alignment loop.
+1. WS-A: run only short-budget CP-A mini trials (no long uninterrupted run) and publish artifact pair (report + JSON).
+2. WS-C: run post-A SG3 guard + drift + SoT alignment loop immediately after any new WS-A artifact.
 3. WS-B: keep Option-1 lock stable; no metric-definition change.
 4. Trigger SG4 final gate rerun only after clear upward signal (`recall >= 0.22` mini-set and overlap pilot signal retained).
 

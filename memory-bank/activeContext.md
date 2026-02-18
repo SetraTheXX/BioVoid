@@ -29,7 +29,7 @@
   - Recall: **1/7 = 0.1429**
   - Domain-motion: **1/4**
   - Karar: **PIVOT_REQUIRED**
-- Not: Iteration-2 uzun kosu 2026-02-18 tarihinde operatif olarak durduruldu (tamamlanmadi).
+- Not: Iteration-2 uzun kosu 2026-02-18 tarihinde operatif olarak durduruldu; yeni tamamlanmis artefakt yok.
 - Durum: **CP-A cikis kriteri saglanmadi** (recall < 0.22).
 
 ### WS-B (Overlap Specialist)
@@ -53,7 +53,7 @@
 
 ## Hemen Sonraki Adimlar
 
-1. WS-A: Uzun kosu tekrar edilmeden, CP-A icin daha kisa ve kontrollu deney tasarimi (trial parcalama / runtime budget).
+1. WS-A: Uzun kosu tekrar edilmeden, CP-A icin kisa ve kontrollu mini deneme (strict runtime budget + parca trial) tasarla.
 2. WS-B: Option-1 lock + SoT uyumunu koru (candidate-set metrikleri JSON ile birebir).
 3. WS-C: Her yeni WS-A degisiklikten sonra guard + drift + alignment rerun.
 4. SG4 final gate rerun sadece mini recall sinyali >= 0.22 oldugunda tetiklenecek.
