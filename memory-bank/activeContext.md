@@ -3,7 +3,7 @@
 ## Su Anki Faz
 
 - Faz: **5.5 Recovery v2**
-- Konum: **SG5 NO-GO closure (Recovery v2 tamamlandi, Faz 6 acilmadi)**
+- Konum: **SG4 READY (strict intake PASS, full gate rerun beklemede)**
 - SoT: `docs/phase5_5_gate_decision.md`
 - Faz 6 durumu: **BLOCKED**
 
@@ -19,18 +19,17 @@
 
 ### WS-A (Recall Specialist)
 
-- SG1 tamamlandi ancak checkpoint gecilemedi.
+- SG1 tamamlandi ve mini checkpoint gecildi.
 - `docs/recall_recovery_experiments_v3.md`:
   - Recall: **15.0% (3/20)**
   - Domain-motion: **0/4**
   - SG1 checkpoint (>=0.22): **FAIL**
-- CP-A mini son gecerli artefakt (`docs/recovery_v2_recall_domain_motion_report.md`, `2026-02-17T18:58:00Z`):
+- CP-A mini son gecerli artefakt (`docs/recovery_v2_recall_domain_motion_report.md`):
   - En iyi trial: `t4_atom_mode_heavy`
-  - Recall: **1/7 = 0.1429**
-  - Domain-motion: **1/4**
-  - Karar: **PIVOT_REQUIRED**
-- Not: Iteration-2 uzun kosu 2026-02-18 tarihinde operatif olarak durduruldu; yeni tamamlanmis artefakt yok.
-- Durum: **CP-A cikis kriteri saglanmadi** (recall < 0.22).
+  - Recall: **2/7 = 0.2857**
+  - Domain-motion: **2/4**
+  - Karar: **SG2_CANDIDATE**
+- Durum: **CP-A cikis kriteri saglandi** (recall >= 0.22).
 
 ### WS-B (Overlap Specialist)
 
@@ -53,7 +52,7 @@
 
 ## Hemen Sonraki Adimlar
 
-1. WS-A: CP-A icin yeni algoritmik pivot (daha kisa ve hedefe odakli mini tasarim) baslat.
-2. WS-B: Option-1 lock + SoT uyumunu koru; overlap tarafini stabil tut.
-3. WS-C: Yeni WS-A degisiklikleri geldikce guard + drift + alignment tekrar kos.
-4. Sonraki SG4 tetigi: mini recall sinyali `>= 0.22` saglandiginda.
+1. SG4: Full gate rerun (A3 full recall + B3 full overlap artifactleriyle) calistir.
+2. WS-B: Option-1 lock + SoT uyumunu koru; overlap tarafini full rerun kaynaklariyla tekrar dogrula.
+3. WS-C: SG4 rerun sonrasi guard + drift + alignment zincirini yeniden kos.
+4. SG5: Full gate sonucuna gore Faz 6 icin GO/NO-GO karari ver.
