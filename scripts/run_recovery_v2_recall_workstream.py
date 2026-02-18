@@ -34,6 +34,13 @@ RELAXED_CONSENSUS_MIN_FRAMES = 2
 RELAXED_CENTER_STABILITY_MAX = 3.0
 RELAXED_VOLUME_CV_MAX = 0.35
 RELAXED_CONSENSUS_DISTANCE = 4.5
+DRUGGABILITY_RESCUE_BIO_MIN = 0.75
+DRUGGABILITY_RESCUE_SUPPORT_MIN = 4
+DRUGGABILITY_RESCUE_CENTER_STABILITY_MAX = 0.35
+DRUGGABILITY_RESCUE_VOLUME_CV_MAX = 0.25
+DRUGGABILITY_RESCUE_HYDROPHOBIC_MIN = 0.45
+CP_A_DOMAIN_DEEP_MIN_FRAMES = 12
+CP_A_DOMAIN_DEEP_FRACTION = 0.60
 
 
 def _utc_now() -> str:
@@ -84,6 +91,38 @@ def _druggability_norm(pocket: dict[str, Any]) -> float:
     if cls == "low":
         return 0.3
     return 1.0 if bool(pocket.get("druggable", False)) else 0.0
+
+
+def _is_druggability_rescue_candidate(pocket: dict[str, Any]) -> bool:
+    cls = str(pocket.get("druggability_class", "")).lower()
+    if cls != "high":
+        return False
+
+    bio_score = float(pocket.get("bio_score", 0.0) or 0.0)
+    support = float(
+        pocket.get("consensus_support_frames")
+        if pocket.get("consensus_support_frames") is not None
+        else 0.0
+    )
+    center_stability = float(
+        pocket.get("consensus_center_stability")
+        if pocket.get("consensus_center_stability") is not None
+        else 999.0
+    )
+    volume_cv = float(
+        pocket.get("consensus_volume_cv")
+        if pocket.get("consensus_volume_cv") is not None
+        else 999.0
+    )
+    hydrophobic_ratio = float(pocket.get("hydrophobic_ratio", 0.0) or 0.0)
+
+    return (
+        bio_score >= DRUGGABILITY_RESCUE_BIO_MIN
+        and support >= DRUGGABILITY_RESCUE_SUPPORT_MIN
+        and center_stability <= DRUGGABILITY_RESCUE_CENTER_STABILITY_MAX
+        and volume_cv <= DRUGGABILITY_RESCUE_VOLUME_CV_MAX
+        and hydrophobic_ratio >= DRUGGABILITY_RESCUE_HYDROPHOBIC_MIN
+    )
 
 
 def _prepare_refined_rank(pockets: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -141,6 +180,14 @@ def _prepare_refined_rank(pockets: list[dict[str, Any]]) -> list[dict[str, Any]]
         )
 
         ranked = dict(pocket)
+        base_druggable = bool(ranked.get("druggable", False))
+        rescue_applied = False
+        if not base_druggable and _is_druggability_rescue_candidate(ranked):
+            rescue_applied = True
+            ranked["druggable"] = True
+
+        ranked["druggable_original"] = base_druggable
+        ranked["druggability_rescue_applied"] = rescue_applied
         ranked["rank_score"] = round(rank_score, 6)
         ranked["rank_hard_filter_pass"] = hard_filter_pass
         ranked["rank_score_breakdown"] = {
@@ -154,6 +201,8 @@ def _prepare_refined_rank(pockets: list[dict[str, Any]]) -> list[dict[str, Any]]
             f"bio={bio_norm:.3f} support={support_norm:.3f} drug={drug_norm:.3f} "
             f"center={center_stability:.3f}A volume_cv={volume_cv:.3f}"
         )
+        if rescue_applied:
+            ranked["rank_reason"] += " rescue=druggability_high_confidence"
         scored.append(ranked)
     return scored
 
@@ -263,6 +312,7 @@ def _run_multi_case(
     consensus_distance: float = CONSENSUS_DISTANCE,
     center_stability_max: float = CENTER_STABILITY_MAX,
     volume_cv_max: float = VOLUME_CV_MAX,
+    reuse_existing_frames: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], str | None]:
     return run_pipeline_for_protein(
         pdb_id=str(test_case["pdb_id"]),
@@ -274,7 +324,7 @@ def _run_multi_case(
         per_frame_top_n=per_frame_top_n,
         center_stability_max=center_stability_max,
         volume_cv_max=volume_cv_max,
-        reuse_existing_frames=True,
+        reuse_existing_frames=reuse_existing_frames,
         frame_selection_mode=frame_selection_mode,
         frame_selection_fraction=frame_selection_fraction,
     )
@@ -469,12 +519,76 @@ def _run_cp_a_trial(
             )
             continue
 
+        deep_pass_used = False
+        if (
+            ranking_mode == "refined"
+            and analysis_atom_mode == "reconstructed_heavy"
+            and frame_selection_mode == "domain_motion_weighted"
+            and str(case.get("pocket_type", "")) == "domain_motion"
+            and (
+                int(n_frames) < CP_A_DOMAIN_DEEP_MIN_FRAMES
+                or float(frame_selection_fraction) < CP_A_DOMAIN_DEEP_FRACTION
+            )
+        ):
+            deep_n_frames = max(int(n_frames), CP_A_DOMAIN_DEEP_MIN_FRAMES)
+            deep_fraction = max(float(frame_selection_fraction), CP_A_DOMAIN_DEEP_FRACTION)
+            deep_cache_key = (
+                pdb_id,
+                analysis_atom_mode,
+                frame_selection_mode,
+                round(float(deep_fraction), 4),
+                int(per_frame_top_n),
+                int(deep_n_frames),
+                int(consensus_min_frames),
+                round(float(consensus_distance), 4),
+                round(float(center_stability_max), 4),
+                round(float(volume_cv_max), 4),
+                "domain_deep_pass",
+            )
+            deep_cached = run_cache.get(deep_cache_key)
+            if deep_cached is None:
+                deep_cached = _run_multi_case(
+                    case,
+                    analysis_atom_mode=analysis_atom_mode,
+                    frame_selection_mode=frame_selection_mode,
+                    frame_selection_fraction=deep_fraction,
+                    per_frame_top_n=per_frame_top_n,
+                    n_frames=deep_n_frames,
+                    consensus_min_frames=consensus_min_frames,
+                    consensus_distance=consensus_distance,
+                    center_stability_max=center_stability_max,
+                    volume_cv_max=volume_cv_max,
+                )
+                run_cache[deep_cache_key] = deep_cached
+            deep_pockets, deep_diagnostics, deep_error = deep_cached
+            diagnostics = dict(diagnostics)
+            if deep_error:
+                diagnostics["domain_deep_pass"] = {
+                    "status": "error",
+                    "error": deep_error,
+                    "n_frames": deep_n_frames,
+                    "frame_selection_fraction": deep_fraction,
+                }
+            else:
+                pockets = list(pockets) + list(deep_pockets)
+                deep_pass_used = True
+                diagnostics["domain_deep_pass"] = {
+                    "status": "merged",
+                    "n_frames": deep_n_frames,
+                    "frame_selection_fraction": deep_fraction,
+                    "base_candidate_count": len(cached[0]),
+                    "deep_candidate_count": len(deep_pockets),
+                    "merged_candidate_count": len(pockets),
+                    "deep_frames_analyzed": deep_diagnostics.get("frames_analyzed"),
+                }
+
         result = _evaluate_case(
             case,
             pockets,
             diagnostics,
             ranking_mode=ranking_mode,
         )
+        result["domain_deep_pass_used"] = deep_pass_used
         rows.append(result)
 
     summary = _summarize(rows)
@@ -677,6 +791,12 @@ def _run_cp_a_pivot(
             hard_deadline_ts=deadline_ts,
         )
         trials.append(trial)
+        current_best = _select_best_cp_a_trial(trials)
+        current_best_recall = float(current_best["summary"]["recall"])
+        if current_best_recall >= 0.22:
+            stop_reason = f"success_threshold_reached(recall={current_best_recall:.4f})"
+            print(f"[CP-A] stopping early: {stop_reason}")
+            break
         if bool(trial.get("stopped_early", False)):
             stop_reason = str(trial.get("stop_reason") or "time_budget_reached")
             print(f"[CP-A] stopping after trial {spec['trial_id']}: {stop_reason}")
