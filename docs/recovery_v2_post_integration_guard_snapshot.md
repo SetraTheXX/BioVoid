@@ -1,40 +1,33 @@
 ﻿# Recovery v2 Post-Integration Guard Snapshot (Codex-C)
 
-- Generated at (UTC): 2026-02-17T20:03:52Z
-- Branch: `ws-c-guard-after-ab-v1`
-- Base branch: `recovery-v2-integration`
-- Base commit: `7563f26`
-- Integration method for A/B refs: merge (`Already up to date`)
+- Generated at (UTC): 2026-02-18T16:56:53Z
+- Branch: `ws-c/recovery-v3-guard-after-a-final`
+- Base: `ws-main/recovery-v3-integration` (current head)
+- A commit status: `4a0953a` already present in base (no-op cherry-pick)
+- Scope: SG3/SG4 verification only (no Phase 6 decision)
 
-## Zorunlu Snapshot Maddeleri
+## Signals
 
-1. overall guard status: **PASS**
-2. drift lock durumu: **PASS** (`tolerance=8.0`, `top_n=20`, `druggable=true`)
-3. SoT decision uyumu (`docs/phase5_5_gate_decision.md`): **PASS**
-4. acik riskler:
-   - WS-C regression riski: tespit edilmedi.
-   - Sistem riski: recall ve overlap gate FAIL oldugu icin Faz 6 halen bloklu.
+- hard_checks_ok: **true**
+- readiness_signals_ok: **false**
 
 ## PASS/FAIL Table
 
-| Check | Status | Evidence |
+| Check | Status | Detail |
 | --- | --- | --- |
-| FPR Guard | PASS | conservative_fpr=0.1311 <= 0.60 |
-| MD Guard | PASS | md_validated_count=1, status=VALIDATION_SUCCESS |
-| Drift Lock | PASS | tolerance=8.0, top_n=20, druggable=true |
-| Alignment | PASS | SoT decision+metric alignment PASS |
-| Overall WS-C | PASS | `data/validation/recovery_v2_regression_guard.json` |
+| Overall | PASS | overall_regression_guard_status=PASS |
+| FPR | PASS | conservative_fpr=0.1311 <= 0.60 |
+| MD | PASS | md_validated_count=1 |
+| Drift | PASS | tolerance=8.0, top_n=20, druggable=true |
+| Alignment | PASS | report_consistency_guard=PASS |
 
 ## Blocker List
 
-1. WS-C blocker: yok.
-2. Sistem blocker: var (`Recall FAIL`, `fpocket overlap FAIL`).
+1. WS-C blocker: none.
+2. System blocker remains: gate still FAIL on recall and overlap thresholds.
+3. Intake readiness blocker: `readiness_signals_ok=false` (WS-A recall floor not met).
 
-## CP-A Patch Sonrasi Tekrar Kosulacak Checklist
+## Notes
 
-1. `python .\BioVoid\scripts\run_recovery_v2_regression_guard.py`
-2. `docs/recovery_v2_regression_guard_report.md` overall status PASS mi?
-3. Drift lock (`8.0/20/true`) korunuyor mu?
-4. SoT decision alignment (`reported == expected`) PASS mi?
-5. `docs/recovery_v2_drift_check_report.md` ve `docs/recovery_v2_reports_alignment.md` icinde yeni mismatch var mi?
-6. Merge/cherry-pick oncesi gate-metric mismatch olmadigini dogrula.
+- Faz 6 kararı verilmedi.
+- Bu snapshot yalnızca WS-C guard/alignment readiness durumunu raporlar.
