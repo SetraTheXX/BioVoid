@@ -3,7 +3,7 @@
 ## Su Anki Faz
 
 - Faz: **5.5 Recovery v2**
-- Konum: **SG2 tamam, SG3 preflight (WS-A sonucu bekleniyor)**
+- Konum: **SG5 NO-GO closure (Recovery v2 tamamlandi, Faz 6 acilmadi)**
 - SoT: `docs/phase5_5_gate_decision.md`
 - Faz 6 durumu: **BLOCKED**
 
@@ -53,7 +53,7 @@
 
 ## Hemen Sonraki Adimlar
 
-1. WS-A: Uzun kosu tekrar edilmeden, CP-A icin kisa ve kontrollu mini deneme (strict runtime budget + parca trial) tasarla.
-2. WS-B: Option-1 lock + SoT uyumunu koru (candidate-set metrikleri JSON ile birebir).
-3. WS-C: Her yeni WS-A degisiklikten sonra guard + drift + alignment rerun.
-4. SG4 final gate rerun sadece mini recall sinyali >= 0.22 oldugunda tetiklenecek.
+1. WS-A: CP-A icin yeni algoritmik pivot (daha kisa ve hedefe odakli mini tasarim) baslat.
+2. WS-B: Option-1 lock + SoT uyumunu koru; overlap tarafini stabil tut.
+3. WS-C: Yeni WS-A degisiklikleri geldikce guard + drift + alignment tekrar kos.
+4. Sonraki SG4 tetigi: mini recall sinyali `>= 0.22` saglandiginda.
