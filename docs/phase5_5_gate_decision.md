@@ -1,6 +1,6 @@
 # Phase 5.5 Gate Decision
 
-- Generated at (UTC): 2026-02-18T18:00:02Z
+- Generated at (UTC): 2026-02-18T21:39:12Z
 - Decision: **FAIL**
 
 ## Pre-registered Gates
@@ -14,7 +14,7 @@
 
 | Gate | Observed | Threshold | Status |
 | --- | ---: | ---: | --- |
-| Recall | 0.1500 | >= 0.30 | FAIL |
+| Recall | 0.0000 | >= 0.30 | FAIL |
 | fpocket overlap | 0.0577 | >= 0.40 | FAIL |
 | MD validation proteins | 1 | >= 1 | PASS |
 | Conservative FPR | 0.1311 | <= 0.60 | PASS |

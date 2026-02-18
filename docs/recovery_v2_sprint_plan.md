@@ -1,6 +1,6 @@
 # Faz 5.5 Recovery v2 Sprint Plani
 
-> **Durum:** SG4 READY (readiness sinyalleri PASS, final gate rerun beklemede)  
+> **Durum:** SG5 NO-GO (SG4 full gate rerun tamamlandi, Faz 6 acilmadi)  
 > **Tarih:** 2026-02-13  
 > **Kapsam:** Recall + Overlap eksiklerini kapatip Faz 6 gecisine hazir hale gelmek  
 > **Ana Hedef:** Final gate'te 4/4 PASS almak  
@@ -40,7 +40,7 @@ Ek teknik durum:
 
 ---
 
-## 1.5) Execution Snapshot (2026-02-18 / Recovery v3 update)
+## 1.5) Execution Snapshot (2026-02-19 / Recovery v3 SG4-SG5)
 
 | Stage | Durum | Kanit | Not |
 | --- | --- | --- | --- |
@@ -49,8 +49,8 @@ Ek teknik durum:
 | SG1 WS-A Spike + Mini | TAMAMLANDI (ESIK GECILDI) | `docs/recovery_v2_recall_domain_motion_report.md`, `data/validation/recovery_v2_domain_motion_eval.json` | CP-A sonucu `SG2_CANDIDATE` (`best_recall=2/7=0.2857`, `domain_motion=2/4`) |
 | SG2 WS-B Spike + Pilot | TAMAMLANDI | `docs/recovery_v2_overlap_option1_lock.md`, `data/benchmark/recovery_v2_overlap_pilot.json` | Top10 candidate-set `0.0290 -> 0.3246` |
 | SG3 Entegrasyon + Guard | TAMAMLANDI | `docs/recovery_v2_regression_guard_report.md`, `docs/recovery_v2_drift_check_report.md`, `docs/recovery_v2_reports_alignment.md` | WS-C guard/drift/alignment PASS |
-| SG4 Final Gate Rerun | READY (PENDING) | `docs/phase5_5_gate_decision.md` | Readiness sinyali gecti (`hard_checks_ok=True`, `readiness_signals_ok=True`), full rerun bekleniyor |
-| SG5 Faz 6 Go/No-Go | PENDING | `docs/phase5_5_gate_decision.md`, `data/validation/recovery_v2_regression_guard.json` | Nihai karar full gate rerun sonrasi verilecek |
+| SG4 Final Gate Rerun | TAMAMLANDI (FAIL) | `docs/phase5_5_gate_decision.md`, `data/validation/validation_results.json`, `docs/validation_report.md` | Full rerun sonucu: recall `0.0000`, overlap `0.0577` |
+| SG5 Faz 6 Go/No-Go | TAMAMLANDI (NO-GO) | `docs/phase5_5_gate_decision.md`, `data/validation/recovery_v2_regression_guard.json` | Strict all-gates kurali nedeniyle Faz 6 acilis kosullari saglanmadi |
 
 Current locked WS-A snapshot (latest completed mini artifact):
 - `cp_a_decision = SG2_CANDIDATE`
@@ -59,15 +59,23 @@ Current locked WS-A snapshot (latest completed mini artifact):
 - `domain_motion_hits = 2/4`
 - `error_count = 0`
 
-Execution verdict:
-1. WS-A mini readiness esigi gecildi (`>=0.22`) ve SG4 tetigi acildi.
-2. WS-B ve WS-C tarafi guard/SoT hizasiyla stabil.
-3. Faz 6 hala final gate 4/4 PASS sonucuna bagli.
+SG4 full rerun snapshot (gate-path):
+- `validation_results.recall = 0.0000 (0/20)`
+- `avg_best_distance = 25.9256A`
+- `domain_motion = 0/4`
+- `failed_runs = 0`
 
-SG4 readiness note (2026-02-18, latest):
+Execution verdict:
+1. WS-A mini readiness esigi gecildi (`>=0.22`) ancak SG4 full rerun metrikleri gate seviyesine tasinamadi.
+2. WS-B ve WS-C tarafi guard/SoT hizasiyla stabil kaldi.
+3. SG5 karari **NO-GO**: Faz 6 acilamadi.
+
+SG5 final note (2026-02-19):
 1. `python scripts/recovery_v2_intake_check.py --strict` sonucu: `hard_checks_ok=True`, `readiness_signals_ok=True`.
-2. Readiness PASS nedeni: WS-A mini recall sinyali esigi asti (`0.2857 >= 0.22`).
-3. Bir sonraki resmi adim: SG4 full gate rerun.
+2. Buna ragmen `docs/phase5_5_gate_decision.md` strict gate sonucu **FAIL**:
+   - Recall: `0.0000 < 0.30`
+   - fpocket overlap: `0.0577 < 0.40`
+3. FPR ve MD PASS korunurken Faz 6 karari **NO-GO** olarak kapatildi.
 
 ---
 

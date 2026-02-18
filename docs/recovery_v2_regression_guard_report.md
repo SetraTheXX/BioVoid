@@ -1,6 +1,6 @@
 # Recovery v2 Regression Guard Report
 
-- Generated at (UTC): 2026-02-18T18:00:02Z
+- Generated at (UTC): 2026-02-18T21:39:12Z
 - Overall WS-C guard status: **PASS**
 
 ## Guard Summary
@@ -16,7 +16,7 @@
 
 - Reported decision: **FAIL**
 - Expected decision from artifacts: **FAIL**
-- Recall: 0.1500 (threshold >= 0.30)
+- Recall: 0.0000 (threshold >= 0.30)
 - fpocket overlap: 0.0577 (threshold >= 0.40)
 - Conservative FPR: 0.1311 (threshold <= 0.60)
 - MD validated proteins: 1 (threshold >= 1)
