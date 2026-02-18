@@ -387,9 +387,12 @@ def _run_cp_a_trial(
     frame_selection_fraction: float,
     ranking_mode: str,
     per_frame_top_n: int,
+    hard_deadline_ts: float | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
+    trial_stop_reason: str | None = None
+    trial_start_ts = monotonic()
 
     print(
         f"[CP-A:{trial_id}] {title} | "
@@ -397,6 +400,28 @@ def _run_cp_a_trial(
         f"ranking={ranking_mode}"
     )
     for idx, case in enumerate(mini_cases, start=1):
+        if hard_deadline_ts is not None and monotonic() >= hard_deadline_ts:
+            trial_stop_reason = "time_budget_reached_before_case"
+            print(f"  [CP-A:{trial_id}] stopping early: {trial_stop_reason}")
+            for skipped in mini_cases[idx - 1 :]:
+                spid = str(skipped["pdb_id"]).upper()
+                err = "time_budget_reached"
+                errors.append({"pdb_id": spid, "error": err})
+                rows.append(
+                    {
+                        "pdb_id": spid,
+                        "protein_name": skipped["name"],
+                        "pocket_type": skipped["pocket_type"],
+                        "matched": False,
+                        "best_distance": None,
+                        "error": err,
+                        "ranking_mode": ranking_mode,
+                        "n_pockets_found": 0,
+                        "n_druggable_pockets": 0,
+                        "diagnostics": {},
+                    }
+                )
+            break
         pdb_id = str(case["pdb_id"]).upper()
         print(f"  [CP-A:{trial_id}] {idx}/{len(mini_cases)} {pdb_id}")
         pockets, diagnostics, error = _run_multi_case(
@@ -437,6 +462,7 @@ def _run_cp_a_trial(
     domain_motion_hits = int(by_type.get("domain_motion", {}).get("hits", 0.0))
     domain_motion_total = int(by_type.get("domain_motion", {}).get("total", 0.0))
     domain_motion_recall = float(by_type.get("domain_motion", {}).get("recall", 0.0))
+    elapsed_minutes = (monotonic() - trial_start_ts) / 60.0
     return {
         "trial_id": trial_id,
         "title": title,
@@ -457,6 +483,9 @@ def _run_cp_a_trial(
         "domain_motion_recall": domain_motion_recall,
         "case_results": rows,
         "errors": errors,
+        "stopped_early": bool(trial_stop_reason),
+        "stop_reason": trial_stop_reason,
+        "elapsed_minutes": round(elapsed_minutes, 3),
     }
 
 
@@ -550,14 +579,17 @@ def _run_cp_a_pivot(
 
     trials: list[dict[str, Any]] = []
     start_ts = monotonic()
+    deadline_ts = (
+        start_ts + (float(cp_a_max_minutes) * 60.0)
+        if cp_a_max_minutes is not None
+        else None
+    )
     stop_reason: str | None = None
     for idx, spec in enumerate(selected_specs, start=1):
-        if cp_a_max_minutes is not None and idx > 1:
-            elapsed_minutes = (monotonic() - start_ts) / 60.0
-            if elapsed_minutes >= cp_a_max_minutes:
-                stop_reason = f"time_budget_reached({cp_a_max_minutes:.1f}m)"
-                print(f"[CP-A] stopping early: {stop_reason}")
-                break
+        if deadline_ts is not None and monotonic() >= deadline_ts:
+            stop_reason = f"time_budget_reached({cp_a_max_minutes:.1f}m)"
+            print(f"[CP-A] stopping early: {stop_reason}")
+            break
         trial = _run_cp_a_trial(
             trial_id=spec["trial_id"],
             title=spec["title"],
@@ -567,8 +599,13 @@ def _run_cp_a_pivot(
             frame_selection_fraction=float(spec["frame_selection_fraction"]),
             ranking_mode=spec["ranking_mode"],
             per_frame_top_n=per_frame_top_n,
+            hard_deadline_ts=deadline_ts,
         )
         trials.append(trial)
+        if bool(trial.get("stopped_early", False)):
+            stop_reason = str(trial.get("stop_reason") or "time_budget_reached")
+            print(f"[CP-A] stopping after trial {spec['trial_id']}: {stop_reason}")
+            break
 
     if not trials:
         raise ValueError("CP-A pivot executed zero trials.")
