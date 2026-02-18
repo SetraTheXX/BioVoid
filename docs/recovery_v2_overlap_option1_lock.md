@@ -13,6 +13,15 @@
 - Delta (pilot top25): **+0.2139** (matched +86)
 - Option-1 best overlap (Top10 CP-B candidate set): **0.3246** (baseline **0.0290**, delta **+0.2957**, matched +51)
 
+## SG4 Full Rerun Snapshot
+
+- Snapshot branch/base: `ws-b/recovery-v3-overlap-gate-full` from `ws-main/recovery-v3-integration`
+- Official overlap (global): **0.0577**
+- Distance-only overlap: **0.3099**
+- Full Option-1 overlap/delta: **0.2439** (**+0.1862** vs full base **0.0577**)
+- Gap to official gate threshold 0.40: **0.3423** (0.4000 - 0.0577)
+- Reference candidate-set canonical (unchanged): **0.0290 -> 0.3246** (**+0.2957**, matched **+51**)
+
 ## Top Candidate Impact (focus)
 
 - 5R35: `0.0000 -> 0.3750` (matched `0 -> 6`)
