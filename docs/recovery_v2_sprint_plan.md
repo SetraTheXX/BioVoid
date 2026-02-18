@@ -84,6 +84,9 @@ SG5.5 transition note (2026-02-19):
    - Recall: `0.1500 >= 0.10`
    - fpocket overlap (SoT=`cp_b_candidate_impact.full_option1_overlap`): `0.2439 >= 0.24`
 4. Strict profile korunur ve FAIL kalir; transition profile Faz 6 oncesi controlled-go governance kaydi olarak kullanilir.
+5. Governance ve operasyon paketleri:
+   - `docs/phase6_transition_governance.md`
+   - `docs/phase6_transition_agent_prompts.md`
 
 ---
 

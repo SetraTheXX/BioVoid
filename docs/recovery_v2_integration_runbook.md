@@ -4,6 +4,10 @@
 
 Standardize how WS-A, WS-B, and WS-C outputs are received, validated, and merged.
 
+Transition governance references:
+- `docs/phase6_transition_governance.md`
+- `docs/phase6_transition_agent_prompts.md`
+
 ## Base Reference
 
 - Integration branch: `recovery-v2-integration`
