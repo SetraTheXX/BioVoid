@@ -3,7 +3,7 @@
 ## Su Anki Faz
 
 - Faz: **5.5 Recovery v2**
-- Konum: **SG1 sonrasi CP-A pivot**
+- Konum: **SG2 tamam, SG3 preflight (WS-A sonucu bekleniyor)**
 - SoT: `docs/phase5_5_gate_decision.md`
 - Faz 6 durumu: **BLOCKED**
 
@@ -37,7 +37,7 @@
 - B0-B3 tamamlandi.
 - CP-B Option-1 spike tamamlandi:
   - Pilot overlap: **0.0871 -> 0.3010**
-  - Candidate Top10 overlap: **0.1087 -> 0.4043**
+  - Candidate Top10 overlap: **0.0290 -> 0.3246**
   - Official gate metric degismedi (threshold **0.40**, global official overlap baseline **0.0577**).
 - Kaynaklar:
   - `docs/recovery_v2_overlap_calibration_report.md`
@@ -54,6 +54,6 @@
 ## Hemen Sonraki Adimlar
 
 1. WS-A: Uzun kosu tekrar edilmeden, CP-A icin daha kisa ve kontrollu deney tasarimi (trial parcalama / runtime budget).
-2. WS-B: Option-1 iyilesmesini sabit tutup regression olmadan rapor uyumunu koru.
+2. WS-B: Option-1 lock + SoT uyumunu koru (candidate-set metrikleri JSON ile birebir).
 3. WS-C: Her yeni WS-A degisiklikten sonra guard + drift + alignment rerun.
 4. SG4 final gate rerun sadece mini recall sinyali >= 0.22 oldugunda tetiklenecek.
