@@ -1,6 +1,6 @@
 # Phase 5.5 Gate Decision
 
-- Generated at (UTC): 2026-02-18T02:08:44Z
+- Generated at (UTC): 2026-02-18T10:46:02Z
 - Decision: **FAIL**
 
 ## Pre-registered Gates

@@ -97,9 +97,12 @@ def _check_ws_a(payload: dict[str, Any] | None, recall_floor: float) -> dict[str
 
 def _extract_ws_b_candidate_set(payload: dict[str, Any]) -> tuple[float | None, float | None, float | None]:
     impact = payload.get("cp_b_candidate_impact", {})
-    base = impact.get("candidate_set_baseline_overlap")
+    base = impact.get("candidate_set_baseline_overlap", impact.get("candidate_set_base_overlap"))
     best = impact.get("candidate_set_option1_overlap", impact.get("candidate_set_best_overlap"))
-    delta = impact.get("candidate_set_delta_overlap")
+    delta = impact.get(
+        "candidate_set_delta_overlap",
+        impact.get("candidate_set_delta_overlap_option1_vs_base"),
+    )
 
     if base is None or best is None:
         return None, None, None
