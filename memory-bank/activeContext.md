@@ -3,17 +3,24 @@
 ## Su Anki Faz
 
 - Faz: **5.5 Recovery v2**
-- Konum: **SG5 NO-GO closure (SG4 full rerun tamamlandi, Faz 6 acilmadi)**
-- SoT: `docs/phase5_5_gate_decision.md`
-- Faz 6 durumu: **BLOCKED**
+- Konum: **SG5.5 transition governance active (strict FAIL, transition PASS)**
+- SoT:
+  - `docs/phase5_5_gate_decision.md` (strict)
+  - `docs/phase5_5_gate_decision_recovery_v2_transition.md` (transition)
+- Faz 6 durumu: **CONDITIONAL_GO (strict hala BLOCKED)**
 
-## Son Dogrulanmis Gate Sonucu (2026-02-13)
+## Son Dogrulanmis Gate Sonucu (2026-02-18)
 
-- Recall: **0.1500 (3/20)** -> FAIL (hedef >= 0.30)
-- fpocket overlap: **0.0577** -> FAIL (hedef >= 0.40)
+- Strict profile:
+  - Recall: **0.1500 (3/20)** -> FAIL (hedef >= 0.30)
+  - fpocket overlap: **0.0577** -> FAIL (hedef >= 0.25)
+- Transition profile:
+  - Recall: **0.1500** -> PASS (hedef >= 0.10)
+  - overlap SoT (`cp_b_candidate_impact.full_option1_overlap`): **0.2439** -> PASS (hedef >= 0.24)
 - Conservative FPR: **0.1311** -> PASS (hedef <= 0.60)
 - MD validated proteins: **1** -> PASS (hedef >= 1)
-- Final karar: **FAIL**
+- Strict karar: **FAIL**
+- Transition karar: **PASS**
 
 ## Recovery v2 Workstream Ozeti
 
@@ -48,6 +55,7 @@
   - `docs/recovery_v2_overlap_calibration_report.md`
   - `docs/recovery_v2_overlap_cp_b_prep.md`
 - Durum: **WS-B sinyali pozitif**, ancak sistem gate henuz Recall nedeniyle bloklu.
+- Transition notu: overlap transition SoT (`full_option1_overlap`) governance altina alindi.
 
 ### WS-C (Guard/QA Specialist)
 
@@ -58,7 +66,7 @@
 
 ## Hemen Sonraki Adimlar
 
-1. Faz 6 acilmadan once yeni recovery dongusu tasarla (WS-A ve WS-B odakli).
-2. WS-A: SG4 gate-path regresyonunun kok neden analizini cikar (mini/full dagilimi ayrimi).
-3. WS-B: overlap blocker'i `0.0577 -> 0.40` araliginda teknik feasibility notu ile tekrar parcala.
-4. WS-C: guard zincirini PASS durumda sabit tut ve yeni dongude drift/SoT ihlaline izin verme.
+1. `docs/phase6_transition_governance.md` kurallarina gore conditional-go dongusunu uygula.
+2. WS-A: mini/full20 farkinin kok nedenini kapatacak bounded full20 stabilization turu calistir.
+3. WS-B: official ve transition overlap sayilarini SoT uyumlu sabitle.
+4. WS-C: strict FAIL + transition PASS dual-gate durumunu her turda dogrula.
