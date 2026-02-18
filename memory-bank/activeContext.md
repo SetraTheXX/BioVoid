@@ -3,7 +3,7 @@
 ## Su Anki Faz
 
 - Faz: **5.5 Recovery v2**
-- Konum: **SG4 READY (strict intake PASS, full gate rerun beklemede)**
+- Konum: **SG5 NO-GO closure (SG4 full rerun tamamlandi, Faz 6 acilmadi)**
 - SoT: `docs/phase5_5_gate_decision.md`
 - Faz 6 durumu: **BLOCKED**
 
@@ -30,6 +30,12 @@
   - Domain-motion: **2/4**
   - Karar: **SG2_CANDIDATE**
 - Durum: **CP-A cikis kriteri saglandi** (recall >= 0.22).
+- SG4 full recall rerun (gate-path) sonucu:
+  - Recall: **0.0000 (0/20)**
+  - Domain-motion: **0/4**
+  - Avg best distance: **25.9256A**
+  - Failed runs: **0**
+  - Sonuc: gate-level recall kriteri saglanmadi.
 
 ### WS-B (Overlap Specialist)
 
@@ -52,7 +58,7 @@
 
 ## Hemen Sonraki Adimlar
 
-1. SG4: Full gate rerun (A3 full recall + B3 full overlap artifactleriyle) calistir.
-2. WS-B: Option-1 lock + SoT uyumunu koru; overlap tarafini full rerun kaynaklariyla tekrar dogrula.
-3. WS-C: SG4 rerun sonrasi guard + drift + alignment zincirini yeniden kos.
-4. SG5: Full gate sonucuna gore Faz 6 icin GO/NO-GO karari ver.
+1. Faz 6 acilmadan once yeni recovery dongusu tasarla (WS-A ve WS-B odakli).
+2. WS-A: SG4 gate-path regresyonunun kok neden analizini cikar (mini/full dagilimi ayrimi).
+3. WS-B: overlap blocker'i `0.0577 -> 0.40` araliginda teknik feasibility notu ile tekrar parcala.
+4. WS-C: guard zincirini PASS durumda sabit tut ve yeni dongude drift/SoT ihlaline izin verme.
