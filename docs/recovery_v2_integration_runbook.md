@@ -41,11 +41,22 @@ Standardize how WS-A, WS-B, and WS-C outputs are received, validated, and merged
 python scripts/recovery_v2_intake_check.py
 ```
 
+Preflight mode (A/B/C outputs still geliyorken):
+
+```bash
+python scripts/recovery_v2_intake_check.py --allow-missing
+```
+
 Strict mode (for merge gate):
 
 ```bash
 python scripts/recovery_v2_intake_check.py --strict
 ```
+
+Not:
+
+- Intake checker artik WS-B SoT alignment kontrolunu da yapar (`overlap_option1_lock` / `cp_b_prep` / `overlap_calibration_report` sayilari JSON ile uyumlu olmali).
+- Bu kontrol gecici olarak pas gecilecekse: `--skip-ws-b-doc-alignment`.
 
 ## WS-A Runtime Guard
 
