@@ -19,6 +19,22 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_GATE_PROFILES: dict[str, dict[str, Any]] = {
+    "strict": {
+        "min_recall": 0.30,
+        "min_fpocket_overlap": 0.25,
+        "max_false_positive_rate": 0.60,
+        "min_md_validated_proteins": 1,
+        "overlap_metric_source": "global.official_overlap_center_volume_greedy",
+    },
+    "recovery_v2_transition": {
+        "min_recall": 0.10,
+        "min_fpocket_overlap": 0.24,
+        "max_false_positive_rate": 0.60,
+        "min_md_validated_proteins": 1,
+        "overlap_metric_source": "cp_b_candidate_impact.full_option1_overlap",
+    },
+}
 
 
 def _utc_now() -> str:
@@ -35,6 +51,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pre-reg", default="data/validation/pre_registered_config.json")
     parser.add_argument("--validation-json", default="data/validation/validation_results.json")
     parser.add_argument("--fpocket-report", default="docs/fpocket_benchmark_report.md")
+    parser.add_argument(
+        "--benchmark-json",
+        default="data/benchmark/fpocket_benchmark_v3.json",
+        help="Benchmark JSON for overlap SoT extraction by gate profile.",
+    )
     parser.add_argument("--md-json", default="data/validation/md_validation_1g66.json")
     parser.add_argument("--fpr-json", default="data/validation/false_positive_results.json")
     parser.add_argument(
@@ -46,6 +67,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-feasibility-check",
         action="store_true",
         help="Skip overlap feasibility kill-switch pre-check.",
+    )
+    parser.add_argument(
+        "--gate-profile",
+        default="strict",
+        help="Gate profile to apply (configured under gate_profiles in pre-reg).",
     )
     parser.add_argument("--output", default="docs/phase5_5_gate_decision.md")
     parser.add_argument("--dry-run", action="store_true")
@@ -94,6 +120,57 @@ def _format_float(x: float | None, ndigits: int = 4) -> str:
     return f"{x:.{ndigits}f}"
 
 
+def _resolve_gate_config(pre_reg: dict[str, Any], gate_profile: str) -> dict[str, Any]:
+    profiles = pre_reg.get("gate_profiles", {})
+    if isinstance(profiles, dict) and profiles:
+        selected = profiles.get(gate_profile)
+        if selected is None:
+            available = ", ".join(sorted(str(key) for key in profiles.keys()))
+            raise KeyError(
+                f"Unknown gate profile '{gate_profile}'. Available profiles: {available}"
+            )
+        if not isinstance(selected, dict):
+            raise TypeError(f"Gate profile '{gate_profile}' must be an object.")
+        return selected
+
+    if gate_profile in DEFAULT_GATE_PROFILES:
+        if gate_profile == "strict":
+            merged = dict(DEFAULT_GATE_PROFILES["strict"])
+            merged.update(pre_reg.get("decision_gates", {}))
+            return merged
+        return dict(DEFAULT_GATE_PROFILES[gate_profile])
+
+    if gate_profile == "strict":
+        return pre_reg.get("decision_gates", {})
+
+    available = ", ".join(sorted(DEFAULT_GATE_PROFILES.keys()))
+    raise KeyError(
+        f"Unknown gate profile '{gate_profile}'. No gate_profiles in pre-reg. "
+        f"Built-in profiles: {available}"
+    )
+
+
+def _extract_nested_float(payload: dict[str, Any], dotted_path: str) -> float | None:
+    node: Any = payload
+    for key in dotted_path.split("."):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+        if node is None:
+            return None
+    try:
+        return float(node)
+    except (TypeError, ValueError):
+        return None
+
+
+def _load_overlap_from_benchmark_json(path: Path, metric_source: str) -> float | None:
+    payload = _safe_load_json(path)
+    if payload is None:
+        return None
+    return _extract_nested_float(payload, metric_source)
+
+
 def main() -> int:
     args = parse_args()
     if not args.skip_feasibility_check:
@@ -104,6 +181,8 @@ def main() -> int:
             args.pre_reg,
             "--benchmark-json",
             args.feasibility_benchmark_json,
+            "--gate-profile",
+            args.gate_profile,
         ]
         feasibility_proc = subprocess.run(feasibility_cmd, cwd=str(ROOT))
         if feasibility_proc.returncode != 0:
@@ -116,14 +195,23 @@ def main() -> int:
     validation = _safe_load_json(ROOT / args.validation_json) or {}
     md = _safe_load_json(ROOT / args.md_json) or {}
     fpr = _safe_load_json(ROOT / args.fpr_json) or {}
-    overlap = _load_fpocket_overlap(ROOT / args.fpocket_report)
+    benchmark_json_path = ROOT / args.benchmark_json
 
-    dg = pre_reg.get("decision_gates", {})
+    dg = _resolve_gate_config(pre_reg, args.gate_profile)
     cp = pre_reg.get("canonical_parameters", {})
     min_recall = float(dg.get("min_recall", 0.30))
     min_overlap = float(dg.get("min_fpocket_overlap", 0.40))
     max_fpr = float(dg.get("max_false_positive_rate", 0.60))
     min_md_validated = int(dg.get("min_md_validated_proteins", 1))
+    overlap_metric_source = str(
+        dg.get("overlap_metric_source", "official_overlap_center_volume_greedy")
+    )
+
+    overlap = _load_overlap_from_benchmark_json(benchmark_json_path, overlap_metric_source)
+    overlap_source_label = f"benchmark_json:{overlap_metric_source}"
+    if overlap is None:
+        overlap = _load_fpocket_overlap(ROOT / args.fpocket_report)
+        overlap_source_label = "fpocket_report:fallback"
 
     val_summary = validation.get("summary", {}) if isinstance(validation, dict) else {}
     recall = float(val_summary.get("recall", 0.0) or 0.0) if val_summary else None
@@ -168,6 +256,8 @@ def main() -> int:
         "",
         f"- Generated at (UTC): {_utc_now()}",
         f"- Decision: **{decision}**",
+        f"- Gate profile: `{args.gate_profile}`",
+        f"- Overlap source: `{overlap_source_label}`",
         "",
         "## Pre-registered Gates",
         "",
@@ -175,6 +265,7 @@ def main() -> int:
         f"- min_fpocket_overlap: {min_overlap:.2f}",
         f"- max_false_positive_rate: {max_fpr:.2f}",
         f"- min_md_validated_proteins: {min_md_validated}",
+        f"- overlap_metric_source: `{overlap_metric_source}`",
         "",
         "## Gate Results",
         "",

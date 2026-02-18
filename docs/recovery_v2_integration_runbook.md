@@ -47,6 +47,12 @@ Gate feasibility pre-check (kill-switch):
 python scripts/check_gate_feasibility.py
 ```
 
+Recovery profile feasibility (Phase 5.5 transition):
+
+```bash
+python scripts/check_gate_feasibility.py --gate-profile recovery_v2_transition
+```
+
 Preflight mode (A/B/C outputs still geliyorken):
 
 ```bash
@@ -57,6 +63,13 @@ Strict mode (for merge gate):
 
 ```bash
 python scripts/recovery_v2_intake_check.py --strict
+```
+
+Gate decision generation by profile:
+
+```bash
+python scripts/generate_phase5_5_gate_decision.py --gate-profile strict --output docs/phase5_5_gate_decision.md
+python scripts/generate_phase5_5_gate_decision.py --gate-profile recovery_v2_transition --output docs/phase5_5_gate_decision_recovery_v2_transition.md
 ```
 
 Not:

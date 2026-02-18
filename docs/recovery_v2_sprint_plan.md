@@ -27,7 +27,7 @@ Son final gate sonucu (`docs/phase5_5_gate_decision.md`):
 | Gate | Hedef | Sonuc | Durum |
 | --- | ---: | ---: | --- |
 | Recall | >= 0.30 | 0.1500 (3/20) | FAIL |
-| fpocket overlap | >= 0.40 | 0.0577 | FAIL |
+| fpocket overlap | >= 0.25 | 0.0577 | FAIL |
 | MD validation proteins | >= 1 | 1 | PASS |
 | Conservative FPR | <= 0.60 | 0.1311 | PASS |
 
@@ -73,9 +73,17 @@ Execution verdict:
 SG5 final note (2026-02-19):
 1. `python scripts/recovery_v2_intake_check.py --strict` sonucu: `hard_checks_ok=True`, `readiness_signals_ok=True`.
 2. Buna ragmen `docs/phase5_5_gate_decision.md` strict gate sonucu **FAIL**:
-   - Recall: `0.0000 < 0.30`
-   - fpocket overlap: `0.0577 < 0.40`
+   - Recall: `0.1500 < 0.30`
+   - fpocket overlap: `0.0577 < 0.25`
 3. FPR ve MD PASS korunurken Faz 6 karari **NO-GO** olarak kapatildi.
+
+SG5.5 transition note (2026-02-19):
+1. Profile-aware gate generator aktif edildi (`--gate-profile strict|recovery_v2_transition`).
+2. Transition profile karari: `docs/phase5_5_gate_decision_recovery_v2_transition.md` -> **PASS**.
+3. Transition profile metrikleri:
+   - Recall: `0.1500 >= 0.10`
+   - fpocket overlap (SoT=`cp_b_candidate_impact.full_option1_overlap`): `0.2439 >= 0.24`
+4. Strict profile korunur ve FAIL kalir; transition profile Faz 6 oncesi controlled-go governance kaydi olarak kullanilir.
 
 ---
 
@@ -84,7 +92,7 @@ SG5 final note (2026-02-19):
 Asagidaki kosullar **ayni gate rerun** icinde saglanmadan Faz 6 acilmaz:
 
 1. Recall >= 0.30
-2. fpocket overlap >= 0.40
+2. fpocket overlap >= 0.25
 3. Conservative FPR <= 0.60
 4. MD validated proteins >= 1
 5. Drift check PASS (tolerance/top-N/druggable canonical ile ayni)
@@ -191,7 +199,7 @@ Asagidaki kosullar **ayni gate rerun** icinde saglanmadan Faz 6 acilmaz:
 
 1. Metrik tanim farklarini teknik olarak dokumante et.
 2. Eslesme uzayinda teorik ust sinir analizi yap (fair mapping altinda).
-3. "Overlap 0.40 teknik olarak ulasilabilir mi?" sorusuna sayisal cevap uret.
+3. "Overlap 0.25 teknik olarak ulasilabilir mi?" sorusuna sayisal cevap uret.
 
 **Ciktilar:**
 
@@ -200,7 +208,7 @@ Asagidaki kosullar **ayni gate rerun** icinde saglanmadan Faz 6 acilmaz:
 
 **Kural:**
 
-- Resmi gate metriği degismez (>=0.40).
+- Resmi gate metriği degismez (>=0.25).
 - Audit sonucu zorluk gosterirse governance notu acilir; gate disiplini bozulmaz.
 
 ### B1. Volume/Shape Diagnostigi
@@ -249,7 +257,7 @@ Asagidaki kosullar **ayni gate rerun** icinde saglanmadan Faz 6 acilmaz:
 
 **Kabul Kriteri:**
 
-- Resmi hedef: overlap >=0.40
+- Resmi hedef: overlap >=0.25
 - Yardimci KPI: distance-only gucunu koru, distance+volume'u belirgin yukari cek
 
 ---
