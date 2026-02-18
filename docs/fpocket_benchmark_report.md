@@ -1,6 +1,6 @@
 # fpocket vs Bio-Void Hunter Benchmark Report (Phase 5.5 / Faz 1)
 
-- Generated at (UTC): 2026-02-18T21:58:43Z
+- Generated at (UTC): 2026-02-18T22:13:02Z
 - Benchmark protein count: 100
 - Canonical tolerance (Å): 8.0
 - Canonical Top-N: 20
