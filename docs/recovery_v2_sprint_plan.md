@@ -1,6 +1,6 @@
 # Faz 5.5 Recovery v2 Sprint Plani
 
-> **Durum:** EXECUTION CLOSED (NO-GO, Faz 6 acilmadi)  
+> **Durum:** SG4 READY (readiness sinyalleri PASS, final gate rerun beklemede)  
 > **Tarih:** 2026-02-13  
 > **Kapsam:** Recall + Overlap eksiklerini kapatip Faz 6 gecisine hazir hale gelmek  
 > **Ana Hedef:** Final gate'te 4/4 PASS almak  
@@ -40,34 +40,34 @@ Ek teknik durum:
 
 ---
 
-## 1.5) Execution Snapshot (2026-02-18)
+## 1.5) Execution Snapshot (2026-02-18 / Recovery v3 update)
 
 | Stage | Durum | Kanit | Not |
 | --- | --- | --- | --- |
 | SG0 Baseline Freeze | TAMAMLANDI | `docs/phase5_5_gate_decision.md` | Baseline kilitli |
 | SG0.5 Metric Audit (B0) | TAMAMLANDI | `docs/recovery_v2_metric_validity_audit.md` | Resmi gate metriği degismedi |
-| SG1 WS-A Spike + Mini | TAMAMLANDI (HEDEF DISI) | `docs/recovery_v2_recall_domain_motion_report.md`, `data/validation/recovery_v2_domain_motion_eval.json` | CP-A sonucu `PIVOT_REQUIRED` |
+| SG1 WS-A Spike + Mini | TAMAMLANDI (ESIK GECILDI) | `docs/recovery_v2_recall_domain_motion_report.md`, `data/validation/recovery_v2_domain_motion_eval.json` | CP-A sonucu `SG2_CANDIDATE` (`best_recall=2/7=0.2857`, `domain_motion=2/4`) |
 | SG2 WS-B Spike + Pilot | TAMAMLANDI | `docs/recovery_v2_overlap_option1_lock.md`, `data/benchmark/recovery_v2_overlap_pilot.json` | Top10 candidate-set `0.0290 -> 0.3246` |
 | SG3 Entegrasyon + Guard | TAMAMLANDI | `docs/recovery_v2_regression_guard_report.md`, `docs/recovery_v2_drift_check_report.md`, `docs/recovery_v2_reports_alignment.md` | WS-C guard/drift/alignment PASS |
-| SG4 Final Gate Rerun | POLICY-BLOCKED | `docs/phase5_5_gate_decision.md` | WS-A mini sinyal esigi (`recall >= 0.22`) saglanmadigi icin tam rerun tetiklenmedi |
-| SG5 Faz 6 Go/No-Go | TAMAMLANDI (NO-GO) | `docs/phase5_5_gate_decision.md`, `data/validation/recovery_v2_regression_guard.json` | Faz 6 acilis kosullari saglanmadi |
+| SG4 Final Gate Rerun | READY (PENDING) | `docs/phase5_5_gate_decision.md` | Readiness sinyali gecti (`hard_checks_ok=True`, `readiness_signals_ok=True`), full rerun bekleniyor |
+| SG5 Faz 6 Go/No-Go | PENDING | `docs/phase5_5_gate_decision.md`, `data/validation/recovery_v2_regression_guard.json` | Nihai karar full gate rerun sonrasi verilecek |
 
 Current locked WS-A snapshot (latest completed mini artifact):
-- `cp_a_decision = PIVOT_REQUIRED`
+- `cp_a_decision = SG2_CANDIDATE`
 - `best_trial = t4_atom_mode_heavy`
-- `best_recall = 1/7 = 0.1429`
-- `domain_motion_hits = 1/4`
+- `best_recall = 2/7 = 0.2857`
+- `domain_motion_hits = 2/4`
 - `error_count = 0`
 
 Execution verdict:
-1. WS-B ve WS-C tarafi plan kapsaminda ilerledi.
-2. Kritik blocker WS-A recall esigi oldugu icin sprint hedefi (4/4 final PASS) henuz kapanmadi.
-3. Plan "tamamlandi" olarak degil, "aktif recovery dongusu" olarak izlenmeli.
+1. WS-A mini readiness esigi gecildi (`>=0.22`) ve SG4 tetigi acildi.
+2. WS-B ve WS-C tarafi guard/SoT hizasiyla stabil.
+3. Faz 6 hala final gate 4/4 PASS sonucuna bagli.
 
-SG5 closure note (2026-02-18):
-1. `python scripts/recovery_v2_intake_check.py --strict` sonucu: `hard_checks_ok=True`, `readiness_signals_ok=False`.
-2. Readiness fail nedeni WS-A mini recall sinyalinin esik alti kalmasi (`0.1429 < 0.22`).
-3. Bu sprint Faz 6 gecisine acilmadan NO-GO ile kapatildi.
+SG4 readiness note (2026-02-18, latest):
+1. `python scripts/recovery_v2_intake_check.py --strict` sonucu: `hard_checks_ok=True`, `readiness_signals_ok=True`.
+2. Readiness PASS nedeni: WS-A mini recall sinyali esigi asti (`0.2857 >= 0.22`).
+3. Bir sonraki resmi adim: SG4 full gate rerun.
 
 ---
 
