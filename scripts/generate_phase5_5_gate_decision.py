@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,6 +37,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fpocket-report", default="docs/fpocket_benchmark_report.md")
     parser.add_argument("--md-json", default="data/validation/md_validation_1g66.json")
     parser.add_argument("--fpr-json", default="data/validation/false_positive_results.json")
+    parser.add_argument(
+        "--feasibility-benchmark-json",
+        default="data/benchmark/fpocket_benchmark_v3.json",
+        help="Benchmark JSON used by feasibility pre-check.",
+    )
+    parser.add_argument(
+        "--skip-feasibility-check",
+        action="store_true",
+        help="Skip overlap feasibility kill-switch pre-check.",
+    )
     parser.add_argument("--output", default="docs/phase5_5_gate_decision.md")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -84,6 +96,19 @@ def _format_float(x: float | None, ndigits: int = 4) -> str:
 
 def main() -> int:
     args = parse_args()
+    if not args.skip_feasibility_check:
+        feasibility_cmd = [
+            sys.executable,
+            str(ROOT / "scripts" / "check_gate_feasibility.py"),
+            "--pre-reg",
+            args.pre_reg,
+            "--benchmark-json",
+            args.feasibility_benchmark_json,
+        ]
+        feasibility_proc = subprocess.run(feasibility_cmd, cwd=str(ROOT))
+        if feasibility_proc.returncode != 0:
+            return feasibility_proc.returncode
+
     pre_reg = _safe_load_json(ROOT / args.pre_reg)
     if pre_reg is None:
         raise FileNotFoundError(f"Pre-registration config missing: {ROOT / args.pre_reg}")

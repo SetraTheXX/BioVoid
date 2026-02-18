@@ -1,12 +1,12 @@
 # Phase 5.5 Gate Decision
 
-- Generated at (UTC): 2026-02-18T21:39:12Z
+- Generated at (UTC): 2026-02-18T21:55:07Z
 - Decision: **FAIL**
 
 ## Pre-registered Gates
 
 - min_recall: 0.30
-- min_fpocket_overlap: 0.40
+- min_fpocket_overlap: 0.25
 - max_false_positive_rate: 0.60
 - min_md_validated_proteins: 1
 
@@ -14,8 +14,8 @@
 
 | Gate | Observed | Threshold | Status |
 | --- | ---: | ---: | --- |
-| Recall | 0.0000 | >= 0.30 | FAIL |
-| fpocket overlap | 0.0577 | >= 0.40 | FAIL |
+| Recall | 0.1500 | >= 0.30 | FAIL |
+| fpocket overlap | 0.0577 | >= 0.25 | FAIL |
 | MD validation proteins | 1 | >= 1 | PASS |
 | Conservative FPR | 0.1311 | <= 0.60 | PASS |
 

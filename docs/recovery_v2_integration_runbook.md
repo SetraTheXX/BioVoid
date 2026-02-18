@@ -41,6 +41,12 @@ Standardize how WS-A, WS-B, and WS-C outputs are received, validated, and merged
 python scripts/recovery_v2_intake_check.py
 ```
 
+Gate feasibility pre-check (kill-switch):
+
+```bash
+python scripts/check_gate_feasibility.py
+```
+
 Preflight mode (A/B/C outputs still geliyorken):
 
 ```bash

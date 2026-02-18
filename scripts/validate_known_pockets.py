@@ -27,6 +27,7 @@ import json
 import sys
 import time
 import io
+import subprocess
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -964,6 +965,170 @@ def generate_markdown_report(
         f.write('\n'.join(lines))
 
 
+def _build_validation_results_from_v2_a3(
+    a3_payload: Dict[str, Any],
+    test_cases: List[Dict[str, Any]],
+    config: Dict[str, Any],
+) -> Tuple[List[ValidationResult], ValidationSummary]:
+    case_map = {str(c["pdb_id"]).upper(): c for c in test_cases}
+    rows = a3_payload.get("results", [])
+    summary_cfg = (a3_payload.get("summary") or {}).get("config", {})
+
+    mapped_results: List[ValidationResult] = []
+    for row in rows:
+        diagnostics = row.get("diagnostics", {}) if isinstance(row.get("diagnostics"), dict) else {}
+        pdb_id = str(row.get("pdb_id", "")).upper()
+        test_case = case_map.get(pdb_id, {})
+        mapped_results.append(
+            ValidationResult(
+                pdb_id=pdb_id,
+                protein_name=str(row.get("protein_name", test_case.get("name", "unknown"))),
+                pocket_type=str(row.get("pocket_type", test_case.get("pocket_type", "unknown"))),
+                known_center=list(test_case.get("cryptic_pocket_center", [0.0, 0.0, 0.0])),
+                known_radius=float(test_case.get("radius", 8.0)),
+                reference=str(test_case.get("reference", "")),
+                matched=bool(row.get("matched", False)),
+                best_distance=(
+                    float(row["best_distance"]) if row.get("best_distance") is not None else None
+                ),
+                best_pocket_center=row.get("best_pocket_center"),
+                best_pocket_score=(
+                    float(row["best_pocket_score"])
+                    if row.get("best_pocket_score") is not None
+                    else None
+                ),
+                best_pocket_volume=(
+                    float(row["best_pocket_volume"])
+                    if row.get("best_pocket_volume") is not None
+                    else None
+                ),
+                n_pockets_found=int(row.get("n_pockets_found", 0) or 0),
+                n_druggable_pockets=int(row.get("n_druggable_pockets", 0) or 0),
+                aggregation_mode=str(diagnostics.get("aggregation_mode", "multi")),
+                frames_analyzed=int(diagnostics.get("frames_analyzed", 0) or 0),
+                consensus_clusters=int(diagnostics.get("consensus_clusters", 0) or 0),
+                avg_consensus_support=(
+                    float(diagnostics["avg_consensus_support"])
+                    if diagnostics.get("avg_consensus_support") is not None
+                    else None
+                ),
+                avg_center_stability=(
+                    float(diagnostics["avg_center_stability"])
+                    if diagnostics.get("avg_center_stability") is not None
+                    else None
+                ),
+                avg_volume_cv=(
+                    float(diagnostics["avg_volume_cv"])
+                    if diagnostics.get("avg_volume_cv") is not None
+                    else None
+                ),
+                analysis_atom_mode=str(
+                    diagnostics.get(
+                        "analysis_atom_mode",
+                        summary_cfg.get("analysis_atom_mode", "frame_ca"),
+                    )
+                ),
+                reconstruction_coverage=(
+                    float(diagnostics["avg_reconstruction_coverage"])
+                    if diagnostics.get("avg_reconstruction_coverage") is not None
+                    else None
+                ),
+                reconstruction_mean_displacement=(
+                    float(diagnostics["avg_reconstruction_mean_displacement"])
+                    if diagnostics.get("avg_reconstruction_mean_displacement") is not None
+                    else None
+                ),
+                error=str(row.get("error")) if row.get("error") else None,
+                runtime_seconds=float(row.get("runtime_seconds", 0.0) or 0.0),
+            )
+        )
+
+    merged_config = dict(config)
+    merged_config.update(
+        {
+            "tolerance": float(summary_cfg.get("tolerance", merged_config.get("tolerance", 8.0))),
+            "top_n": int(summary_cfg.get("top_n", merged_config.get("top_n", 20))),
+            "druggable_only": bool(
+                summary_cfg.get("druggable_only", merged_config.get("druggable_only", True))
+            ),
+            "aggregation_mode": str(
+                summary_cfg.get("aggregation_mode", merged_config.get("aggregation_mode", "multi"))
+            ),
+            "analysis_atom_mode": str(
+                summary_cfg.get("analysis_atom_mode", merged_config.get("analysis_atom_mode", "frame_ca"))
+            ),
+            "frame_selection_mode": str(
+                summary_cfg.get(
+                    "frame_selection_mode",
+                    merged_config.get("frame_selection_mode", "domain_motion_weighted"),
+                )
+            ),
+            "frame_selection_fraction": float(
+                summary_cfg.get(
+                    "frame_selection_fraction",
+                    merged_config.get("frame_selection_fraction", 0.35),
+                )
+            ),
+            "engine": "v2_advanced",
+            "engine_source": "scripts/run_recovery_v2_recall_workstream.py",
+        }
+    )
+
+    summary = calculate_summary(mapped_results, merged_config)
+    return mapped_results, summary
+
+
+def _run_v2_advanced_engine(
+    args: argparse.Namespace,
+    test_cases: List[Dict[str, Any]],
+    config: Dict[str, Any],
+    output_dir: Path,
+) -> Tuple[List[ValidationResult], ValidationSummary]:
+    print("Engine: V2 Advanced Engine")
+    print("Mode: unified recall SoT via run_recovery_v2_recall_workstream")
+
+    a1_json = output_dir / "recovery_v2_domain_motion_eval.json"
+    a2_json = output_dir / "recovery_v2_consensus_deltas.json"
+    a3_json = output_dir / "recall_recovery_experiments_v3.json"
+    a1_md = ROOT / "docs" / "recovery_v2_recall_domain_motion_report.md"
+    a2_md = ROOT / "docs" / "recovery_v2_consensus_ranking_report.md"
+    a3_md = ROOT / "docs" / "recall_recovery_experiments_v3.md"
+
+    need_rerun = args.v2_force_rerun or not a3_json.exists()
+    if need_rerun:
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts" / "run_recovery_v2_recall_workstream.py"),
+            "--test-set",
+            str(ROOT / args.test_set),
+            "--analysis-atom-mode",
+            str(args.analysis_atom_mode),
+            "--frame-selection-fraction",
+            str(args.frame_selection_fraction),
+            "--per-frame-top-n",
+            str(args.per_frame_top_n),
+            "--a1-output-json",
+            str(a1_json),
+            "--a1-output-md",
+            str(a1_md),
+            "--a2-output-json",
+            str(a2_json),
+            "--a2-output-md",
+            str(a2_md),
+            "--a3-output-json",
+            str(a3_json),
+            "--a3-output-md",
+            str(a3_md),
+        ]
+        print("[V2] Running full recall workstream...")
+        subprocess.run(cmd, cwd=str(ROOT), check=True)
+    else:
+        print(f"[V2] Reusing existing A3 artifact: {a3_json}")
+
+    payload = json.loads(a3_json.read_text(encoding="utf-8"))
+    return _build_validation_results_from_v2_a3(payload, test_cases, config)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Validate Bio-Void Hunter against known cryptic pockets"
@@ -1076,6 +1241,18 @@ def main():
             "(default: 1.0)"
         ),
     )
+    parser.add_argument(
+        "--engine",
+        type=str,
+        default="v2_advanced",
+        choices=["v2_advanced", "legacy"],
+        help="Validation engine selector (default: v2_advanced).",
+    )
+    parser.add_argument(
+        "--v2-force-rerun",
+        action="store_true",
+        help="Force rerun of v2 workstream even if A3 artifact exists.",
+    )
     
     args = parser.parse_args()
     
@@ -1092,6 +1269,7 @@ def main():
     print(f"Aggregation: {args.aggregation_mode}")
     print(f"Atom Mode: {args.analysis_atom_mode}")
     print(f"Top-N: {args.top_n}")
+    print(f"Engine: {args.engine}")
     if args.aggregation_mode == "multi":
         print(
             f"Consensus: min_frames={args.consensus_min_frames}, "
@@ -1124,31 +1302,32 @@ def main():
     
     print(f"Loaded {len(test_cases)} test cases")
     print()
-    
-    results = []
-    for i, test_case in enumerate(test_cases, 1):
-        print(f"[{i}/{len(test_cases)}]", end=" ")
-        result = validate_single_case(
-            test_case,
-            tolerance=args.tolerance,
-            n_frames=args.n_frames,
-            top_n=args.top_n,
-            druggable_only=args.druggable_only,
-            aggregation_mode=args.aggregation_mode,
-            analysis_atom_mode=args.analysis_atom_mode,
-            consensus_min_frames=args.consensus_min_frames,
-            consensus_distance=args.consensus_distance,
-            per_frame_top_n=args.per_frame_top_n,
-            center_stability_max=args.center_stability_max,
-            volume_cv_max=args.volume_cv_max,
-            frame_selection_mode=args.frame_selection_mode,
-            frame_selection_fraction=args.frame_selection_fraction,
-        )
-        results.append(result)
-    
-    print()
-    
-    summary = calculate_summary(results, config)
+
+    if args.engine == "v2_advanced":
+        results, summary = _run_v2_advanced_engine(args, test_cases, config, output_dir)
+    else:
+        results = []
+        for i, test_case in enumerate(test_cases, 1):
+            print(f"[{i}/{len(test_cases)}]", end=" ")
+            result = validate_single_case(
+                test_case,
+                tolerance=args.tolerance,
+                n_frames=args.n_frames,
+                top_n=args.top_n,
+                druggable_only=args.druggable_only,
+                aggregation_mode=args.aggregation_mode,
+                analysis_atom_mode=args.analysis_atom_mode,
+                consensus_min_frames=args.consensus_min_frames,
+                consensus_distance=args.consensus_distance,
+                per_frame_top_n=args.per_frame_top_n,
+                center_stability_max=args.center_stability_max,
+                volume_cv_max=args.volume_cv_max,
+                frame_selection_mode=args.frame_selection_mode,
+                frame_selection_fraction=args.frame_selection_fraction,
+            )
+            results.append(result)
+        print()
+        summary = calculate_summary(results, config)
     
     print("=" * 70)
     print("VALIDATION SUMMARY")
