@@ -70,6 +70,20 @@ def _extract_float(pattern: str, text: str) -> float | None:
         return None
 
 
+def _extract_fpocket_overlap(fpocket_text: str) -> float | None:
+    patterns = [
+        r"Global overlap score:\s*\*\*([0-9.]+)\*\*",
+        r"global overlap score:\s*([0-9.]+)",
+        r"Official overlap \(center\+volume, ratio 0\.50-2\.00\):\s*\*\*([0-9.]+)\*\*",
+        r"Official overlap .*?:\s*\*\*([0-9.]+)\*\*",
+    ]
+    for pattern in patterns:
+        overlap = _extract_float(pattern, fpocket_text)
+        if overlap is not None:
+            return overlap
+    return None
+
+
 def _extract_decision(text: str) -> str | None:
     match = re.search(r"-\s*Decision:\s*\*\*(PASS|FAIL)\*\*", text, flags=re.IGNORECASE)
     if not match:
@@ -195,9 +209,7 @@ def main() -> int:
     )
     recall = float(validation_summary.get("recall", 0.0))
 
-    overlap = _extract_float(r"Global overlap score:\s*\*\*([0-9.]+)\*\*", fpocket_text)
-    if overlap is None:
-        overlap = _extract_float(r"global overlap score:\s*([0-9.]+)", fpocket_text)
+    overlap = _extract_fpocket_overlap(fpocket_text)
 
     fpr_summary = fpr.get("summary", {}) if isinstance(fpr, dict) else {}
     fpr_metrics = fpr_summary.get("fpr", {}) if isinstance(fpr_summary, dict) else {}
