@@ -1,6 +1,6 @@
 # Bio-Void Hunter Validation Report
 
-> **Generated:** 2026-02-19T00:58:26.434354
+> **Generated:** 2026-02-19T02:44:03.653409
 > **Test Set:** 20 known cryptic pockets
 > **Tolerance:** 8.0 Angstrom
 > **Aggregation Mode:** multi
@@ -30,6 +30,14 @@
 
 Recall (15.0%) is below the minimum threshold (30%).
 **Method improvement required before Phase 6.**
+
+### Mini vs Full20 Delta (WS-A)
+
+- Mini (bounded CP-A, `t4_atom_mode_heavy`): recall **20.0%** (1/5), domain-motion **1/3**, error **0**.
+- Full20 (bu rapor): recall **15.0%** (3/20), domain-motion **0/4**, failed runs **0**.
+- Recall delta (mini - full20): **+5.0 puan**.
+- Domain-motion delta (mini - full20): **+33.3 puan**.
+- Yorum: mini-sette gozlenen kismi kazanc full20'e tasinamadi; ozellikle domain-motion genellemesi full20'de korunmuyor.
 
 ---
 
