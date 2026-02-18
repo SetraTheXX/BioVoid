@@ -63,7 +63,17 @@ def _load_fpocket_overlap(path: Path) -> float | None:
     if not path.exists():
         return None
     text = path.read_text(encoding="utf-8", errors="ignore")
-    return _extract_float(r"Global overlap score:\s*\*\*([0-9.]+)\*\*", text)
+    patterns = [
+        r"Global overlap score:\s*\*\*([0-9.]+)\*\*",
+        r"global overlap score:\s*([0-9.]+)",
+        r"Official overlap \(center\+volume, ratio 0\.50-2\.00\):\s*\*\*([0-9.]+)\*\*",
+        r"Official overlap .*?:\s*\*\*([0-9.]+)\*\*",
+    ]
+    for pattern in patterns:
+        overlap = _extract_float(pattern, text)
+        if overlap is not None:
+            return overlap
+    return None
 
 
 def _format_float(x: float | None, ndigits: int = 4) -> str:
