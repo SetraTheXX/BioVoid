@@ -1,8 +1,8 @@
 # Recovery v2 Overlap Option-1 Lock (WS-B)
 
-- Generated at (UTC): 2026-02-17
-- Branch: `ws-b-option1-lock-v2`
-- Base: `recovery-v2-integration` @ `183cb7a`
+- Generated at (UTC): 2026-02-18
+- Branch: `ws-b/recovery-v3-overlap-unblock`
+- Base: `main` @ `a806048`
 - Canonical lock: tolerance=8.0A, top-N=20, druggable_only=true
 - Official gate metric: **unchanged** (`overlap >= 0.40`)
 
