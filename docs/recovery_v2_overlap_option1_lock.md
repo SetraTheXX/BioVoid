@@ -1,0 +1,37 @@
+# Recovery v2 Overlap Option-1 Lock (WS-B)
+
+- Generated at (UTC): 2026-02-17
+- Branch: `ws-b-option1-lock-v2`
+- Base: `recovery-v2-integration` @ `183cb7a`
+- Canonical lock: tolerance=8.0A, top-N=20, druggable_only=true
+- Official gate metric: **unchanged** (`overlap >= 0.40`)
+
+## Locked Numbers
+
+- Official baseline overlap (global, base config): **0.0577**
+- Option-1 best overlap (pilot top25, quantile-calibrated, ratio 0.50-2.00): **0.3010**
+- Delta (pilot top25): **+0.2139** (matched +86)
+- Option-1 best overlap (Top10 CP-B candidate set): **0.3246** (baseline **0.0290**, delta **+0.2957**, matched +51)
+
+## Top Candidate Impact (focus)
+
+- 5R35: `0.0000 -> 0.3750` (matched `0 -> 6`)
+- 1GQV: `0.0714 -> 0.4286` (matched `1 -> 6`)
+- 9HDW: `0.0000 -> 0.3429` (matched `0 -> 6`)
+
+## Integrity
+
+- Canonical parameters confirmed (tolerance/top-N/druggable) in all artifacts.
+- Official gate metric **unchanged**; no Faz 6 decision emitted.
+
+## Risks & Rollback
+
+- Risk: quantile calibration overfits volume distribution; ranking drift possible.
+- Risk: volume mapping may shift pocket counts; requires WS-C FPR/MD smoke.
+- Rollback: revert to base config `base_ratio_0.50_2.00` using existing artifacts; no schema change needed.
+
+## Artifacts
+
+- `data/benchmark/recovery_v2_overlap_pilot.json`
+- `docs/recovery_v2_overlap_calibration_report.md`
+- `docs/recovery_v2_overlap_cp_b_prep.md`

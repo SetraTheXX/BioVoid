@@ -30,8 +30,8 @@
 
 ### CP-B candidate-set deltalari (Top10 aday seti)
 
-- Overlap: **0.1087 -> 0.4043** (`+0.2957`)
-- Matched pockets: **19 -> 70** (`+51`)
+- Overlap: **0.0290 -> 0.3246** (`+0.2957`)
+- Matched pockets: **5 -> 56** (`+51`)
 
 ## Focus Candidate Impact (Requested)
 

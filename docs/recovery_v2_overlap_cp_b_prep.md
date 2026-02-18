@@ -39,7 +39,7 @@
 ## Option-1 Spike v1 (Measured)
 
 - Pilot top25 overlap: `0.0871 -> 0.3010` (`+0.2139`)
-- Top10 CP-B candidate-set overlap: `0.1087 -> 0.4043` (`+0.2957`)
+- Top10 CP-B candidate-set overlap: `0.0290 -> 0.3246` (`+0.2957`)
 - Focus proteins:
   - 5R35: `0.0000 -> 0.3750` (matched `0 -> 6`)
   - 1GQV: `0.0714 -> 0.4286` (matched `1 -> 6`)
@@ -55,7 +55,7 @@
   - Evaluation yine official rule ile kalir: `0.50 <= ratio <= 2.00`.
 - Measured effect (v1 spike):
   - Pilot top25 overlap: **0.0871 -> 0.3010**
-  - Top10 candidate-set overlap: **0.1087 -> 0.4043**
+  - Top10 candidate-set overlap: **0.0290 -> 0.3246**
 - Risk / regression effect:
   - Dusuk/orta risk. Global pocket ranking dagilimini kaydirabilir.
   - Guard ihtiyaci: FPR smoke + MD smoke + drift lock.
