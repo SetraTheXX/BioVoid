@@ -28,6 +28,12 @@ CANONICAL_DRUGGABLE_ONLY = True
 CONSENSUS_MIN_FRAMES = 3
 CENTER_STABILITY_MAX = 2.0
 VOLUME_CV_MAX = 0.20
+CONSENSUS_DISTANCE = 4.0
+CP_A_MINI_N_FRAMES = 7
+RELAXED_CONSENSUS_MIN_FRAMES = 2
+RELAXED_CENTER_STABILITY_MAX = 3.0
+RELAXED_VOLUME_CV_MAX = 0.35
+RELAXED_CONSENSUS_DISTANCE = 4.5
 
 
 def _utc_now() -> str:
@@ -252,17 +258,22 @@ def _run_multi_case(
     frame_selection_mode: str,
     frame_selection_fraction: float,
     per_frame_top_n: int,
+    n_frames: int = 20,
+    consensus_min_frames: int = CONSENSUS_MIN_FRAMES,
+    consensus_distance: float = CONSENSUS_DISTANCE,
+    center_stability_max: float = CENTER_STABILITY_MAX,
+    volume_cv_max: float = VOLUME_CV_MAX,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], str | None]:
     return run_pipeline_for_protein(
         pdb_id=str(test_case["pdb_id"]),
-        n_frames=20,
+        n_frames=n_frames,
         aggregation_mode="multi",
         analysis_atom_mode=analysis_atom_mode,
-        consensus_min_frames=CONSENSUS_MIN_FRAMES,
-        consensus_distance=4.0,
+        consensus_min_frames=consensus_min_frames,
+        consensus_distance=consensus_distance,
         per_frame_top_n=per_frame_top_n,
-        center_stability_max=CENTER_STABILITY_MAX,
-        volume_cv_max=VOLUME_CV_MAX,
+        center_stability_max=center_stability_max,
+        volume_cv_max=volume_cv_max,
         reuse_existing_frames=True,
         frame_selection_mode=frame_selection_mode,
         frame_selection_fraction=frame_selection_fraction,
@@ -387,6 +398,12 @@ def _run_cp_a_trial(
     frame_selection_fraction: float,
     ranking_mode: str,
     per_frame_top_n: int,
+    n_frames: int,
+    consensus_min_frames: int,
+    consensus_distance: float,
+    center_stability_max: float,
+    volume_cv_max: float,
+    run_cache: dict[tuple[Any, ...], tuple[list[dict[str, Any]], dict[str, Any], str | None]],
     hard_deadline_ts: float | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
@@ -397,40 +414,43 @@ def _run_cp_a_trial(
     print(
         f"[CP-A:{trial_id}] {title} | "
         f"atom={analysis_atom_mode} sampling={frame_selection_mode}:{frame_selection_fraction:.2f} "
-        f"ranking={ranking_mode}"
+        f"ranking={ranking_mode} n_frames={n_frames}"
     )
     for idx, case in enumerate(mini_cases, start=1):
         if hard_deadline_ts is not None and monotonic() >= hard_deadline_ts:
             trial_stop_reason = "time_budget_reached_before_case"
             print(f"  [CP-A:{trial_id}] stopping early: {trial_stop_reason}")
-            for skipped in mini_cases[idx - 1 :]:
-                spid = str(skipped["pdb_id"]).upper()
-                err = "time_budget_reached"
-                errors.append({"pdb_id": spid, "error": err})
-                rows.append(
-                    {
-                        "pdb_id": spid,
-                        "protein_name": skipped["name"],
-                        "pocket_type": skipped["pocket_type"],
-                        "matched": False,
-                        "best_distance": None,
-                        "error": err,
-                        "ranking_mode": ranking_mode,
-                        "n_pockets_found": 0,
-                        "n_druggable_pockets": 0,
-                        "diagnostics": {},
-                    }
-                )
             break
         pdb_id = str(case["pdb_id"]).upper()
         print(f"  [CP-A:{trial_id}] {idx}/{len(mini_cases)} {pdb_id}")
-        pockets, diagnostics, error = _run_multi_case(
-            case,
-            analysis_atom_mode=analysis_atom_mode,
-            frame_selection_mode=frame_selection_mode,
-            frame_selection_fraction=frame_selection_fraction,
-            per_frame_top_n=per_frame_top_n,
+        cache_key = (
+            pdb_id,
+            analysis_atom_mode,
+            frame_selection_mode,
+            round(float(frame_selection_fraction), 4),
+            int(per_frame_top_n),
+            int(n_frames),
+            int(consensus_min_frames),
+            round(float(consensus_distance), 4),
+            round(float(center_stability_max), 4),
+            round(float(volume_cv_max), 4),
         )
+        cached = run_cache.get(cache_key)
+        if cached is None:
+            cached = _run_multi_case(
+                case,
+                analysis_atom_mode=analysis_atom_mode,
+                frame_selection_mode=frame_selection_mode,
+                frame_selection_fraction=frame_selection_fraction,
+                per_frame_top_n=per_frame_top_n,
+                n_frames=n_frames,
+                consensus_min_frames=consensus_min_frames,
+                consensus_distance=consensus_distance,
+                center_stability_max=center_stability_max,
+                volume_cv_max=volume_cv_max,
+            )
+            run_cache[cache_key] = cached
+        pockets, diagnostics, error = cached
         if error:
             errors.append({"pdb_id": pdb_id, "error": error})
             rows.append(
@@ -463,6 +483,11 @@ def _run_cp_a_trial(
     domain_motion_total = int(by_type.get("domain_motion", {}).get("total", 0.0))
     domain_motion_recall = float(by_type.get("domain_motion", {}).get("recall", 0.0))
     elapsed_minutes = (monotonic() - trial_start_ts) / 60.0
+    planned_cases = len(mini_cases)
+    processed_cases = len(rows)
+    coverage_fraction = (
+        float(processed_cases) / float(planned_cases) if planned_cases > 0 else 0.0
+    )
     return {
         "trial_id": trial_id,
         "title": title,
@@ -471,10 +496,12 @@ def _run_cp_a_trial(
             "frame_selection_mode": frame_selection_mode,
             "frame_selection_fraction": frame_selection_fraction,
             "ranking_mode": ranking_mode,
+            "n_frames": n_frames,
             "per_frame_top_n": per_frame_top_n,
-            "consensus_min_frames": CONSENSUS_MIN_FRAMES,
-            "center_stability_max": CENTER_STABILITY_MAX,
-            "volume_cv_max": VOLUME_CV_MAX,
+            "consensus_min_frames": consensus_min_frames,
+            "consensus_distance": consensus_distance,
+            "center_stability_max": center_stability_max,
+            "volume_cv_max": volume_cv_max,
         },
         "summary": summary,
         "by_type": by_type,
@@ -485,6 +512,9 @@ def _run_cp_a_trial(
         "errors": errors,
         "stopped_early": bool(trial_stop_reason),
         "stop_reason": trial_stop_reason,
+        "planned_cases": planned_cases,
+        "processed_cases": processed_cases,
+        "coverage_fraction": round(coverage_fraction, 4),
         "elapsed_minutes": round(elapsed_minutes, 3),
     }
 
@@ -493,9 +523,10 @@ def _select_best_cp_a_trial(trials: list[dict[str, Any]]) -> dict[str, Any]:
     if not trials:
         raise ValueError("No CP-A trials available.")
 
-    def _key(trial: dict[str, Any]) -> tuple[float, float, float, float]:
+    def _key(trial: dict[str, Any]) -> tuple[float, float, float, float, float]:
         summary = trial["summary"]
         return (
+            float(trial.get("coverage_fraction", 0.0)),
             float(trial.get("domain_motion_hits", 0)),
             float(summary.get("recall", 0.0)),
             -float(summary.get("error_count", 0.0)),
@@ -522,6 +553,7 @@ def _run_cp_a_pivot(
             "frame_selection_mode": "uniform",
             "frame_selection_fraction": 0.35,
             "ranking_mode": "legacy",
+            "n_frames": CP_A_MINI_N_FRAMES,
         },
         {
             "trial_id": "t1_rank_refine",
@@ -530,6 +562,7 @@ def _run_cp_a_pivot(
             "frame_selection_mode": "uniform",
             "frame_selection_fraction": 0.35,
             "ranking_mode": "refined",
+            "n_frames": CP_A_MINI_N_FRAMES,
         },
         {
             "trial_id": "t2_sampling_weighted",
@@ -538,6 +571,7 @@ def _run_cp_a_pivot(
             "frame_selection_mode": "domain_motion_weighted",
             "frame_selection_fraction": 0.35,
             "ranking_mode": "refined",
+            "n_frames": CP_A_MINI_N_FRAMES,
         },
         {
             "trial_id": "t3_sampling_deeper",
@@ -546,6 +580,7 @@ def _run_cp_a_pivot(
             "frame_selection_mode": "domain_motion_weighted",
             "frame_selection_fraction": 0.60,
             "ranking_mode": "refined",
+            "n_frames": CP_A_MINI_N_FRAMES,
         },
         {
             "trial_id": "t4_atom_mode_heavy",
@@ -554,13 +589,42 @@ def _run_cp_a_pivot(
             "frame_selection_mode": "domain_motion_weighted",
             "frame_selection_fraction": 0.35,
             "ranking_mode": "refined",
+            "n_frames": CP_A_MINI_N_FRAMES,
+        },
+        {
+            "trial_id": "t5_atom_mode_heavy_legacy",
+            "title": "reconstructed_heavy + domain_motion_weighted + legacy",
+            "analysis_atom_mode": "reconstructed_heavy",
+            "frame_selection_mode": "domain_motion_weighted",
+            "frame_selection_fraction": 0.35,
+            "ranking_mode": "legacy",
+            "n_frames": CP_A_MINI_N_FRAMES,
+        },
+        {
+            "trial_id": "t6_atom_mode_heavy_relaxed",
+            "title": "reconstructed_heavy + domain_motion_weighted + refined + relaxed_consensus",
+            "analysis_atom_mode": "reconstructed_heavy",
+            "frame_selection_mode": "domain_motion_weighted",
+            "frame_selection_fraction": 0.35,
+            "ranking_mode": "refined",
+            "n_frames": CP_A_MINI_N_FRAMES,
+            "consensus_min_frames": RELAXED_CONSENSUS_MIN_FRAMES,
+            "consensus_distance": RELAXED_CONSENSUS_DISTANCE,
+            "center_stability_max": RELAXED_CENTER_STABILITY_MAX,
+            "volume_cv_max": RELAXED_VOLUME_CV_MAX,
         },
     ]
 
     profile_map = {
         "full": [spec["trial_id"] for spec in available_trial_specs],
-        "balanced": ["t0_baseline", "t2_sampling_weighted", "t4_atom_mode_heavy"],
-        "fast": ["t0_baseline", "t4_atom_mode_heavy"],
+        "balanced": [
+            "t0_baseline",
+            "t2_sampling_weighted",
+            "t4_atom_mode_heavy",
+            "t5_atom_mode_heavy_legacy",
+            "t6_atom_mode_heavy_relaxed",
+        ],
+        "fast": ["t4_atom_mode_heavy", "t6_atom_mode_heavy_relaxed"],
     }
     id_to_spec = {spec["trial_id"]: spec for spec in available_trial_specs}
     requested_trial_ids = (
@@ -578,6 +642,7 @@ def _run_cp_a_pivot(
         raise ValueError("CP-A pivot selected zero trial specs.")
 
     trials: list[dict[str, Any]] = []
+    run_cache: dict[tuple[Any, ...], tuple[list[dict[str, Any]], dict[str, Any], str | None]] = {}
     start_ts = monotonic()
     deadline_ts = (
         start_ts + (float(cp_a_max_minutes) * 60.0)
@@ -599,6 +664,16 @@ def _run_cp_a_pivot(
             frame_selection_fraction=float(spec["frame_selection_fraction"]),
             ranking_mode=spec["ranking_mode"],
             per_frame_top_n=per_frame_top_n,
+            n_frames=int(spec.get("n_frames", CP_A_MINI_N_FRAMES)),
+            consensus_min_frames=int(
+                spec.get("consensus_min_frames", CONSENSUS_MIN_FRAMES)
+            ),
+            consensus_distance=float(spec.get("consensus_distance", CONSENSUS_DISTANCE)),
+            center_stability_max=float(
+                spec.get("center_stability_max", CENTER_STABILITY_MAX)
+            ),
+            volume_cv_max=float(spec.get("volume_cv_max", VOLUME_CV_MAX)),
+            run_cache=run_cache,
             hard_deadline_ts=deadline_ts,
         )
         trials.append(trial)
@@ -853,11 +928,13 @@ def _write_domain_motion_report(path: Path, payload: dict[str, Any]) -> None:
             "- Sampling: uniform vs domain_motion_weighted, fraction=0.35/0.60",
             "- Ranking: legacy vs refined ranking formula + hard filters",
             "- Atom mode: frame_ca vs reconstructed_heavy",
+            "- Mini runtime tuning: n_frames=7 (frame reuse) + bounded trial execution",
+            "- Consensus varyanti: standard vs relaxed (min_frames=2, stability/volume relaxed)",
             "",
             "## Trial Sonuclari",
             "",
-            "| Trial | Degisiklik | Recall | Domain-motion | Error Count | Avg Best Distance |",
-            "| --- | --- | ---: | ---: | ---: | ---: |",
+            "| Trial | Degisiklik | Recall | Domain-motion | Error Count | Coverage | Elapsed (min) | Avg Best Distance |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
         for trial in payload["trials"]:
             summary = trial["summary"]
@@ -866,6 +943,8 @@ def _write_domain_motion_report(path: Path, payload: dict[str, Any]) -> None:
                 f"{summary['recall']*100:.1f}% ({summary['true_positives']}/{summary['total_cases']}) | "
                 f"{trial['domain_motion_hits']}/{trial['domain_motion_total']} | "
                 f"{summary['error_count']} | "
+                f"{trial.get('processed_cases', summary['total_cases'])}/{trial.get('planned_cases', summary['total_cases'])} | "
+                f"{trial.get('elapsed_minutes', 0.0):.2f} | "
                 f"{summary['avg_best_distance']:.2f}A |"
             )
 
