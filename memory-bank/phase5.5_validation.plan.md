@@ -13,19 +13,19 @@
 This section is the authoritative execution snapshot for the current loop.
 
 - Current phase: Phase 5.5 Recovery v2
-- Stage location: Post-SG2, SG3 preflight pending WS-A result
+- Stage location: SG5 NO-GO closure (Faz 6 acilmadi)
 - CP-A status: latest completed mini result remains `PIVOT_REQUIRED`
 - Best completed CP-A mini result: recall `1/7 = 0.1429`, domain-motion `1/4`, `error_count=0`
 - WS-A status: CP-A iteration-2 long run was aborted; no new completed artifact
 - WS-B status: Option-1 lock completed; candidate-set SoT aligned to JSON (`0.0290 -> 0.3246`, delta `+0.2957`)
-- WS-C status: SG3 preflight checklist prepared; guard/drift/alignment rerun waits for WS-A output
+- WS-C status: guard rerun PASS; hard checks stable
 - Phase 6 status: BLOCKED
 
 Immediate next actions:
-1. WS-A: run only short-budget CP-A mini trials (no long uninterrupted run) and publish artifact pair (report + JSON).
-2. WS-C: run post-A SG3 guard + drift + SoT alignment loop immediately after any new WS-A artifact.
-3. WS-B: keep Option-1 lock stable; no metric-definition change.
-4. Trigger SG4 final gate rerun only after clear upward signal (`recall >= 0.22` mini-set and overlap pilot signal retained).
+1. Recovery v2 bu tur NO-GO ile kapatildi; Faz 6 acilamaz.
+2. Sonraki turda WS-A icin yeni CP-A algoritmik pivot tanimlanacak.
+3. WS-B lock korunacak; metric-definition degistirilmeyecek.
+4. SG4 yeniden tetigi: mini recall sinyali `>=0.22` + overlap pilot sinyali korunursa.
 
 ---
 

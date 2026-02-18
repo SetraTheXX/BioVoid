@@ -166,6 +166,7 @@ def main() -> int:
         "",
         "- Gate decision is strict: all pre-registered gates must pass.",
         "- If decision is FAIL, proceed only with documented conditional policy.",
+        "- Center integrity attachment: `docs/center_integrity_report.md` (zero-center cleaned to 0).",
         "",
     ]
 
