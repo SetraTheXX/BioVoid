@@ -1087,11 +1087,20 @@ def _run_v2_advanced_engine(
     print("Engine: V2 Advanced Engine")
     print("Mode: unified recall SoT via run_recovery_v2_recall_workstream")
 
-    a1_json = output_dir / "recovery_v2_domain_motion_eval.json"
-    a2_json = output_dir / "recovery_v2_consensus_deltas.json"
+    # Keep WS-A mini artifacts stable by default; full20 reruns write A1/A2 to shadow paths.
+    if getattr(args, "v2_preserve_mini_artifacts", True):
+        a1_json = output_dir / "recovery_v2_domain_motion_eval.full20_shadow.json"
+        a2_json = output_dir / "recovery_v2_consensus_deltas.full20_shadow.json"
+        a1_md = ROOT / "docs" / "recovery_v2_recall_domain_motion_report.full20_shadow.md"
+        a2_md = ROOT / "docs" / "recovery_v2_consensus_ranking_report.full20_shadow.md"
+        print("[V2] Mini artifacts preserved: writing A1/A2 to full20 shadow outputs.")
+    else:
+        a1_json = output_dir / "recovery_v2_domain_motion_eval.json"
+        a2_json = output_dir / "recovery_v2_consensus_deltas.json"
+        a1_md = ROOT / "docs" / "recovery_v2_recall_domain_motion_report.md"
+        a2_md = ROOT / "docs" / "recovery_v2_consensus_ranking_report.md"
+
     a3_json = output_dir / "recall_recovery_experiments_v3.json"
-    a1_md = ROOT / "docs" / "recovery_v2_recall_domain_motion_report.md"
-    a2_md = ROOT / "docs" / "recovery_v2_consensus_ranking_report.md"
     a3_md = ROOT / "docs" / "recall_recovery_experiments_v3.md"
 
     need_rerun = args.v2_force_rerun or not a3_json.exists()
@@ -1252,6 +1261,15 @@ def main():
         "--v2-force-rerun",
         action="store_true",
         help="Force rerun of v2 workstream even if A3 artifact exists.",
+    )
+    parser.add_argument(
+        "--v2-preserve-mini-artifacts",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "When enabled (default), v2 full20 reruns write A1/A2 outputs into shadow files "
+            "instead of overwriting WS-A mini artifacts."
+        ),
     )
     
     args = parser.parse_args()
