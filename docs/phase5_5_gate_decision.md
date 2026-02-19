@@ -1,6 +1,6 @@
 # Phase 5.5 Gate Decision
 
-- Generated at (UTC): 2026-02-19T09:19:01Z
+- Generated at (UTC): 2026-02-19T15:44:39Z
 - Decision: **FAIL**
 - Gate profile: `strict`
 - Overlap source: `benchmark_json:global.official_overlap_center_volume_greedy`
@@ -17,7 +17,7 @@
 
 | Gate | Observed | Threshold | Status |
 | --- | ---: | ---: | --- |
-| Recall | 0.1500 | >= 0.30 | FAIL |
+| Recall | 0.2000 | >= 0.30 | FAIL |
 | fpocket overlap | 0.0577 | >= 0.25 | FAIL |
 | MD validation proteins | 1 | >= 1 | PASS |
 | Conservative FPR | 0.1311 | <= 0.60 | PASS |

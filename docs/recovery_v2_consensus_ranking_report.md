@@ -1,6 +1,6 @@
 # Recovery v2 Consensus Ranking Report
 
-- Generated at (UTC): 2026-02-16T22:26:29Z
+- Generated at (UTC): 2026-02-19T12:42:10Z
 - Scope: A2 legacy vs refined ranking comparison (20 protein full set)
 - Canonical lock: tolerance=8.0A, top-N=20, druggable=true
 
@@ -8,8 +8,8 @@
 
 | Metric | Legacy | Refined | Delta |
 | --- | ---: | ---: | ---: |
-| Recall | 15.0% (3/20) | 15.0% (3/20) | +0.0 puan |
-| Avg best distance | 17.75A | 18.26A | +0.51A |
+| Recall | 15.0% (3/20) | 20.0% (4/20) | +5.0 puan |
+| Avg best distance | 17.80A | 18.05A | +0.25A |
 
 ## Acceptance
 

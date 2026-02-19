@@ -1,14 +1,14 @@
 # Recall Recovery Experiments v3
 
-- Generated at (UTC): 2026-02-16T22:26:29Z
+- Generated at (UTC): 2026-02-19T12:42:10Z
 - Scope: A3 full rerun (20 proteins, refined ranking)
 
 ## Metrics
 
-- Recall: **15.0%** (3/20)
-- Precision: **0.789%**
-- F1: **1.500%**
-- Avg best distance: **18.26A**
+- Recall: **20.0%** (4/20)
+- Precision: **0.990%**
+- F1: **1.887%**
+- Avg best distance: **18.05A**
 - Domain-motion: **0/4** (0.0%)
 
 ## Config Lock
@@ -19,7 +19,7 @@
 - aggregation_mode=multi
 - analysis_atom_mode=frame_ca
 - frame_selection_mode=domain_motion_weighted
-- frame_selection_fraction=0.35
+- frame_selection_fraction=1.00
 
 ## Decision
 

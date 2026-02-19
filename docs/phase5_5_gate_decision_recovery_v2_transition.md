@@ -1,6 +1,6 @@
 # Phase 5.5 Gate Decision
 
-- Generated at (UTC): 2026-02-19T09:17:59Z
+- Generated at (UTC): 2026-02-19T15:44:45Z
 - Decision: **PASS**
 - Gate profile: `recovery_v2_transition`
 - Overlap source: `benchmark_json:cp_b_candidate_impact.full_option1_overlap`
@@ -17,7 +17,7 @@
 
 | Gate | Observed | Threshold | Status |
 | --- | ---: | ---: | --- |
-| Recall | 0.1500 | >= 0.10 | PASS |
+| Recall | 0.2000 | >= 0.10 | PASS |
 | fpocket overlap | 0.2439 | >= 0.24 | PASS |
 | MD validation proteins | 1 | >= 1 | PASS |
 | Conservative FPR | 0.1311 | <= 0.60 | PASS |
