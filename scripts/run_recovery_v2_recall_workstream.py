@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing as mp
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
@@ -41,6 +42,7 @@ DRUGGABILITY_RESCUE_VOLUME_CV_MAX = 0.25
 DRUGGABILITY_RESCUE_HYDROPHOBIC_MIN = 0.45
 CP_A_DOMAIN_DEEP_MIN_FRAMES = 12
 CP_A_DOMAIN_DEEP_FRACTION = 0.60
+DEFAULT_CASE_TIMEOUT_SECONDS = 1200
 
 
 def _utc_now() -> str:
@@ -313,21 +315,86 @@ def _run_multi_case(
     center_stability_max: float = CENTER_STABILITY_MAX,
     volume_cv_max: float = VOLUME_CV_MAX,
     reuse_existing_frames: bool = True,
+    case_timeout_seconds: float | None = DEFAULT_CASE_TIMEOUT_SECONDS,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], str | None]:
-    return run_pipeline_for_protein(
-        pdb_id=str(test_case["pdb_id"]),
-        n_frames=n_frames,
-        aggregation_mode="multi",
-        analysis_atom_mode=analysis_atom_mode,
-        consensus_min_frames=consensus_min_frames,
-        consensus_distance=consensus_distance,
-        per_frame_top_n=per_frame_top_n,
-        center_stability_max=center_stability_max,
-        volume_cv_max=volume_cv_max,
-        reuse_existing_frames=reuse_existing_frames,
-        frame_selection_mode=frame_selection_mode,
-        frame_selection_fraction=frame_selection_fraction,
-    )
+    kwargs = {
+        "pdb_id": str(test_case["pdb_id"]),
+        "n_frames": n_frames,
+        "aggregation_mode": "multi",
+        "analysis_atom_mode": analysis_atom_mode,
+        "consensus_min_frames": consensus_min_frames,
+        "consensus_distance": consensus_distance,
+        "per_frame_top_n": per_frame_top_n,
+        "center_stability_max": center_stability_max,
+        "volume_cv_max": volume_cv_max,
+        "reuse_existing_frames": reuse_existing_frames,
+        "frame_selection_mode": frame_selection_mode,
+        "frame_selection_fraction": frame_selection_fraction,
+    }
+    if case_timeout_seconds is None or float(case_timeout_seconds) <= 0:
+        return run_pipeline_for_protein(**kwargs)
+
+    timeout = float(case_timeout_seconds)
+    queue: mp.Queue = mp.Queue(maxsize=1)
+
+    proc = mp.Process(target=_run_multi_case_worker, args=(queue, kwargs), daemon=True)
+    proc.start()
+    proc.join(timeout)
+    if proc.is_alive():
+        proc.terminate()
+        proc.join(5)
+        diagnostics = {
+            "timed_out": True,
+            "case_timeout_seconds": timeout,
+            "analysis_atom_mode": analysis_atom_mode,
+            "frame_selection_mode": frame_selection_mode,
+            "frame_selection_fraction": frame_selection_fraction,
+            "n_frames": n_frames,
+        }
+        return [], diagnostics, f"TIMEOUT(case>{timeout:.0f}s)"
+
+    if queue.empty():
+        return [], {"timed_out": False, "case_timeout_seconds": timeout}, "WORKER_NO_RESULT"
+
+    status, payload = queue.get()
+    if status == "ok":
+        return payload
+    return [], {"timed_out": False, "case_timeout_seconds": timeout}, str(payload)
+
+
+def _run_multi_case_worker(q: mp.Queue, run_kwargs: dict[str, Any]) -> None:
+    try:
+        q.put(("ok", run_pipeline_for_protein(**run_kwargs)))
+    except Exception as exc:  # pragma: no cover
+        q.put(("err", f"{type(exc).__name__}: {exc}"))
+
+
+def _normalise_timeout(value: float | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_CASE_TIMEOUT_SECONDS
+    if timeout <= 0:
+        return None
+    return timeout
+
+
+def _derived_case_timeout(
+    *,
+    case_timeout_seconds: float | None,
+    n_frames: int,
+    frame_selection_fraction: float,
+    analysis_atom_mode: str,
+) -> float | None:
+    timeout = _normalise_timeout(case_timeout_seconds)
+    if timeout is None:
+        return None
+    timeout *= max(1.0, float(n_frames) / 20.0)
+    if analysis_atom_mode == "reconstructed_heavy":
+        timeout *= 1.8
+    return timeout
 
 
 def _run_a1_domain_motion(
@@ -336,6 +403,7 @@ def _run_a1_domain_motion(
     analysis_atom_mode: str,
     frame_selection_fraction: float,
     per_frame_top_n: int,
+    case_timeout_seconds: float | None,
 ) -> dict[str, Any]:
     target_types = {"domain_motion", "loop_rearrangement"}
     mini_cases = [c for c in test_cases if str(c["pocket_type"]) in target_types]
@@ -358,6 +426,12 @@ def _run_a1_domain_motion(
                 frame_selection_mode=frame_mode,
                 frame_selection_fraction=frame_selection_fraction,
                 per_frame_top_n=per_frame_top_n,
+                case_timeout_seconds=_derived_case_timeout(
+                    case_timeout_seconds=case_timeout_seconds,
+                    n_frames=20,
+                    frame_selection_fraction=frame_selection_fraction,
+                    analysis_atom_mode=analysis_atom_mode,
+                ),
             )
             if error:
                 strategy_errors[strategy_key].append({"pdb_id": pdb_id, "error": error})
@@ -455,6 +529,7 @@ def _run_cp_a_trial(
     volume_cv_max: float,
     run_cache: dict[tuple[Any, ...], tuple[list[dict[str, Any]], dict[str, Any], str | None]],
     hard_deadline_ts: float | None = None,
+    case_timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -498,6 +573,12 @@ def _run_cp_a_trial(
                 consensus_distance=consensus_distance,
                 center_stability_max=center_stability_max,
                 volume_cv_max=volume_cv_max,
+                case_timeout_seconds=_derived_case_timeout(
+                    case_timeout_seconds=case_timeout_seconds,
+                    n_frames=n_frames,
+                    frame_selection_fraction=frame_selection_fraction,
+                    analysis_atom_mode=analysis_atom_mode,
+                ),
             )
             run_cache[cache_key] = cached
         pockets, diagnostics, error = cached
@@ -558,6 +639,12 @@ def _run_cp_a_trial(
                     consensus_distance=consensus_distance,
                     center_stability_max=center_stability_max,
                     volume_cv_max=volume_cv_max,
+                    case_timeout_seconds=_derived_case_timeout(
+                        case_timeout_seconds=case_timeout_seconds,
+                        n_frames=deep_n_frames,
+                        frame_selection_fraction=deep_fraction,
+                        analysis_atom_mode=analysis_atom_mode,
+                    ),
                 )
                 run_cache[deep_cache_key] = deep_cached
             deep_pockets, deep_diagnostics, deep_error = deep_cached
@@ -657,6 +744,7 @@ def _run_cp_a_pivot(
     cp_a_profile: str,
     cp_a_trial_ids: list[str] | None,
     cp_a_max_minutes: float | None,
+    case_timeout_seconds: float | None,
 ) -> dict[str, Any]:
     mini_cases = _mini_set_cases(test_cases)
     available_trial_specs = [
@@ -789,6 +877,7 @@ def _run_cp_a_pivot(
             volume_cv_max=float(spec.get("volume_cv_max", VOLUME_CV_MAX)),
             run_cache=run_cache,
             hard_deadline_ts=deadline_ts,
+            case_timeout_seconds=case_timeout_seconds,
         )
         trials.append(trial)
         current_best = _select_best_cp_a_trial(trials)
@@ -866,6 +955,7 @@ def _run_a2_a3_full(
     frame_selection_mode: str,
     frame_selection_fraction: float,
     per_frame_top_n: int,
+    case_timeout_seconds: float | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     per_case: list[dict[str, Any]] = []
     legacy_results: list[dict[str, Any]] = []
@@ -880,6 +970,12 @@ def _run_a2_a3_full(
             frame_selection_mode=frame_selection_mode,
             frame_selection_fraction=frame_selection_fraction,
             per_frame_top_n=per_frame_top_n,
+            case_timeout_seconds=_derived_case_timeout(
+                case_timeout_seconds=case_timeout_seconds,
+                n_frames=20,
+                frame_selection_fraction=frame_selection_fraction,
+                analysis_atom_mode=analysis_atom_mode,
+            ),
         )
         if error:
             legacy_row = {
@@ -1290,6 +1386,15 @@ def parse_args() -> argparse.Namespace:
         default=90.0,
         help="Hard time budget for CP-A mini mode. Stops before next trial if budget is reached.",
     )
+    parser.add_argument(
+        "--case-timeout-seconds",
+        type=float,
+        default=DEFAULT_CASE_TIMEOUT_SECONDS,
+        help=(
+            "Per-case timeout guard in seconds (0 disables). "
+            "Effective timeout scales by n_frames and atom mode."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1309,6 +1414,7 @@ def main() -> int:
             cp_a_profile=args.cp_a_profile,
             cp_a_trial_ids=cp_a_trial_ids if cp_a_trial_ids else None,
             cp_a_max_minutes=args.cp_a_max_minutes,
+            case_timeout_seconds=args.case_timeout_seconds,
         )
         _write_json(ROOT / args.a1_output_json, cp_a_payload)
         _write_domain_motion_report(ROOT / args.a1_output_md, cp_a_payload)
@@ -1322,6 +1428,7 @@ def main() -> int:
         analysis_atom_mode=args.analysis_atom_mode,
         frame_selection_fraction=args.frame_selection_fraction,
         per_frame_top_n=args.per_frame_top_n,
+        case_timeout_seconds=args.case_timeout_seconds,
     )
     _write_json(ROOT / args.a1_output_json, a1_payload)
     _write_domain_motion_report(ROOT / args.a1_output_md, a1_payload)
@@ -1343,6 +1450,7 @@ def main() -> int:
         frame_selection_mode=chosen_frame_mode,
         frame_selection_fraction=args.frame_selection_fraction,
         per_frame_top_n=args.per_frame_top_n,
+        case_timeout_seconds=args.case_timeout_seconds,
     )
     _write_json(ROOT / args.a2_output_json, a2_payload)
     _write_consensus_report(ROOT / args.a2_output_md, a2_payload)
