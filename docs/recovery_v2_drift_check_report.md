@@ -1,7 +1,7 @@
 ﻿# Recovery v2 Drift Check Report (Codex-C)
 
-- Generated at (UTC): 2026-02-18T22:13:20Z
-- Scope: Guard chain rerun + dual gate-profile drift lock verification
+- Generated at (UTC): 2026-02-19T09:19:01Z
+- Scope: Day1 guard rerun + dual gate-profile drift lock verification
 - SoT (strict): `docs/phase5_5_gate_decision.md`
 - Transition gate: `docs/phase5_5_gate_decision_recovery_v2_transition.md`
 - Sources:
@@ -43,6 +43,12 @@ No evidence of exploratory lock values being written into gate lock fields.
 - recovery_v2_transition profile decision: **PASS**
 
 This dual-profile posture is consistent with SG4->SG5 controlled transition framing.
+
+## Intake Signal Snapshot
+
+- strict intake command: `recovery_v2_intake_check.py --strict --recall-floor 0.20`
+- hard_checks_ok: `True`
+- readiness_signals_ok: `True`
 
 ## Blockers
 

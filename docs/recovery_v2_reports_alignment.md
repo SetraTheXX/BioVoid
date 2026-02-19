@@ -1,7 +1,7 @@
 ﻿# Recovery v2 Reports Alignment Check (Codex-C)
 
-- Generated at (UTC): 2026-02-18T22:13:20Z
-- Scope: WS-C alignment lock after strict + transition gate generation
+- Generated at (UTC): 2026-02-19T09:19:01Z
+- Scope: Day1 WS-C alignment lock after strict + transition gate generation
 - Strict gate doc: `docs/phase5_5_gate_decision.md`
 - Transition gate doc: `docs/phase5_5_gate_decision_recovery_v2_transition.md`
 - Sources:
@@ -44,7 +44,7 @@ From `data/validation/recovery_v2_regression_guard.json`:
 
 ### 4) Intake Consistency: PASS
 
-From strict intake rerun:
+From strict intake rerun with recall floor 0.20:
 - `hard_checks_ok=True`
 - `readiness_signals_ok=True`
 
