@@ -1,6 +1,6 @@
 # Phase 5.5 Gate Decision
 
-- Generated at (UTC): 2026-02-19T15:44:45Z
+- Generated at (UTC): 2026-02-19T20:45:52Z
 - Decision: **PASS**
 - Gate profile: `recovery_v2_transition`
 - Overlap source: `benchmark_json:cp_b_candidate_impact.full_option1_overlap`

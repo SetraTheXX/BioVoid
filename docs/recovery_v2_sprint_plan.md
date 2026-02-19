@@ -26,7 +26,7 @@ Son final gate sonucu (`docs/phase5_5_gate_decision.md`):
 
 | Gate | Hedef | Sonuc | Durum |
 | --- | ---: | ---: | --- |
-| Recall | >= 0.30 | 0.1500 (3/20) | FAIL |
+| Recall | >= 0.30 | 0.2000 (4/20) | FAIL |
 | fpocket overlap | >= 0.25 | 0.0577 | FAIL |
 | MD validation proteins | >= 1 | 1 | PASS |
 | Conservative FPR | <= 0.60 | 0.1311 | PASS |
@@ -49,7 +49,7 @@ Ek teknik durum:
 | SG1 WS-A Spike + Mini | TAMAMLANDI (ESIK GECILDI) | `docs/recovery_v2_recall_domain_motion_report.md`, `data/validation/recovery_v2_domain_motion_eval.json` | CP-A sonucu `SG2_CANDIDATE` (`best_recall=2/7=0.2857`, `domain_motion=2/4`) |
 | SG2 WS-B Spike + Pilot | TAMAMLANDI | `docs/recovery_v2_overlap_option1_lock.md`, `data/benchmark/recovery_v2_overlap_pilot.json` | Top10 candidate-set `0.0290 -> 0.3246` |
 | SG3 Entegrasyon + Guard | TAMAMLANDI | `docs/recovery_v2_regression_guard_report.md`, `docs/recovery_v2_drift_check_report.md`, `docs/recovery_v2_reports_alignment.md` | WS-C guard/drift/alignment PASS |
-| SG4 Final Gate Rerun | TAMAMLANDI (FAIL) | `docs/phase5_5_gate_decision.md`, `data/validation/validation_results.json`, `docs/validation_report.md` | Full rerun sonucu: recall `0.0000`, overlap `0.0577` |
+| SG4 Final Gate Rerun | TAMAMLANDI (FAIL) | `docs/phase5_5_gate_decision.md`, `data/validation/validation_results.json`, `docs/validation_report.md` | Full rerun sonucu: recall `0.2000`, overlap `0.0577` |
 | SG5 Faz 6 Go/No-Go | TAMAMLANDI (NO-GO) | `docs/phase5_5_gate_decision.md`, `data/validation/recovery_v2_regression_guard.json` | Strict all-gates kurali nedeniyle Faz 6 acilis kosullari saglanmadi |
 
 Current locked WS-A snapshot (latest completed mini artifact):
@@ -60,8 +60,8 @@ Current locked WS-A snapshot (latest completed mini artifact):
 - `error_count = 0`
 
 SG4 full rerun snapshot (gate-path):
-- `validation_results.recall = 0.0000 (0/20)`
-- `avg_best_distance = 25.9256A`
+- `validation_results.recall = 0.2000 (4/20)`
+- `avg_best_distance = 18.0511A`
 - `domain_motion = 0/4`
 - `failed_runs = 0`
 
@@ -73,7 +73,7 @@ Execution verdict:
 SG5 final note (2026-02-19):
 1. `python scripts/recovery_v2_intake_check.py --strict` sonucu: `hard_checks_ok=True`, `readiness_signals_ok=True`.
 2. Buna ragmen `docs/phase5_5_gate_decision.md` strict gate sonucu **FAIL**:
-   - Recall: `0.1500 < 0.30`
+   - Recall: `0.2000 < 0.30`
    - fpocket overlap: `0.0577 < 0.25`
 3. FPR ve MD PASS korunurken Faz 6 karari **NO-GO** olarak kapatildi.
 
@@ -81,7 +81,7 @@ SG5.5 transition note (2026-02-19):
 1. Profile-aware gate generator aktif edildi (`--gate-profile strict|recovery_v2_transition`).
 2. Transition profile karari: `docs/phase5_5_gate_decision_recovery_v2_transition.md` -> **PASS**.
 3. Transition profile metrikleri:
-   - Recall: `0.1500 >= 0.10`
+   - Recall: `0.2000 >= 0.10`
    - fpocket overlap (SoT=`cp_b_candidate_impact.full_option1_overlap`): `0.2439 >= 0.24`
 4. Strict profile korunur ve FAIL kalir; transition profile Faz 6 oncesi controlled-go governance kaydi olarak kullanilir.
 5. Governance ve operasyon paketleri:
