@@ -255,7 +255,7 @@ Asagidaki kosullar **ayni gate rerun** icinde saglanmadan Faz 6 acilmaz:
 
 **Ciktilar:**
 
-- `docs/fpocket_benchmark_report_v3.md`
+- `docs/fpocket_benchmark_report.md`
 - `data/benchmark/fpocket_benchmark_v3.json`
 
 **Kabul Kriteri:**

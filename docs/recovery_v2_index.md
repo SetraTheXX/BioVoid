@@ -18,7 +18,7 @@ Not: Nihai gate metrikleri ve PASS/FAIL karari icin birincil referans `docs/phas
 - `docs/recovery_v2_reports_alignment.md`
 - `docs/recovery_v2_overlap_diagnostics.md`
 - `docs/recovery_v2_overlap_calibration_report.md`
-- `docs/fpocket_benchmark_report_v3.md`
+- `docs/fpocket_benchmark_report.md`
 
 ## 3) WS-A Ciktilari (Recall)
 
@@ -31,7 +31,7 @@ Not: Nihai gate metrikleri ve PASS/FAIL karari icin birincil referans `docs/phas
 - `docs/recovery_v2_metric_validity_audit.md`
 - `docs/recovery_v2_overlap_diagnostics.md`
 - `docs/recovery_v2_overlap_calibration_report.md`
-- `docs/fpocket_benchmark_report_v3.md`
+- `docs/fpocket_benchmark_report.md`
 
 ## 5) WS-C Ciktilari (Guard)
 
@@ -53,3 +53,7 @@ Asagidaki legacy dokumanlar kok `docs/` klasorunden tasinmistir:
 - `docs/archive/phase5_5_legacy/fpocket_fairness_audit.md`
 - `docs/archive/phase5_5_legacy/p1.1_case_study.md`
 - `docs/archive/phase5_5_legacy/phase1_completion_report.md`
+- `docs/archive/phase5_5_legacy/fpocket_benchmark_report_v3.md`
+- `docs/archive/phase5_5_legacy/recall_recovery_experiments.md`
+- `docs/archive/phase5_5_legacy/recall_recovery_experiments_v2.md`
+- `docs/archive/phase5_5_legacy/phase55_gate_recovery_diag.json`

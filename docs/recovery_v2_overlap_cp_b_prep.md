@@ -7,7 +7,7 @@
 
 ## Inputs
 
-1. `docs/fpocket_benchmark_report_v3.md`
+1. `docs/fpocket_benchmark_report.md`
 2. `docs/recovery_v2_metric_validity_audit.md`
 3. `docs/recovery_v2_overlap_diagnostics.md`
 4. `data/benchmark/fpocket_benchmark_v3.json`
