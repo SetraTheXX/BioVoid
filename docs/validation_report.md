@@ -1,6 +1,6 @@
 # Bio-Void Hunter Validation Report
 
-> **Generated:** 2026-02-19T02:44:03.653409
+> **Generated:** 2026-02-19T15:42:10.674601
 > **Test Set:** 20 known cryptic pockets
 > **Tolerance:** 8.0 Angstrom
 > **Aggregation Mode:** multi
@@ -12,32 +12,34 @@
 
 | Metric | Value |
 |--------|-------|
-| **Recall (Sensitivity)** | **15.0%** (3/20) |
-| Precision | 0.79% |
-| F1-Score | 1.5% |
-| True Positives | 3 |
-| False Negatives | 17 |
+| **Recall (Sensitivity)** | **20.0%** (4/20) |
+| Precision | 0.99% |
+| F1-Score | 1.9% |
+| True Positives | 4 |
+| False Negatives | 16 |
 | Failed Runs | 0 |
-| Avg Best Distance | 18.3 A |
-| Avg Frames Analyzed | 70.0 |
+| Avg Best Distance | 18.1 A |
+| Avg Frames Analyzed | 200.0 |
 | Total Runtime | 0.0s |
 
-| Avg Consensus Support (frames) | 59.23 |
-| Avg Center Stability | 0.32 A |
-| Avg Volume CV | 0.053 |
+| Avg Consensus Support (frames) | 161.80 |
+| Avg Center Stability | 0.30 A |
+| Avg Volume CV | 0.050 |
 
 ### Decision: NEEDS IMPROVEMENT
 
-Recall (15.0%) is below the minimum threshold (30%).
+Recall (20.0%) is below the minimum threshold (30%).
 **Method improvement required before Phase 6.**
 
-### Mini vs Full20 Delta (WS-A)
+### Mini vs Full20 Delta (WS-A Strict Recall Unblock)
 
-- Mini (bounded CP-A, `t4_atom_mode_heavy`): recall **20.0%** (1/5), domain-motion **1/3**, error **0**.
-- Full20 (bu rapor): recall **15.0%** (3/20), domain-motion **0/4**, failed runs **0**.
-- Recall delta (mini - full20): **+5.0 puan**.
-- Domain-motion delta (mini - full20): **+33.3 puan**.
-- Yorum: mini-sette gozlenen kismi kazanc full20'e tasinamadi; ozellikle domain-motion genellemesi full20'de korunmuyor.
+| Metrik | Mini (CP-A strict) | Full20 (bu rapor) | Delta (Mini - Full20) |
+| --- | ---: | ---: | ---: |
+| Recall | 33.3% (2/6) | 20.0% (4/20) | +13.3 puan |
+| Domain-motion | 2/4 (50.0%) | 0/4 (0.0%) | +50.0 puan |
+
+- Coverage notu: mini kosu `6/7` coverage ile sonlandi (`success_threshold_reached` + budget etkisi).
+- Full20 kosu `20/20` coverage ve `error_count=0` ile tamamlandi.
 
 ---
 
@@ -49,7 +51,7 @@ Recall (15.0%) is below the minimum threshold (30%).
 | AlphaFold+MD | 60-85% | Hours-days | ~100 proteins/month |
 | AlphaFold Solo | 60% | Hours | ~1K proteins/month |
 | fpocket (Voronoi) | 40-60% | Seconds | Unlimited |
-| **BioVoid (NMA)** | **15%** | **Seconds** | **Unlimited** |
+| **BioVoid (NMA)** | **20%** | **Seconds** | **Unlimited** |
 
 ---
 
@@ -57,25 +59,25 @@ Recall (15.0%) is below the minimum threshold (30%).
 
 | PDB | Protein | Type | Status | Distance | Bio-Score | Volume | Mode | AtomMode |
 |-----|---------|------|--------|----------|-----------|--------|------|----------|
-| 1CBS | Cellular Retinoic Acid-Bi | side-chain_flip | HIT | 6.8 | 0.859 | 1561 | multi | frame_ca |
-| 3C79 | TEM-1 Beta-Lactamase | loop_rearrangement | MISS | 33.2 | 0.888 | 2099 | multi | frame_ca |
-| 1F41 | Interleukin-2 (IL-2) | side-chain_flip | MISS | 18.7 | 0.753 | 2387 | multi | frame_ca |
-| 1YET | Bcl-xL | helix_displacement | MISS | 10.4 | 0.748 | 1249 | multi | frame_ca |
+| 1CBS | Cellular Retinoic Acid-Bi | side-chain_flip | HIT | 6.8 | 0.859 | 1562 | multi | frame_ca |
+| 3C79 | TEM-1 Beta-Lactamase | loop_rearrangement | MISS | 33.2 | 0.888 | 2070 | multi | frame_ca |
+| 1F41 | Interleukin-2 (IL-2) | side-chain_flip | MISS | 18.6 | 0.753 | 2377 | multi | frame_ca |
+| 1YET | Bcl-xL | helix_displacement | HIT | 7.1 | 0.763 | 1517 | multi | frame_ca |
 | 1G4E | p38 MAP Kinase | DFG-out | MISS | 25.2 | 0.834 | 1981 | multi | frame_ca |
-| 1OHR | Plasmepsin II | flap_opening | MISS | 27.4 | 0.749 | 1038 | multi | frame_ca |
+| 1OHR | Plasmepsin II | flap_opening | MISS | 27.4 | 0.749 | 1039 | multi | frame_ca |
 | 2BXR | Niemann-Pick C2 | domain_motion | MISS | 33.0 | 0.851 | 2126 | multi | frame_ca |
 | 2VTA | Adenylate Kinase (Adk) -  | domain_motion | MISS | 13.6 | 0.755 | 2338 | multi | frame_ca |
-| 1AKE | Adenylate Kinase (Adk) -  | domain_motion | MISS | 12.8 | 0.871 | 2707 | multi | frame_ca |
-| 1STP | Streptavidin | loop_closure | HIT | 5.7 | 0.705 | 1292 | multi | frame_ca |
-| 1LI2 | Lipocalin-type Prostaglan | side-chain_flip | MISS | 9.4 | 0.658 | 1026 | multi | frame_ca |
-| 3ERT | Estrogen Receptor alpha | helix_displacement | MISS | 22.9 | 0.920 | 1873 | multi | frame_ca |
-| 1T46 | HIV-1 Reverse Transcripta | allosteric | MISS | 18.0 | 0.809 | 2525 | multi | frame_ca |
+| 1AKE | Adenylate Kinase (Adk) -  | domain_motion | MISS | 12.8 | 0.871 | 2712 | multi | frame_ca |
+| 1STP | Streptavidin | loop_closure | HIT | 5.7 | 0.705 | 1289 | multi | frame_ca |
+| 1LI2 | Lipocalin-type Prostaglan | side-chain_flip | MISS | 9.4 | 0.658 | 1027 | multi | frame_ca |
+| 3ERT | Estrogen Receptor alpha | helix_displacement | MISS | 22.9 | 0.920 | 1867 | multi | frame_ca |
+| 1T46 | HIV-1 Reverse Transcripta | allosteric | MISS | 18.0 | 0.809 | 2524 | multi | frame_ca |
 | 1M17 | EGFR Kinase | DFG-out | MISS | 39.8 | 0.828 | 1906 | multi | frame_ca |
 | 2HYY | Chk1 Kinase | side-chain_flip | MISS | 13.0 | 0.828 | 1507 | multi | frame_ca |
 | 3K5V | PDK1 Kinase | PIF pocket | HIT | 3.6 | 0.820 | 1920 | multi | frame_ca |
 | 1GWR | Cytochrome c Peroxidase | loop_rearrangement | MISS | 27.7 | 0.823 | 2136 | multi | frame_ca |
 | 2P2I | Glutamate Receptor (iGluR | domain_motion | MISS | 12.1 | 0.919 | 2306 | multi | frame_ca |
-| 1JWP | Fatty Acid Binding Protei | portal_opening | MISS | 13.6 | 0.879 | 2391 | multi | frame_ca |
+| 1JWP | Fatty Acid Binding Protei | portal_opening | MISS | 12.6 | 0.806 | 2278 | multi | frame_ca |
 | 1RX4 | Immunophilin FKBP12 | loop_rearrangement | MISS | 18.6 | 0.816 | 1732 | multi | frame_ca |
 
 ---
@@ -89,12 +91,8 @@ Recall (15.0%) is below the minimum threshold (30%).
   - Reference: Horn & Bhagat 2009, Horn & Shoichet 2010
 
 - **1F41** (Interleukin-2 (IL-2)): side-chain_flip
-  - Best distance: 18.7A (threshold: 8.0A)
+  - Best distance: 18.6A (threshold: 8.0A)
   - Reference: Arkin et al. 2003, PNAS
-
-- **1YET** (Bcl-xL): helix_displacement
-  - Best distance: 10.4A (threshold: 8.0A)
-  - Reference: Oltersdorf et al. 2005, Nature
 
 - **1G4E** (p38 MAP Kinase): DFG-out
   - Best distance: 25.2A (threshold: 8.0A)
@@ -145,7 +143,7 @@ Recall (15.0%) is below the minimum threshold (30%).
   - Reference: Bhatt et al. 2016
 
 - **1JWP** (Fatty Acid Binding Protein): portal_opening
-  - Best distance: 13.6A (threshold: 8.0A)
+  - Best distance: 12.6A (threshold: 8.0A)
   - Reference: Richieri et al. 2000
 
 - **1RX4** (Immunophilin FKBP12): loop_rearrangement
@@ -161,7 +159,7 @@ Recall (15.0%) is below the minimum threshold (30%).
 | allosteric | 0 | 1 | 0% |
 | domain_motion | 0 | 4 | 0% |
 | flap_opening | 0 | 1 | 0% |
-| helix_displacement | 0 | 2 | 0% |
+| helix_displacement | 1 | 2 | 50% |
 | loop_closure | 1 | 1 | 100% |
 | loop_rearrangement | 0 | 3 | 0% |
 | portal_opening | 0 | 1 | 0% |

@@ -1,6 +1,6 @@
 # Recovery v2 Recall Domain-Motion Report
 
-- Generated at (UTC): 2026-02-18T23:43:53Z
+- Generated at (UTC): 2026-02-19T14:48:05Z
 - Scope: CP-A pivot mini-set (domain_motion + loop_rearrangement)
 - Canonical lock: tolerance=8.0A, top-N=20, druggable=true
 - Mini-set size: 7
@@ -9,7 +9,7 @@
 
 - Profile: `balanced`
 - Executed trials: `t4_atom_mode_heavy`
-- Time budget (min): `90.0`
+- Time budget (min): `120.0`
 - Stopped early: `True`
 
 ## Denenen Degisiklikler
@@ -24,25 +24,26 @@
 
 | Trial | Degisiklik | Recall | Domain-motion | Error Count | Coverage | Elapsed (min) | Avg Best Distance |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| t4_atom_mode_heavy | reconstructed_heavy + domain_motion_weighted + refined | 20.0% (1/5) | 1/3 | 0 | 5/7 | 90.43 | 24.52A |
+| t4_atom_mode_heavy | reconstructed_heavy + domain_motion_weighted + refined | 33.3% (2/6) | 2/4 | 0 | 6/7 | 124.52 | 21.11A |
 
 ## En Iyi Aday Konfig
 
 - Trial: `t4_atom_mode_heavy` - reconstructed_heavy + domain_motion_weighted + refined
-- Recall: 20.0% (1/5)
-- Domain-motion: 1/3 (33.3%)
+- Recall: 33.3% (2/6)
+- Domain-motion: 2/4 (50.0%)
 - Error count: 0
 
-## Mini vs Full20 Delta Analizi
+## Mini vs Full20 Delta
 
-- Mini (bu kosu, bounded CP-A): recall **20.0%** (1/5), domain-motion **1/3**.
-- Full20 (v2_advanced, `validation_results.json`): recall **15.0%** (3/20), domain-motion **0/4**.
-- Recall farki (oran bazli): **+5.0 puan** mini lehine.
-- Domain-motion farki (oran bazli): **+33.3 puan** mini lehine.
-- Ortalama en iyi mesafe: mini **24.52A**, full20 **18.26A**.
-- Kritik not: mini kosu sure butcesi nedeniyle **5/7 coverage** ile tamamlandi; bu nedenle mini sinyali full20'e birebir genellenemez.
+| Metrik | Mini (CP-A strict) | Full20 (v2_advanced force rerun) | Delta (Mini - Full20) |
+| --- | ---: | ---: | ---: |
+| Recall | 33.3% (2/6) | 20.0% (4/20) | +13.3 puan |
+| Domain-motion | 2/4 (50.0%) | 0/4 (0.0%) | +50.0 puan |
+
+- Coverage notu: mini kosu `6/7` coverage ile tamamlandi (time-budget + success-threshold erken durdurma).
+- Full20 kosu `20/20` tamamlandi, failed run yok.
 
 ## CP-A Karar
 
 - Kural: `if recall < 0.22 => PIVOT_REQUIRED else SG2_CANDIDATE`
-- Karar: **PIVOT_REQUIRED**
+- Karar: **SG2_CANDIDATE**
