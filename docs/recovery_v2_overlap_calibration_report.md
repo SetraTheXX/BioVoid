@@ -1,6 +1,6 @@
 # Recovery v2 Overlap Calibration Report (WS-B / B2)
 
-- Generated at (UTC): 2026-02-17
+- Generated at (UTC): 2026-02-19
 - Canonical lock sabit: tolerance=8.0A, top-N=20, druggable_only=true
 - Not: Bu calisma exploratory calibration/spike niteligindedir; resmi gate metriği degismez.
 
@@ -52,6 +52,34 @@
 - Official overlap metric (global, unchanged): **0.0577**
 - Gate threshold (unchanged): **0.40**
 - Faz 6 karar ciktisi uretilmedi; sadece WS-B spike raporlamasi yapildi.
+
+## Day1 Strict Root-Cause Snapshot
+
+- Distance-only overlap (global): **0.3099**
+- Center upper-bound overlap (global): **0.3188**
+- Official strict overlap (global): **0.0577**
+- Gate reachability under current center upper bound: **not reachable** (`0.3188 < 0.40`)
+- Distance-only matches: **498**
+- Distance+volume matches (official strict): **89**
+- Transition drop (distance -> volume): **409**
+- Volume-gate drop reason distribution:
+  - `low_ratio`: **409**
+  - `high_ratio`: **0**
+  - `missing_volume`: **0**
+- Full Option-1 overlap snapshot (`cp_b_candidate_impact`): **0.2439** (`+0.1862` vs **0.0577**)
+- Top10 CP-B candidate-set snapshot: **0.0290 -> 0.3246** (`+0.2957`, matched **+51**)
+
+## Unblock Candidate (Strict Metric Unchanged)
+
+1. Teknik mudahale:
+   - Nearest-center adaylari icin quantile-calibrated volume representation (Option-1) uygula;
+     gate kurali ve official metric tanimi degismeden kalir.
+2. Beklenen etki (JSON SoT dayanakli):
+   - Full overlap: **0.0577 -> 0.2439** (`+0.1862`)
+   - Top10 candidate-set overlap: **0.0290 -> 0.3246** (`+0.2957`)
+3. Risk:
+   - Volume mapping overfit riski ve ranking dagilimi kaymasi.
+   - WS-C guard (FPR/MD) ve drift lock zorunlu.
 
 ## Risk / Regression Note
 
