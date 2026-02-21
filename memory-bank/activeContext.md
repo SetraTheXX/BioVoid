@@ -5,7 +5,7 @@
 - Faz: **5.5 Recovery v2 (strict-unblock tamamlandi)**
 - Teknik durum: **PHASE6_READY**
 - Operasyonel durum: **PHASE6_IN_PROGRESS**
-- Faz 6 execution status: **STEP2_COMPLETED (backend/api)**
+- Faz 6 execution status: **STEP3_COMPLETED (web portal)**
 
 ## Canonical SoT
 
@@ -17,6 +17,7 @@
 6. Faz 6+ index: `docs/phase6_plus_index.md`
 7. Faz 6 Step 1 report: `docs/phase6_step1_prestart_freeze_report.md`
 8. Faz 6 Step 2 report: `docs/phase6_step2_backend_api_report.md`
+9. Faz 6 Step 3 report: `docs/phase6_step3_web_portal_report.md`
 
 ## Son Dogrulanmis Strict Snapshot (2026-02-21)
 
@@ -37,5 +38,5 @@ python scripts/run_recovery_v2_regression_guard.py --fpocket-report docs/fpocket
 python scripts/recovery_v2_intake_check.py --strict --recall-floor 0.30 --overlap-floor 0.25
 ```
 
-Step 1 PASS tamamlandi ve Step 2 backend/api teslim edildi.
-Siradaki adim: Step 3 (web portal).
+Step 1 PASS tamamlandi, Step 2 backend/api teslim edildi, Step 3 web portal tamamlandi.
+Siradaki adim: Step 4 (ops/release guard).

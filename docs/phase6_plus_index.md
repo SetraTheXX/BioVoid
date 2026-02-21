@@ -21,7 +21,7 @@ Bu dosya, Faz 6 ve sonrasi icin ana plan dosyalarinin tek indexidir.
 4. Faz 6 status:
    - Technical: `READY`
    - Operational: `IN_PROGRESS`
-   - Execution: `STEP2_COMPLETED (backend/api)`
+   - Execution: `STEP3_COMPLETED (web portal)`
 
 ## Step Progress
 
@@ -29,7 +29,8 @@ Bu dosya, Faz 6 ve sonrasi icin ana plan dosyalarinin tek indexidir.
    - `docs/phase6_step1_prestart_freeze_report.md`
 2. Step 2 backend/api: `COMPLETED`
    - `docs/phase6_step2_backend_api_report.md`
-3. Step 3 (web portal): `PENDING`
+3. Step 3 web portal: `COMPLETED`
+   - `docs/phase6_step3_web_portal_report.md`
 4. Step 4 (ops/release guard): `PENDING`
 5. Step 5 (final integration + staging): `PENDING`
 
