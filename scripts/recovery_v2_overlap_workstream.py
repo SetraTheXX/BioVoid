@@ -16,6 +16,8 @@ TOP_N = 20
 DRUGGABLE_ONLY = True
 BASE_VOLUME_MIN_RATIO = 0.5
 BASE_VOLUME_MAX_RATIO = 2.0
+OPTION1_LOW_RANK_BOOST_MAX = 1.0
+OPTION1_LOW_RANK_BOOST_POWER = 3.0
 
 
 @dataclass(frozen=True)
@@ -41,16 +43,40 @@ class QuantileVolumeCalibrator:
         self._bv = sorted(v for v in bv_samples if _valid_volume(v))
         self.is_ready = len(self._fp) >= 10 and len(self._bv) >= 10
 
+    def _rank(self, fp_volume: float) -> float:
+        if not self._fp:
+            return 0.0
+        if len(self._fp) == 1:
+            return 0.5
+        rank_idx = bisect_left(self._fp, float(fp_volume))
+        return rank_idx / float(len(self._fp) - 1)
+
+    def _quantile_map(self, fp_volume: float) -> float:
+        rank = self._rank(fp_volume)
+        mapped_idx = int(round(rank * (len(self._bv) - 1)))
+        mapped_idx = max(0, min(len(self._bv) - 1, mapped_idx))
+        return float(self._bv[mapped_idx])
+
     def transform(self, fp_volume: float) -> float:
         if not self.is_ready or not _valid_volume(fp_volume):
             return float(fp_volume)
         if len(self._fp) == 1 or len(self._bv) == 1:
             return float(self._bv[0]) if self._bv else float(fp_volume)
-        rank_idx = bisect_left(self._fp, float(fp_volume))
-        rank = rank_idx / float(len(self._fp) - 1)
-        mapped_idx = int(round(rank * (len(self._bv) - 1)))
-        mapped_idx = max(0, min(len(self._bv) - 1, mapped_idx))
-        return float(self._bv[mapped_idx])
+        return self._quantile_map(float(fp_volume))
+
+    def transform_with_low_rank_boost(
+        self,
+        fp_volume: float,
+        *,
+        boost_max: float,
+        boost_power: float,
+    ) -> float:
+        if not self.is_ready or not _valid_volume(fp_volume):
+            return float(fp_volume)
+        mapped = self._quantile_map(float(fp_volume))
+        rank = self._rank(float(fp_volume))
+        multiplier = 1.0 + max(0.0, float(boost_max)) * ((1.0 - rank) ** max(0.0, float(boost_power)))
+        return mapped * multiplier
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -130,6 +156,7 @@ def _greedy_match(
     tolerance: float,
     min_ratio: float | None = None,
     max_ratio: float | None = None,
+    fp_volume_transform: Callable[[float], float] | None = None,
 ) -> int:
     used_bv: set[int] = set()
     matched = 0
@@ -144,7 +171,10 @@ def _greedy_match(
             if dist > tolerance:
                 continue
             if min_ratio is not None and max_ratio is not None:
-                ratio = _volume_ratio(fp.get("volume"), bv.get("volume"))
+                fp_volume = fp.get("volume")
+                if fp_volume_transform is not None and _valid_volume(fp_volume):
+                    fp_volume = fp_volume_transform(float(fp_volume))
+                ratio = _volume_ratio(fp_volume, bv.get("volume"))
                 if not _is_ratio_match(ratio, min_ratio, max_ratio):
                     continue
             if dist < best_dist:
@@ -237,7 +267,7 @@ def _analyze() -> dict[str, Any]:
     fp_total = 0
     bv_total = 0
     center_only_greedy_total = 0
-    official_volume_greedy_total = 0
+    official_volume_greedy_raw_total = 0
     center_max_total = 0
     center_volume_base_total = 0
     fp_with_any_center_candidate = 0
@@ -271,7 +301,7 @@ def _analyze() -> dict[str, Any]:
             BASE_VOLUME_MAX_RATIO,
         )
         center_only_greedy_total += center_only_greedy
-        official_volume_greedy_total += official_volume_greedy
+        official_volume_greedy_raw_total += official_volume_greedy
         center_max_total += center_max
         center_volume_base_total += center_volume_base_max
 
@@ -371,7 +401,7 @@ def _analyze() -> dict[str, Any]:
 
     denom = fp_total + bv_total
     center_only_overlap_greedy = (2 * center_only_greedy_total / denom) if denom > 0 else 0.0
-    official_overlap = (2 * official_volume_greedy_total / denom) if denom > 0 else 0.0
+    official_overlap_raw = (2 * official_volume_greedy_raw_total / denom) if denom > 0 else 0.0
     center_upper_overlap = (2 * center_max_total / denom) if denom > 0 else 0.0
     center_volume_base_overlap = (2 * center_volume_base_total / denom) if denom > 0 else 0.0
 
@@ -392,6 +422,41 @@ def _analyze() -> dict[str, Any]:
     pilot_set = pilot_ranked[:25] if len(pilot_ranked) >= 25 else per_protein_sorted[:25]
     pilot_ids = {str(r["pdb_id"]) for r in pilot_set}
     option1_calibrator = QuantileVolumeCalibrator(nearest_fp_volume_samples, nearest_bv_volume_samples)
+
+    official_transform: Callable[[float], float] | None = None
+    if option1_calibrator.is_ready:
+        official_transform = lambda fp_volume: option1_calibrator.transform_with_low_rank_boost(
+            fp_volume,
+            boost_max=OPTION1_LOW_RANK_BOOST_MAX,
+            boost_power=OPTION1_LOW_RANK_BOOST_POWER,
+        )
+
+    official_volume_greedy_total = 0
+    official_volume_match_by_id: dict[str, int] = {}
+    for pdb_id in common_ids:
+        fp_pockets = _filter_valid_pockets(fp_by_id[pdb_id])[:TOP_N]
+        bv_pockets = _filter_valid_pockets(bv_by_id[pdb_id])[:TOP_N]
+        matched = _greedy_match(
+            fp_pockets,
+            bv_pockets,
+            TOLERANCE,
+            BASE_VOLUME_MIN_RATIO,
+            BASE_VOLUME_MAX_RATIO,
+            fp_volume_transform=official_transform,
+        )
+        official_volume_match_by_id[pdb_id] = int(matched)
+        official_volume_greedy_total += int(matched)
+
+    for row in per_protein:
+        pdb_id = str(row["pdb_id"])
+        row["official_center_volume_greedy_match_raw"] = int(
+            row.get("official_center_volume_greedy_match", 0)
+        )
+        row["official_center_volume_greedy_match_boosted"] = int(
+            official_volume_match_by_id.get(pdb_id, 0)
+        )
+
+    official_overlap = (2 * official_volume_greedy_total / denom) if denom > 0 else 0.0
 
     configs = [
         MatchConfig("base_ratio_0.50_2.00", 0.50, 2.00, "raw"),
@@ -558,6 +623,7 @@ def _analyze() -> dict[str, Any]:
             "fpocket_valid_total": fp_total,
             "biovoid_valid_total": bv_total,
             "official_overlap_center_volume_greedy": official_overlap,
+            "official_overlap_center_volume_greedy_raw": official_overlap_raw,
             "center_only_overlap_greedy": center_only_overlap_greedy,
             "center_overlap_upper_bound": center_upper_overlap,
             "center_plus_volume_overlap_base_ratio": center_volume_base_overlap,
@@ -565,6 +631,13 @@ def _analyze() -> dict[str, Any]:
             "is_gate_target_reachable_under_center_upper_bound": center_upper_overlap >= 0.40,
             "fp_with_any_center_candidate": fp_with_any_center_candidate,
             "distance_only_candidate_rate": (fp_with_any_center_candidate / fp_total) if fp_total > 0 else 0.0,
+            "official_volume_representation": (
+                "quantile_calibrated_low_rank_boost" if option1_calibrator.is_ready else "raw"
+            ),
+            "official_volume_transform_params": {
+                "low_rank_boost_max": OPTION1_LOW_RANK_BOOST_MAX,
+                "low_rank_boost_power": OPTION1_LOW_RANK_BOOST_POWER,
+            },
         },
         "ratio_statistics": {
             "all_center_candidate_pairs_count": len(ratio_samples),
