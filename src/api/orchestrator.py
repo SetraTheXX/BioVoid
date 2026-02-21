@@ -76,6 +76,12 @@ class JobOrchestrator:
         self._stop_event = threading.Event()
         self._worker: threading.Thread | None = None
         self._runners: dict[str, Runner] = {"quick_probe": self._run_quick_probe}
+        self._started_monotonic = time.monotonic()
+        self._submitted_count = 0
+        self._succeeded_count = 0
+        self._failed_count = 0
+        self._retried_jobs = 0
+        self._latencies_seconds: list[float] = []
 
     def start(self) -> None:
         """Start background worker thread."""
@@ -147,6 +153,7 @@ class JobOrchestrator:
             )
             self._jobs[job_id] = record
             self._idempotency_index[idempotency_key] = job_id
+            self._submitted_count += 1
             self._queue.put(job_id)
             return record, False
 
@@ -230,10 +237,44 @@ class JobOrchestrator:
                 record.status = JobStatus.SUCCEEDED
                 record.result = result
                 record.error = None
+                self._succeeded_count += 1
             else:
                 record.status = JobStatus.FAILED
                 record.result = None
                 record.error = final_error
+                self._failed_count += 1
+            if record.attempts > 1:
+                self._retried_jobs += 1
+            if record.started_at_utc and record.finished_at_utc:
+                latency = (
+                    record.finished_at_utc - record.started_at_utc
+                ).total_seconds()
+                self._latencies_seconds.append(latency)
+
+    def ops_metrics(self) -> dict[str, Any]:
+        """Return operational metrics snapshot for dashboarding."""
+        with self._lock:
+            completed = self._succeeded_count + self._failed_count
+            latencies = list(self._latencies_seconds)
+            avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
+            p95_latency = 0.0
+            if latencies:
+                sorted_lat = sorted(latencies)
+                idx = max(0, int(0.95 * (len(sorted_lat) - 1)))
+                p95_latency = sorted_lat[idx]
+
+            return {
+                "uptime_seconds": round(time.monotonic() - self._started_monotonic, 3),
+                "worker_alive": bool(self._worker and self._worker.is_alive()),
+                "queue_depth": self._queue.qsize(),
+                "submitted_jobs": self._submitted_count,
+                "completed_jobs": completed,
+                "succeeded_jobs": self._succeeded_count,
+                "failed_jobs": self._failed_count,
+                "retried_jobs": self._retried_jobs,
+                "avg_job_latency_seconds": round(avg_latency, 6),
+                "p95_job_latency_seconds": round(p95_latency, 6),
+            }
 
     @staticmethod
     def _run_with_timeout(
