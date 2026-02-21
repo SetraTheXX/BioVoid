@@ -1128,6 +1128,8 @@ def _run_v2_advanced_engine(
             str(a3_json),
             "--a3-output-md",
             str(a3_md),
+            "--case-timeout-seconds",
+            str(args.v2_case_timeout_seconds),
         ]
         print("[V2] Running full recall workstream...")
         subprocess.run(cmd, cwd=str(ROOT), check=True)
@@ -1269,6 +1271,15 @@ def main():
         help=(
             "When enabled (default), v2 full20 reruns write A1/A2 outputs into shadow files "
             "instead of overwriting WS-A mini artifacts."
+        ),
+    )
+    parser.add_argument(
+        "--v2-case-timeout-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Per-case timeout forwarded to v2 workstream. "
+            "0 disables multiprocessing timeout wrapper (default: 0)."
         ),
     )
     

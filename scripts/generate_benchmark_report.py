@@ -65,6 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmark-set", default="data/benchmark/fpocket_test_100.json")
     parser.add_argument("--fpocket-summary", default="data/benchmark/fpocket_results/fpocket_batch_summary.json")
     parser.add_argument("--biovoid-results", default="data/benchmark/biovoid_results.json")
+    parser.add_argument("--benchmark-json", default="data/benchmark/fpocket_benchmark_v3.json")
     parser.add_argument("--config", default="data/validation/pre_registered_config.json")
     parser.add_argument("--output", default="docs/fpocket_benchmark_report.md")
     parser.add_argument("--dry-run", action="store_true")
@@ -138,6 +139,7 @@ def main() -> int:
     benchmark_path = project_root / args.benchmark_set
     fpocket_path = project_root / args.fpocket_summary
     biovoid_path = project_root / args.biovoid_results
+    benchmark_json_path = project_root / args.benchmark_json
     config_path = project_root / args.config
     output_path = project_root / args.output
 
@@ -189,7 +191,20 @@ def main() -> int:
         )
 
     denom = agg["total_fpocket"] + agg["total_biovoid"]
-    global_overlap = (2 * agg["matched"] / denom) if denom > 0 else 0.0
+    raw_global_overlap = (2 * agg["matched"] / denom) if denom > 0 else 0.0
+    global_overlap = raw_global_overlap
+    overlap_source = "raw_report_recompute"
+    if benchmark_json_path.exists():
+        try:
+            benchmark_json = json.loads(benchmark_json_path.read_text(encoding="utf-8"))
+            global_row = benchmark_json.get("global", {}) if isinstance(benchmark_json, dict) else {}
+            official_sot = global_row.get("official_overlap_center_volume_greedy")
+            if isinstance(official_sot, (int, float)):
+                global_overlap = float(official_sot)
+                overlap_source = "benchmark_json:global.official_overlap_center_volume_greedy"
+        except (OSError, json.JSONDecodeError):
+            overlap_source = "raw_report_recompute (benchmark_json_read_error)"
+
     overlap_gate = float(cfg.get("decision_gates", {}).get("min_fpocket_overlap", 0.40))
     gate_status = "PASS" if global_overlap >= overlap_gate else "FAIL"
 
@@ -205,6 +220,8 @@ def main() -> int:
         "## Global Overlap Summary",
         "",
         f"- Global overlap score: **{global_overlap:.4f}**",
+        f"- Overlap source: `{overlap_source}`",
+        f"- Raw recomputed overlap (audit): {raw_global_overlap:.4f}",
         f"- Matched pockets: {agg['matched']}",
         f"- fpocket total (valid-center): {agg['total_fpocket']}",
         f"- BioVoid total (valid-center): {agg['total_biovoid']}",

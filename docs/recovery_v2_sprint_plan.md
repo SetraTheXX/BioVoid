@@ -6,6 +6,32 @@
 > **Ana Hedef:** Final gate'te 4/4 PASS almak  
 > **Revizyon:** Harici AI geri bildirimi ile sure, metrik ve feasibility katmanlari guclendirildi
 
+## 0.1) Final Update (2026-02-21)
+
+Bu plan kapsamindaki strict unblock calismasi tamamlandi ve final strict gate PASS alindi.
+
+Final strict gate snapshot (`docs/phase5_5_gate_decision.md`):
+
+| Gate | Hedef | Sonuc | Durum |
+| --- | ---: | ---: | --- |
+| Recall | >= 0.30 | 0.3500 (7/20) | PASS |
+| fpocket overlap | >= 0.25 | 0.2597 | PASS |
+| MD validation proteins | >= 1 | 1 | PASS |
+| Conservative FPR | <= 0.60 | 0.1311 | PASS |
+
+WS-C guard snapshot (`docs/recovery_v2_regression_guard_report.md`):
+- Overall WS-C guard: PASS
+- FPR guard: PASS
+- MD guard: PASS
+- Drift guard: PASS
+- Report consistency guard: PASS
+
+Readiness snapshot (`python scripts/recovery_v2_intake_check.py --strict --recall-floor 0.30 --overlap-floor 0.25`):
+- `hard_checks_ok=True`
+- `readiness_signals_ok=True`
+
+Not: Asagidaki SG4/SG5 NO-GO bolumleri tarihsel kayit olarak korunmustur.
+
 ---
 
 ## 0) Revizyon Notlari (Bu Surumde Eklenenler)

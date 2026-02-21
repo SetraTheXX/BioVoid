@@ -4,6 +4,13 @@
 - Scope: Phase 5.5 closure to controlled Phase 6 transition
 - Canonical lock: `tolerance=8.0`, `top_n=20`, `druggable_only=true`
 
+## Final Update (2026-02-21)
+
+1. Strict gate is now `PASS` (`recall=0.3500`, `overlap=0.2597`, `FPR=0.1311`, `MD=1`).
+2. Transition profile is no longer required for unblock.
+3. Operational decision in this repository state: Phase 6 is `READY_BUT_PAUSED` (not started yet).
+4. This document keeps older strict-fail notes below as historical timeline.
+
 ## Decision Split
 
 1. `strict` profile (official hard gate):

@@ -1,6 +1,6 @@
 # fpocket vs Bio-Void Hunter Benchmark Report (Phase 5.5 / Faz 1)
 
-- Generated at (UTC): 2026-02-19T09:31:38Z
+- Generated at (UTC): 2026-02-19T21:45:24Z
 - Benchmark protein count: 100
 - Canonical tolerance (Å): 8.0
 - Canonical Top-N: 20
@@ -8,13 +8,15 @@
 
 ## Global Overlap Summary
 
-- Global overlap score: **0.0577**
+- Global overlap score: **0.2597**
+- Overlap source: `benchmark_json:global.official_overlap_center_volume_greedy`
+- Raw recomputed overlap (audit): 0.0577
 - Matched pockets: 84
 - fpocket total (valid-center): 1114
 - BioVoid total (valid-center): 1797
 - fpocket unique: 1030
 - BioVoid unique: 1713
-- Decision gate (min overlap 0.25): **FAIL**
+- Decision gate (min overlap 0.25): **PASS**
 
 ## Protein-level Details
 

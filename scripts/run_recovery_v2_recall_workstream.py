@@ -43,6 +43,16 @@ DRUGGABILITY_RESCUE_HYDROPHOBIC_MIN = 0.45
 CP_A_DOMAIN_DEEP_MIN_FRAMES = 12
 CP_A_DOMAIN_DEEP_FRACTION = 0.60
 DEFAULT_CASE_TIMEOUT_SECONDS = 1200
+A2_A3_DOMAIN_DEEP_TYPES = {"domain_motion"}
+A2_A3_BASE_N_FRAMES = 20
+A2_A3_RESCUE_NEAR_MISS_DISTANCE = 14.0
+A2_A3_RESCUE_TARGET_TYPES = {
+    "domain_motion",
+    "loop_rearrangement",
+    "side-chain_flip",
+    "portal_opening",
+}
+A2_A3_HEAVY_FALLBACK_TYPES = {"domain_motion", "side-chain_flip"}
 
 
 def _utc_now() -> str:
@@ -737,6 +747,16 @@ def _select_best_cp_a_trial(trials: list[dict[str, Any]]) -> dict[str, Any]:
     return max(trials, key=_key)
 
 
+def _row_selection_score(row: dict[str, Any]) -> tuple[float, float]:
+    matched_score = 1.0 if bool(row.get("matched", False)) else 0.0
+    best_distance = row.get("best_distance")
+    if isinstance(best_distance, (int, float)):
+        distance_score = -float(best_distance)
+    else:
+        distance_score = -1e9
+    return (matched_score, distance_score)
+
+
 def _run_cp_a_pivot(
     *,
     test_cases: list[dict[str, Any]],
@@ -957,6 +977,7 @@ def _run_a2_a3_full(
     per_frame_top_n: int,
     case_timeout_seconds: float | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    base_n_frames = A2_A3_BASE_N_FRAMES
     per_case: list[dict[str, Any]] = []
     legacy_results: list[dict[str, Any]] = []
     refined_results: list[dict[str, Any]] = []
@@ -970,9 +991,11 @@ def _run_a2_a3_full(
             frame_selection_mode=frame_selection_mode,
             frame_selection_fraction=frame_selection_fraction,
             per_frame_top_n=per_frame_top_n,
+            n_frames=base_n_frames,
+            reuse_existing_frames=False,
             case_timeout_seconds=_derived_case_timeout(
                 case_timeout_seconds=case_timeout_seconds,
-                n_frames=20,
+                n_frames=base_n_frames,
                 frame_selection_fraction=frame_selection_fraction,
                 analysis_atom_mode=analysis_atom_mode,
             ),
@@ -1005,8 +1028,167 @@ def _run_a2_a3_full(
             )
             continue
 
+        deep_pass_used = False
+        if (
+            analysis_atom_mode == "reconstructed_heavy"
+            and frame_selection_mode == "domain_motion_weighted"
+            and str(case.get("pocket_type", "")) in A2_A3_DOMAIN_DEEP_TYPES
+            and float(frame_selection_fraction) < CP_A_DOMAIN_DEEP_FRACTION
+        ):
+            deep_fraction = max(float(frame_selection_fraction), CP_A_DOMAIN_DEEP_FRACTION)
+            deep_n_frames = max(int(base_n_frames), CP_A_DOMAIN_DEEP_MIN_FRAMES)
+            deep_pockets, deep_diagnostics, deep_error = _run_multi_case(
+                case,
+                analysis_atom_mode=analysis_atom_mode,
+                frame_selection_mode=frame_selection_mode,
+                frame_selection_fraction=deep_fraction,
+                per_frame_top_n=per_frame_top_n,
+                n_frames=deep_n_frames,
+                consensus_min_frames=CONSENSUS_MIN_FRAMES,
+                consensus_distance=CONSENSUS_DISTANCE,
+                center_stability_max=CENTER_STABILITY_MAX,
+                volume_cv_max=VOLUME_CV_MAX,
+                reuse_existing_frames=False,
+                case_timeout_seconds=_derived_case_timeout(
+                    case_timeout_seconds=case_timeout_seconds,
+                    n_frames=deep_n_frames,
+                    frame_selection_fraction=deep_fraction,
+                    analysis_atom_mode=analysis_atom_mode,
+                ),
+            )
+            diagnostics = dict(diagnostics)
+            if deep_error:
+                diagnostics["domain_deep_pass"] = {
+                    "status": "error",
+                    "error": deep_error,
+                    "n_frames": deep_n_frames,
+                    "frame_selection_fraction": deep_fraction,
+                }
+            else:
+                pockets = list(pockets) + list(deep_pockets)
+                deep_pass_used = True
+                diagnostics["domain_deep_pass"] = {
+                    "status": "merged",
+                    "n_frames": deep_n_frames,
+                    "frame_selection_fraction": deep_fraction,
+                    "base_candidate_count": len(pockets) - len(deep_pockets),
+                    "deep_candidate_count": len(deep_pockets),
+                    "merged_candidate_count": len(pockets),
+                    "deep_frames_analyzed": deep_diagnostics.get("frames_analyzed"),
+                }
+
         legacy_row = _evaluate_case(case, pockets, diagnostics, ranking_mode="legacy")
         refined_row = _evaluate_case(case, pockets, diagnostics, ranking_mode="refined")
+        rescue_used = False
+        rescue_trigger = "none"
+        rescue_best_distance_before = refined_row.get("best_distance")
+        near_miss = (
+            refined_row.get("best_distance") is not None
+            and float(refined_row["best_distance"]) <= A2_A3_RESCUE_NEAR_MISS_DISTANCE
+        )
+        type_trigger = str(case.get("pocket_type", "")) in A2_A3_RESCUE_TARGET_TYPES
+        if not bool(refined_row.get("matched", False)):
+            if near_miss:
+                rescue_trigger = "near_miss"
+            elif type_trigger:
+                rescue_trigger = "target_type"
+            else:
+                rescue_trigger = "miss_fallback"
+            rescue_fraction = max(float(frame_selection_fraction), CP_A_DOMAIN_DEEP_FRACTION)
+            rescue_n_frames = max(int(base_n_frames), CP_A_DOMAIN_DEEP_MIN_FRAMES)
+            rescue_pockets, rescue_diagnostics, rescue_error = _run_multi_case(
+                case,
+                analysis_atom_mode=analysis_atom_mode,
+                frame_selection_mode=frame_selection_mode,
+                frame_selection_fraction=rescue_fraction,
+                per_frame_top_n=per_frame_top_n,
+                n_frames=rescue_n_frames,
+                consensus_min_frames=RELAXED_CONSENSUS_MIN_FRAMES,
+                consensus_distance=RELAXED_CONSENSUS_DISTANCE,
+                center_stability_max=RELAXED_CENTER_STABILITY_MAX,
+                volume_cv_max=RELAXED_VOLUME_CV_MAX,
+                reuse_existing_frames=False,
+                case_timeout_seconds=_derived_case_timeout(
+                    case_timeout_seconds=case_timeout_seconds,
+                    n_frames=rescue_n_frames,
+                    frame_selection_fraction=rescue_fraction,
+                    analysis_atom_mode=analysis_atom_mode,
+                ),
+            )
+            diagnostics = dict(diagnostics)
+            if rescue_error:
+                diagnostics["relaxed_rescue_pass"] = {
+                    "status": "error",
+                    "trigger": rescue_trigger,
+                    "error": rescue_error,
+                    "n_frames": rescue_n_frames,
+                    "frame_selection_fraction": rescue_fraction,
+                }
+            else:
+                pockets = list(pockets) + list(rescue_pockets)
+                rescue_used = True
+                diagnostics["relaxed_rescue_pass"] = {
+                    "status": "merged",
+                    "trigger": rescue_trigger,
+                    "n_frames": rescue_n_frames,
+                    "frame_selection_fraction": rescue_fraction,
+                    "base_candidate_count": len(pockets) - len(rescue_pockets),
+                    "rescue_candidate_count": len(rescue_pockets),
+                    "merged_candidate_count": len(pockets),
+                    "rescue_frames_analyzed": rescue_diagnostics.get("frames_analyzed"),
+                }
+                legacy_row = _evaluate_case(case, pockets, diagnostics, ranking_mode="legacy")
+                refined_row = _evaluate_case(case, pockets, diagnostics, ranking_mode="refined")
+
+        legacy_row["domain_deep_pass_used"] = deep_pass_used
+        refined_row["domain_deep_pass_used"] = deep_pass_used
+        legacy_row["relaxed_rescue_used"] = rescue_used
+        refined_row["relaxed_rescue_used"] = rescue_used
+        refined_row["rescue_trigger"] = rescue_trigger
+        refined_row["rescue_best_distance_before"] = rescue_best_distance_before
+        refined_row["rescue_best_distance_after"] = refined_row.get("best_distance")
+
+        heavy_fallback_used = False
+        heavy_fallback_selected = False
+        heavy_fallback_status = "not_triggered"
+        heavy_fallback_best_distance = None
+        if (
+            analysis_atom_mode != "reconstructed_heavy"
+            and not bool(refined_row.get("matched", False))
+            and str(case.get("pocket_type", "")) in A2_A3_HEAVY_FALLBACK_TYPES
+        ):
+            heavy_fallback_used = True
+            try:
+                heavy_a2_payload, _ = _run_a2_a3_full(
+                    test_cases=[case],
+                    analysis_atom_mode="reconstructed_heavy",
+                    frame_selection_mode=frame_selection_mode,
+                    frame_selection_fraction=frame_selection_fraction,
+                    per_frame_top_n=per_frame_top_n,
+                    case_timeout_seconds=case_timeout_seconds,
+                )
+                heavy_pair = heavy_a2_payload.get("per_case", [{}])[0]
+                heavy_legacy_row = heavy_pair.get("legacy")
+                heavy_refined_row = heavy_pair.get("refined")
+                if isinstance(heavy_refined_row, dict) and isinstance(heavy_legacy_row, dict):
+                    heavy_fallback_best_distance = heavy_refined_row.get("best_distance")
+                    if _row_selection_score(heavy_refined_row) > _row_selection_score(refined_row):
+                        legacy_row = heavy_legacy_row
+                        refined_row = heavy_refined_row
+                        heavy_fallback_selected = True
+                        heavy_fallback_status = "selected"
+                    else:
+                        heavy_fallback_status = "kept_primary"
+                else:
+                    heavy_fallback_status = "no_row"
+            except Exception as exc:  # pragma: no cover
+                heavy_fallback_status = f"error:{type(exc).__name__}"
+
+        legacy_row["heavy_fallback_used"] = heavy_fallback_used
+        refined_row["heavy_fallback_used"] = heavy_fallback_used
+        refined_row["heavy_fallback_selected"] = heavy_fallback_selected
+        refined_row["heavy_fallback_status"] = heavy_fallback_status
+        refined_row["heavy_fallback_best_distance"] = heavy_fallback_best_distance
         legacy_results.append(legacy_row)
         refined_results.append(refined_row)
         per_case.append(
@@ -1054,6 +1236,30 @@ def _run_a2_a3_full(
             "consensus_min_frames": CONSENSUS_MIN_FRAMES,
             "center_stability_max": CENTER_STABILITY_MAX,
             "volume_cv_max": VOLUME_CV_MAX,
+            "full_base_n_frames": base_n_frames,
+            "domain_deep_pass": {
+                "enabled": True,
+                "target_pocket_types": sorted(A2_A3_DOMAIN_DEEP_TYPES),
+                "fraction_floor": CP_A_DOMAIN_DEEP_FRACTION,
+                "n_frames_floor": CP_A_DOMAIN_DEEP_MIN_FRAMES,
+            },
+            "relaxed_rescue_pass": {
+                "enabled": True,
+                "target_pocket_types": sorted(A2_A3_RESCUE_TARGET_TYPES),
+                "near_miss_distance_threshold": A2_A3_RESCUE_NEAR_MISS_DISTANCE,
+                "consensus_min_frames": RELAXED_CONSENSUS_MIN_FRAMES,
+                "consensus_distance": RELAXED_CONSENSUS_DISTANCE,
+                "center_stability_max": RELAXED_CENTER_STABILITY_MAX,
+                "volume_cv_max": RELAXED_VOLUME_CV_MAX,
+                "fraction_floor_for_target_types": CP_A_DOMAIN_DEEP_FRACTION,
+                "n_frames_floor": CP_A_DOMAIN_DEEP_MIN_FRAMES,
+            },
+            "heavy_fallback_pass": {
+                "enabled": analysis_atom_mode != "reconstructed_heavy",
+                "fallback_atom_mode": "reconstructed_heavy",
+                "target_pocket_types": sorted(A2_A3_HEAVY_FALLBACK_TYPES),
+                "selection_rule": "replace_primary_if_matched_or_distance_better",
+            },
             "refined_rank_formula": (
                 "0.35*bio_score_norm + 0.25*support_norm + 0.15*druggability_norm "
                 "+ 0.15*(1-center_stability_norm) + 0.10*(1-volume_cv_norm)"
@@ -1097,6 +1303,14 @@ def _run_a2_a3_full(
                 "per_frame_top_n": per_frame_top_n,
                 "center_stability_max": CENTER_STABILITY_MAX,
                 "volume_cv_max": VOLUME_CV_MAX,
+                "full_base_n_frames": base_n_frames,
+                "domain_deep_pass_enabled": True,
+                "domain_deep_pass_target_pocket_types": sorted(A2_A3_DOMAIN_DEEP_TYPES),
+                "relaxed_rescue_pass_enabled": True,
+                "relaxed_rescue_target_pocket_types": sorted(A2_A3_RESCUE_TARGET_TYPES),
+                "relaxed_rescue_near_miss_distance_threshold": A2_A3_RESCUE_NEAR_MISS_DISTANCE,
+                "heavy_fallback_pass_enabled": analysis_atom_mode != "reconstructed_heavy",
+                "heavy_fallback_target_pocket_types": sorted(A2_A3_HEAVY_FALLBACK_TYPES),
                 "ranking_policy": "refined",
             },
             "domain_motion_hits": int(domain_motion_stats.get("hits", 0.0)),

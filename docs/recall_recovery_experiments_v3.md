@@ -1,15 +1,15 @@
 # Recall Recovery Experiments v3
 
-- Generated at (UTC): 2026-02-19T12:42:10Z
+- Generated at (UTC): 2026-02-21T15:53:35Z
 - Scope: A3 full rerun (20 proteins, refined ranking)
 
 ## Metrics
 
-- Recall: **20.0%** (4/20)
-- Precision: **0.990%**
-- F1: **1.887%**
-- Avg best distance: **18.05A**
-- Domain-motion: **0/4** (0.0%)
+- Recall: **35.0%** (7/20)
+- Precision: **1.009%**
+- F1: **1.961%**
+- Avg best distance: **17.94A**
+- Domain-motion: **2/4** (50.0%)
 
 ## Config Lock
 
@@ -23,5 +23,5 @@
 
 ## Decision
 
-- SG1 recall checkpoint (>=0.22): **FAIL**
-- Gate-level recall target (>=0.30): **FAIL**
+- SG1 recall checkpoint (>=0.22): **PASS**
+- Gate-level recall target (>=0.30): **PASS**
