@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import logging
+import time
 from typing import Any
+import uuid
 
 from fastapi import FastAPI, Header, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -23,6 +26,8 @@ from .models import (
 from .orchestrator import JobOrchestrator
 from .portal import render_portal_html
 from .rate_limit import InMemoryRateLimiter
+
+LOGGER = logging.getLogger("biovoid.phase6.api")
 
 
 def _contains_forbidden_lock_keys(payload: dict[str, Any]) -> list[str]:
@@ -123,12 +128,40 @@ def create_app(
 
     app = FastAPI(
         title="BioVoid Phase 6 Job API",
-        version="6.0.0-step2",
+        version="6.0.0-step4",
         description=(
             "Single-node job orchestration API for controlled Phase 6 productization."
         ),
         lifespan=lifespan,
     )
+
+    @app.middleware("http")
+    async def correlation_middleware(request: Request, call_next):
+        incoming = request.headers.get("X-Correlation-ID", "").strip()
+        correlation_id = incoming or uuid.uuid4().hex
+        request.state.correlation_id = correlation_id
+        started = time.monotonic()
+        try:
+            response = await call_next(request)
+        except Exception:
+            LOGGER.exception(
+                "request_failed method=%s path=%s correlation_id=%s",
+                request.method,
+                request.url.path,
+                correlation_id,
+            )
+            raise
+        duration_ms = (time.monotonic() - started) * 1000.0
+        response.headers["X-Correlation-ID"] = correlation_id
+        LOGGER.info(
+            "request method=%s path=%s status=%s correlation_id=%s duration_ms=%.2f",
+            request.method,
+            request.url.path,
+            response.status_code,
+            correlation_id,
+            duration_ms,
+        )
+        return response
 
     @app.exception_handler(ApiError)
     async def api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
@@ -148,16 +181,32 @@ def create_app(
         return JSONResponse(status_code=422, content=payload.model_dump())
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
+    async def health(request: Request) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        }
 
     @app.get("/ready")
-    async def ready() -> dict[str, str]:
-        return {"status": "ready"}
+    async def ready(request: Request) -> dict[str, Any]:
+        metrics = app.state.orchestrator.ops_metrics()
+        return {
+            "status": "ready" if metrics["worker_alive"] else "degraded",
+            "worker_alive": metrics["worker_alive"],
+            "queue_depth": metrics["queue_depth"],
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        }
 
     @app.get("/portal", response_class=HTMLResponse)
     async def portal() -> str:
         return render_portal_html()
+
+    @app.get("/ops/metrics")
+    async def ops_metrics(request: Request) -> dict[str, Any]:
+        await enforce_rate_limit(request)
+        metrics = app.state.orchestrator.ops_metrics()
+        metrics["correlation_id"] = getattr(request.state, "correlation_id", None)
+        return metrics
 
     async def enforce_rate_limit(request: Request) -> None:
         client_id = request.client.host if request.client else "unknown"

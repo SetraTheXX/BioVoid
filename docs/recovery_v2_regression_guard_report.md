@@ -1,6 +1,6 @@
 # Recovery v2 Regression Guard Report
 
-- Generated at (UTC): 2026-02-21T17:01:27Z
+- Generated at (UTC): 2026-02-21T17:24:13Z
 - Overall WS-C guard status: **PASS**
 
 ## Guard Summary

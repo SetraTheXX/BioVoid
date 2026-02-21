@@ -1,0 +1,31 @@
+name: phase6-ops-guard
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/run_phase6_ops_guard_pack.py"
+      - "docs/phase6_release_checklist.md"
+      - "docs/phase6_rollback_runbook.md"
+      - "src/api/**"
+      - "tests/test_phase6_ops.py"
+      - "tests/test_phase6_api.py"
+      - "tests/test_phase6_portal.py"
+
+jobs:
+  guard-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run phase6 ops guard pack
+        run: python scripts/run_phase6_ops_guard_pack.py --strict-recall-floor 0.30 --strict-overlap-floor 0.25

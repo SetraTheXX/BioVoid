@@ -39,7 +39,8 @@ Plan references:
    - Step 1 pre-start safety freeze: completed.
    - Step 2 backend/api implementation: completed.
    - Step 3 web portal implementation: completed.
-   - Next active stage: Step 4 (ops/release guard).
+    - Step 4 ops/release guard implementation: completed.
+   - Next active stage: Step 5 (final integration + staging).
 
 ## Phase 6 Start Rules
 

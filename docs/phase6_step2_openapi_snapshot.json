@@ -3,7 +3,7 @@
   "info": {
     "title": "BioVoid Phase 6 Job API",
     "description": "Single-node job orchestration API for controlled Phase 6 productization.",
-    "version": "6.0.0-step2"
+    "version": "6.0.0-step4"
   },
   "paths": {
     "/health": {
@@ -16,9 +16,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Health Health Get"
                 }
@@ -38,9 +36,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Ready Ready Get"
                 }
@@ -61,6 +57,26 @@
               "text/html": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ops/metrics": {
+      "get": {
+        "summary": "Ops Metrics",
+        "operationId": "ops_metrics_ops_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Ops Metrics Ops Metrics Get"
                 }
               }
             }
