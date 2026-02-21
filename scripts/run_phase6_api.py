@@ -25,6 +25,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    portal_url = f"http://{args.host}:{args.port}/portal"
+    print(f"[BioVoid] Unified portal: {portal_url}")
+    print("[BioVoid] Legacy Streamlit dashboard is deprecated.")
     uvicorn.run(
         app,
         host=args.host,

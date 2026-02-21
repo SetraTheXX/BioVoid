@@ -18,6 +18,10 @@ Key Features:
 Usage:
     streamlit run src/dashboard.py -- --db data/atlas.db
 
+Deprecated:
+    Use the unified Phase 6 portal at http://127.0.0.1:8000/portal for
+    day-to-day operations. This Streamlit dashboard is legacy-only.
+
 Author: Bio-Void Hunter Team
 Version: 0.9.0 (Phase 5.3)
 """
@@ -746,6 +750,10 @@ def main() -> None:
     )
 
     st.title(APP_TITLE)
+    st.warning(
+        "Legacy dashboard mode: use the unified portal at "
+        "http://127.0.0.1:8000/portal for daily operations."
+    )
 
     # Database connection
     db_path = get_db_path()

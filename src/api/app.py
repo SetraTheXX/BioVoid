@@ -5,14 +5,16 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 import json
 import logging
+from pathlib import Path
 import time
 from typing import Any
 import uuid
 
-from fastapi import FastAPI, Header, Request, Response
+from fastapi import FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from src.database import AtlasDB
 from .errors import ApiError
 from .models import (
     ALLOWED_OPTION_KEYS,
@@ -28,6 +30,8 @@ from .portal import render_portal_html
 from .rate_limit import InMemoryRateLimiter
 
 LOGGER = logging.getLogger("biovoid.phase6.api")
+ATLAS_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "atlas.db"
+ALLOWED_DRUGGABILITY_CLASSES = {"high", "medium", "low"}
 
 
 def _contains_forbidden_lock_keys(payload: dict[str, Any]) -> list[str]:
@@ -134,6 +138,9 @@ def create_app(
         ),
         lifespan=lifespan,
     )
+    # Keep app.state available even when lifespan is not entered (e.g., ad-hoc TestClient use).
+    app.state.orchestrator = api_orchestrator
+    app.state.rate_limiter = limiter
 
     @app.middleware("http")
     async def correlation_middleware(request: Request, call_next):
@@ -201,12 +208,152 @@ def create_app(
     async def portal() -> str:
         return render_portal_html()
 
+    @app.get("/", include_in_schema=False)
+    async def root_redirect() -> RedirectResponse:
+        return RedirectResponse(url="/portal", status_code=307)
+
+    @app.get("/dashboard", include_in_schema=False)
+    async def dashboard_redirect() -> RedirectResponse:
+        return RedirectResponse(url="/portal", status_code=307)
+
     @app.get("/ops/metrics")
     async def ops_metrics(request: Request) -> dict[str, Any]:
         await enforce_rate_limit(request)
         metrics = app.state.orchestrator.ops_metrics()
         metrics["correlation_id"] = getattr(request.state, "correlation_id", None)
         return metrics
+
+    def _atlas_db_exists() -> bool:
+        return ATLAS_DB_PATH.exists()
+
+    def _atlas_default_overview() -> dict[str, Any]:
+        return {
+            "available": False,
+            "db_path": str(ATLAS_DB_PATH),
+            "summary": {
+                "total_proteins": 0,
+                "total_pockets": 0,
+                "druggable_pockets": 0,
+                "elite_pockets": 0,
+                "avg_bio_score": 0.0,
+                "avg_volume": 0.0,
+            },
+            "class_distribution": {"high": 0, "medium": 0, "low": 0},
+            "leaders": [],
+            "message": "Atlas database not available.",
+        }
+
+    @app.get("/atlas/overview")
+    async def atlas_overview(request: Request) -> dict[str, Any]:
+        await enforce_rate_limit(request)
+        payload = _atlas_default_overview()
+        payload["correlation_id"] = getattr(request.state, "correlation_id", None)
+        if not _atlas_db_exists():
+            return payload
+
+        try:
+            with AtlasDB(str(ATLAS_DB_PATH), check_same_thread=False) as db:
+                stats = db.get_statistics()
+                leaders = db.search_pockets(
+                    druggable_only=True,
+                    order_by="bio_score DESC",
+                    limit=8,
+                )
+        except Exception as exc:
+            payload["message"] = f"Atlas read failed: {exc}"
+            return payload
+
+        class_dist = stats.get("class_distribution", {})
+        payload["available"] = True
+        payload["summary"] = {
+            "total_proteins": int(stats.get("total_proteins", 0)),
+            "total_pockets": int(stats.get("total_pockets", 0)),
+            "druggable_pockets": int(stats.get("druggable_pockets", 0)),
+            "elite_pockets": int(stats.get("elite_pockets", 0)),
+            "avg_bio_score": float(stats.get("avg_bio_score", 0.0) or 0.0),
+            "avg_volume": float(stats.get("avg_volume", 0.0) or 0.0),
+        }
+        payload["class_distribution"] = {
+            "high": int(class_dist.get("high", 0)),
+            "medium": int(class_dist.get("medium", 0)),
+            "low": int(class_dist.get("low", 0)),
+        }
+        payload["leaders"] = [
+            {
+                "pdb_id": row.get("pdb_id", ""),
+                "pocket_id": row.get("pocket_id", 0),
+                "bio_score": float(row.get("bio_score", 0.0) or 0.0),
+                "volume": float(row.get("volume", 0.0) or 0.0),
+                "druggability_class": row.get("druggability_class", "low"),
+            }
+            for row in leaders
+        ]
+        payload["message"] = "ok"
+        return payload
+
+    @app.get("/atlas/pockets")
+    async def atlas_pockets(
+        request: Request,
+        limit: int = Query(default=12, ge=1, le=25),
+        min_score: float = Query(default=0.0, ge=0.0, le=1.0),
+        druggable_only: bool = True,
+        druggability_class: str | None = Query(default=None),
+        order_by: str = Query(default="bio_score DESC"),
+    ) -> dict[str, Any]:
+        await enforce_rate_limit(request)
+        if druggability_class and druggability_class not in ALLOWED_DRUGGABILITY_CLASSES:
+            raise ApiError(
+                status_code=400,
+                code="INVALID_DRUGGABILITY_CLASS",
+                message="druggability_class must be one of: high, medium, low",
+            )
+        if not _atlas_db_exists():
+            return {
+                "available": False,
+                "items": [],
+                "count": 0,
+                "message": "Atlas database not available.",
+                "correlation_id": getattr(request.state, "correlation_id", None),
+            }
+
+        try:
+            with AtlasDB(str(ATLAS_DB_PATH), check_same_thread=False) as db:
+                rows = db.search_pockets(
+                    min_score=min_score,
+                    druggable_only=druggable_only,
+                    druggability_class=druggability_class,
+                    order_by=order_by,
+                    limit=limit,
+                )
+        except Exception as exc:
+            return {
+                "available": False,
+                "items": [],
+                "count": 0,
+                "message": f"Atlas read failed: {exc}",
+                "correlation_id": getattr(request.state, "correlation_id", None),
+            }
+
+        items = [
+            {
+                "pdb_id": row.get("pdb_id", ""),
+                "pocket_id": row.get("pocket_id", 0),
+                "bio_score": float(row.get("bio_score", 0.0) or 0.0),
+                "volume": float(row.get("volume", 0.0) or 0.0),
+                "rank": int(row.get("rank", 0) or 0),
+                "druggability_class": row.get("druggability_class", "low"),
+                "druggable": bool(row.get("druggable", False)),
+                "profile_used": row.get("profile_used", ""),
+            }
+            for row in rows
+        ]
+        return {
+            "available": True,
+            "items": items,
+            "count": len(items),
+            "message": "ok",
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        }
 
     async def enforce_rate_limit(request: Request) -> None:
         client_id = request.client.host if request.client else "unknown"
