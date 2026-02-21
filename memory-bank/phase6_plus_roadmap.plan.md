@@ -1,10 +1,12 @@
 # Faz 6+ Yol Haritasi (Guncel)
 
-- Last update: 2026-02-21
+- Last update: 2026-02-21 (post G9 freeze gate)
 - Source of truth:
   - `docs/phase5_5_gate_decision.md`
   - `docs/recovery_v2_regression_guard_report.md`
   - `docs/phase6_transition_readiness_report.md`
+  - `docs/publication_freeze_gate_v1.md`
+  - `docs/scientific_validation_plan_v1.md`
 
 ## Mevcut Durum
 
@@ -18,7 +20,13 @@ Phase 5.5 strict gate sonucu PASS:
 Phase 6 durum etiketi:
 
 1. Technical: `READY`
-2. Operational: `IN_PROGRESS`
+2. Operational: `READY_FOR_EXIT_REVIEW`
+
+Publication hardening etiketi:
+
+1. G8 (SoT drift guard + repro bundle): `PASS`
+2. G9 (publication freeze gate): `PASS`
+3. Bilimsel claim durumu: `READY_WITH_DISCLOSURES`
 
 ---
 
@@ -78,6 +86,7 @@ Kabul kriteri:
 1. 6A/6B/6C kabul kriterleri PASS
 2. En az 1 haftalik staging run'da kritik incident yok
 3. Strict gate PASS korunuyor (drift yok)
+4. Publication freeze gate PASS korunuyor
 
 ### Faz 6 Execution Snapshot
 
@@ -92,6 +101,15 @@ Kabul kriteri:
 5. Step 5 (Final integration + staging): `COMPLETED`
    - `docs/phase6_step5_final_integration_report.md`
 
+### Faz 6 Exit Review - Next Action
+
+1. Release checklist final pass raporunu tek snapshotta kilitle
+2. 7-gun staging soak sonucunu incident tablosu ile ekle
+3. Phase 7 kickoff paketi ac:
+   - dataset split manifest
+   - leakage guard CI check
+   - baseline classifier experiment scaffold
+
 ---
 
 ## Faz 7: AI Signal Layer (Classifier)
@@ -102,7 +120,7 @@ Amac:
 2. False-positive azaltimi ve ranking kalitesini artirmak.
 
 Tahmini sure: 3-4 hafta
-Durum: `NOT_STARTED`
+Durum: `READY_TO_START (Phase 6 exit review sonrasinda)`
 
 ### 7A Dataset ve Labeling
 

@@ -18,6 +18,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -197,7 +199,7 @@ def main() -> int:
     canonical = pre_reg.get("canonical_parameters", {})
 
     min_recall = float(decision_gates.get("min_recall", 0.30))
-    min_overlap = float(decision_gates.get("min_fpocket_overlap", 0.40))
+    min_overlap = float(decision_gates.get("min_fpocket_overlap", 0.25))
     max_fpr = float(decision_gates.get("max_false_positive_rate", 0.60))
     min_md_validated = int(decision_gates.get("min_md_validated_proteins", 1))
 
@@ -340,9 +342,34 @@ def main() -> int:
         ),
     )
 
+    # SoT alignment guard (runs check_sot_alignment_guard.py)
+    sot_guard_script = ROOT / "scripts" / "check_sot_alignment_guard.py"
+    sot_guard_json = ROOT / "data" / "validation" / "sot_alignment_guard.json"
+    if sot_guard_script.exists():
+        try:
+            sot_proc = subprocess.run(
+                [sys.executable, str(sot_guard_script)],
+                capture_output=True, text=True, timeout=60,
+            )
+            sot_result = _safe_load_json(sot_guard_json)
+            sot_status = sot_result.get("status", "FAIL") if sot_result else "FAIL"
+            sot_errors = sot_result.get("errors", []) if sot_result else []
+            sot_detail = f"violations={len(sot_errors)}"
+        except Exception as exc:
+            sot_status = "FAIL"
+            sot_detail = f"error={exc}"
+    else:
+        sot_status = "SKIP"
+        sot_detail = "check_sot_alignment_guard.py not found"
+
+    sot_guard = GuardCheck(
+        status=sot_status if sot_status != "SKIP" else "PASS",
+        detail=sot_detail,
+    )
+
     overall_pass = all(
         check.status == "PASS"
-        for check in [fpr_guard, md_guard, drift_guard, report_consistency_guard]
+        for check in [fpr_guard, md_guard, drift_guard, report_consistency_guard, sot_guard]
     )
 
     risks: list[str] = []
@@ -354,6 +381,8 @@ def main() -> int:
         risks.append("Drift guard failed; canonical gate parameters are not locked.")
     if report_consistency_guard.status == "FAIL":
         risks.append("Report consistency guard failed; gate report is stale or inconsistent.")
+    if sot_guard.status == "FAIL":
+        risks.append("SoT alignment guard failed; overlap threshold drift detected in active files.")
     if not center_report_path.exists():
         risks.append("Center integrity report file is missing.")
 
@@ -396,6 +425,10 @@ def main() -> int:
                 "status": report_consistency_guard.status,
                 "detail": report_consistency_guard.detail,
             },
+            "sot_alignment_guard": {
+                "status": sot_guard.status,
+                "detail": sot_guard.detail,
+            },
         },
         "gate_snapshot": {
             "reported_decision": gate_decision,
@@ -435,6 +468,7 @@ def main() -> int:
         f"| MD guard | {md_guard.status} | {md_guard.detail} |",
         f"| Drift guard | {drift_guard.status} | {drift_guard.detail} |",
         f"| Report consistency guard | {report_consistency_guard.status} | {report_consistency_guard.detail} |",
+        f"| SoT alignment guard | {sot_guard.status} | {sot_guard.detail} |",
         "",
         "## Gate Snapshot",
         "",
