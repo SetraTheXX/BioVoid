@@ -173,3 +173,36 @@ def test_fifty_jobs_smoke_no_crash() -> None:
         finals = [_wait_for_terminal_status(client, job_id, timeout_seconds=10) for job_id in job_ids]
         assert len(set(job_ids)) == 50
         assert all(item["status"] == JobStatus.SUCCEEDED.value for item in finals)
+
+
+def test_root_and_dashboard_redirect_to_portal() -> None:
+    with _build_client() as client:
+        root = client.get("/", follow_redirects=False)
+        dashboard = client.get("/dashboard", follow_redirects=False)
+        assert root.status_code == 307
+        assert dashboard.status_code == 307
+        assert root.headers["location"] == "/portal"
+        assert dashboard.headers["location"] == "/portal"
+
+
+def test_atlas_endpoints_shape() -> None:
+    with _build_client() as client:
+        overview = client.get("/atlas/overview")
+        pockets = client.get("/atlas/pockets")
+        assert overview.status_code == 200
+        assert pockets.status_code == 200
+
+        overview_json = overview.json()
+        pockets_json = pockets.json()
+        assert "available" in overview_json
+        assert "summary" in overview_json
+        assert "class_distribution" in overview_json
+        assert "items" in pockets_json
+        assert "count" in pockets_json
+
+
+def test_atlas_endpoint_rejects_invalid_class_filter() -> None:
+    with _build_client() as client:
+        response = client.get("/atlas/pockets?druggability_class=invalid")
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "INVALID_DRUGGABILITY_CLASS"
