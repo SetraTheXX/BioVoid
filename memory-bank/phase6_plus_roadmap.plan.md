@@ -30,7 +30,7 @@ Amac:
 2. Analiz kosularini izlenebilir, tekrar uretilebilir ve operasyonel hale getirmek.
 
 Tahmini sure: 2-3 hafta
-Durum: `IN_PROGRESS (Step 1/2/3/4 tamamlandi)`
+Durum: `STEP5_COMPLETED (engineering package complete)`
 
 ### 6A Backend/API
 
@@ -89,7 +89,8 @@ Kabul kriteri:
    - `docs/phase6_step3_web_portal_report.md`
 4. Step 4 (6C Ops/release guard): `COMPLETED`
    - `docs/phase6_step4_ops_guard_report.md`
-5. Step 5 (Final integration + staging): `PENDING`
+5. Step 5 (Final integration + staging): `COMPLETED`
+   - `docs/phase6_step5_final_integration_report.md`
 
 ---
 
