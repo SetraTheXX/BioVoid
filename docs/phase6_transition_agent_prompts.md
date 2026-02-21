@@ -1,96 +1,112 @@
-# Phase 6 Transition Agent Prompt Pack (A/B/C)
+# Phase 6 Transition Prompt Pack (Updated)
 
-Use these prompts as-is in separate Codex sessions. All three sessions must start from the same base commit on `ws-main/recovery-v3-integration`.
+- Date: 2026-02-21
+- Context: Phase 5.5 strict gate PASS, Faz 6 teknik olarak hazir.
+- Operational mode: `PAUSED` (bu dosya sadece start verildiginde kullanilacak).
 
-## Prompt A (WS-A: Recall Full20 Stabilization)
+## Prompt 0 (Pre-Start Safety Check)
 
 ```text
-Role: WS-A Recall Specialist
-Branch: ws-a/phase6-transition-recall
-Base: ws-main/recovery-v3-integration (current HEAD)
+Role: Transition Gate Controller
+Branch: ws-main/recovery-v3-integration
+Goal: Faz 6 start oncesi strict PASS durumunu yeniden dogrula.
 
-Goal:
-1) Keep canonical lock fixed (tolerance=8.0, top_n=20, druggable_only=true).
-2) Reconcile mini success with full20 failure.
-3) Produce a reproducible full20 recall artifact and report without long uncontrolled runs.
+Run:
+1) python scripts/generate_phase5_5_gate_decision.py --gate-profile strict --fpocket-report docs/fpocket_benchmark_report.md
+2) python scripts/run_recovery_v2_regression_guard.py --fpocket-report docs/fpocket_benchmark_report.md
+3) python scripts/recovery_v2_intake_check.py --strict --recall-floor 0.30 --overlap-floor 0.25
 
-Do:
-1. git switch -c ws-a/phase6-transition-recall
-2. python -m py_compile BioVoid/scripts/run_recovery_v2_recall_workstream.py
-3. Run bounded sequence:
-   - python BioVoid/scripts/run_recovery_v2_recall_workstream.py --cp-a-mini-only --cp-a-trials t4_atom_mode_heavy,t6_atom_mode_heavy_relaxed --cp-a-max-minutes 90
-   - python BioVoid/scripts/validate_known_pockets.py --engine v2_advanced
-4. Update:
-   - BioVoid/docs/recovery_v2_recall_domain_motion_report.md
-   - BioVoid/docs/validation_report.md
-   - BioVoid/data/validation/validation_results.json (artifact; ignored olabilir)
-5. Commit only WS-A scoped tracked files.
-
-Acceptance:
-- No hang process left running.
-- validation_results recall must be reproducible in one rerun.
-- Report must include explicit mini vs full20 delta analysis.
+Accept only if:
+- Decision: PASS
+- Overall WS-C guard: PASS
+- hard_checks_ok=True
+- readiness_signals_ok=True
 ```
 
-## Prompt B (WS-B: Overlap SoT Hardening)
+## Prompt A (Phase 6A: API + Job Orchestration)
 
 ```text
-Role: WS-B Overlap Specialist
-Branch: ws-b/phase6-transition-overlap
-Base: ws-main/recovery-v3-integration (current HEAD)
+Role: Phase6-A Backend
+Branch: phase6/api-orchestrator
+Goal: PDB job kabul eden ve status/sonuc donen minimal production API.
 
-Goal:
-1) Keep official overlap metric unchanged.
-2) Keep transition overlap SoT (`cp_b_candidate_impact.full_option1_overlap`) consistent across docs.
-3) Produce a clean overlap readiness snapshot for transition cycles.
+Scope:
+1) POST /jobs (input validation + idempotency key)
+2) GET /jobs/{id} (queued/running/succeeded/failed)
+3) Worker queue integration (single-node first)
+4) Retry/backoff + timeout policy
+5) Structured error model
 
-Do:
-1. git switch -c ws-b/phase6-transition-overlap
-2. Re-run overlap reporting only:
-   - python BioVoid/scripts/generate_benchmark_report.py
-3. Refresh docs if values drift:
-   - BioVoid/docs/recovery_v2_overlap_option1_lock.md
-   - BioVoid/docs/recovery_v2_overlap_calibration_report.md
-4. Verify exact numeric consistency:
-   - official baseline 0.0577
-   - full option1 overlap 0.2439 (delta +0.1862)
-   - top10 candidate-set 0.0290 -> 0.3246 (delta +0.2957)
-5. Commit only WS-B scoped tracked files.
+Constraints:
+- Canonical scientific lock parametreleri request ile override edilemez.
+- Validation artifacts immutable tutulur (SoT only).
+- Rate limit zorunlu.
 
 Acceptance:
-- No metric mismatch between WS-B docs and JSON SoT.
-- Official gate metric unchanged statement present.
+- 50 ardisik job testinde crash yok.
+- Failed job retry policy deterministic.
+- OpenAPI/Swagger guncel.
 ```
 
-## Prompt C (WS-C: Guard + Transition Gate Control)
+## Prompt B (Phase 6B: Web Portal + UX)
 
 ```text
-Role: WS-C Guard/QA Specialist
-Branch: ws-c/phase6-transition-guard
-Base: ws-main/recovery-v3-integration (current HEAD)
+Role: Phase6-B Frontend
+Branch: phase6/web-portal
+Goal: Arastirmaci odakli minimal portal (submit + monitor + download report).
 
-Goal:
-1) Re-run guard chain and keep PASS.
-2) Generate both gate profiles and validate controlled-go posture.
+Scope:
+1) Job submit form (PDB id / file upload)
+2) Job status timeline
+3) Result view (recall-style summary + artifacts link)
+4) Basic auth/session (opsiyonel)
+5) Error + empty states
 
-Do:
-1. git switch -c ws-c/phase6-transition-guard
-2. Run:
-   - python BioVoid/scripts/check_gate_feasibility.py --gate-profile strict
-   - python BioVoid/scripts/check_gate_feasibility.py --gate-profile recovery_v2_transition
-   - python BioVoid/scripts/generate_phase5_5_gate_decision.py --gate-profile strict --output docs/phase5_5_gate_decision.md
-   - python BioVoid/scripts/generate_phase5_5_gate_decision.py --gate-profile recovery_v2_transition --output docs/phase5_5_gate_decision_recovery_v2_transition.md
-   - python BioVoid/scripts/run_recovery_v2_regression_guard.py --fpocket-report docs/fpocket_benchmark_report.md
-   - python BioVoid/scripts/recovery_v2_intake_check.py --strict
-3. Update guard docs:
-   - BioVoid/docs/recovery_v2_regression_guard_report.md
-   - BioVoid/docs/recovery_v2_drift_check_report.md
-   - BioVoid/docs/recovery_v2_reports_alignment.md
-4. Commit only WS-C scoped tracked files.
+Constraints:
+- Existing visual language korunacak.
+- Mobile/desktop responsive.
+- Long-running job UX (polling + cancellation feedback) net olacak.
 
 Acceptance:
-- WS-C guard overall PASS.
-- strict gate remains explicit FAIL.
-- recovery_v2_transition gate explicit PASS.
-- hard_checks_ok=True and readiness_signals_ok=True.
+- E2E: submit -> done -> report download.
+- Invalid inputlar net hata mesaji veriyor.
+```
+
+## Prompt C (Phase 6C: Ops, SLO, Release Guard)
+
+```text
+Role: Phase6-C Ops/QA
+Branch: phase6/ops-guard
+Goal: Faz 6 canliya cikis oncesi operasyonel guvenlik katmani.
+
+Scope:
+1) Basic SLO: availability, p95 job latency, error budget
+2) Health endpoints + readiness probes
+3) Release checklist + rollback runbook
+4) Log correlation ids + basic dashboards
+5) Regression guard command pack in CI
+
+Acceptance:
+- Dry-run release checklist PASS.
+- Rollback adimlari 1 deneme ile calisiyor.
+- CI gate strict/pass durumunu bozmadan tamamlaniyor.
+```
+
+## Prompt D (Single-Agent Mode)
+
+```text
+Role: Phase6 Single Integrator
+Branch: phase6/single-integrator
+Goal: A/B/C kapsamini tek ajan ile sirali yurutmek.
+
+Execution order:
+1) Prompt 0 (safety check)
+2) Prompt A
+3) Prompt B
+4) Prompt C
+5) Final integration + smoke tests
+
+Rule:
+- Her adim sonrasi strict gate + guard snapshot tekrar alinacak.
+- Strict PASS bozulursa bir sonraki adima gecilmez.
 ```

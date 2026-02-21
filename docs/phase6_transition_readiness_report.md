@@ -33,6 +33,8 @@ python scripts/recovery_v2_intake_check.py --strict --recall-floor 0.30 --overla
 2. Guard output: `docs/recovery_v2_regression_guard_report.md`
 3. Validation SoT: `data/validation/validation_results.json`
 4. Overlap SoT: `data/benchmark/fpocket_benchmark_v3.json`
+5. Phase 6+ index: `docs/phase6_plus_index.md`
+6. Phase 6+ roadmap: `memory-bank/phase6_plus_roadmap.plan.md`
 
 ## Final Status
 
