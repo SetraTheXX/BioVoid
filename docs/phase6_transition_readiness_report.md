@@ -3,7 +3,7 @@
 - Generated at (UTC): 2026-02-21T00:00:00Z
 - Branch: `ws-main/recovery-v3-integration`
 - Scope: strict gate closure snapshot after recall + overlap unblock
-- Phase 6 execution status: `NOT_STARTED` (manual hold by operator)
+- Phase 6 execution status: `STEP5_COMPLETED` (engineering package complete)
 
 ## Command Evidence
 
@@ -39,5 +39,5 @@ python scripts/recovery_v2_intake_check.py --strict --recall-floor 0.30 --overla
 ## Final Status
 
 1. Phase 5.5 strict criteria are fully satisfied (4/4 PASS).
-2. Phase 6 entry is technically ready.
-3. Phase 6 run remains intentionally paused (`NOT_STARTED`) per current operator decision.
+2. Phase 6 Step 1-5 engineering deliverables are completed.
+3. Remaining operational gate is the 7-day staging soak observation window (`docs/phase6_staging_runbook.md`).

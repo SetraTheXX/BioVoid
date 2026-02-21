@@ -5,7 +5,7 @@
 - Faz: **5.5 Recovery v2 (strict-unblock tamamlandi)**
 - Teknik durum: **PHASE6_READY**
 - Operasyonel durum: **PHASE6_IN_PROGRESS**
-- Faz 6 execution status: **STEP4_COMPLETED (ops/release guard)**
+- Faz 6 execution status: **STEP5_COMPLETED (final integration package)**
 
 ## Canonical SoT
 
@@ -19,6 +19,7 @@
 8. Faz 6 Step 2 report: `docs/phase6_step2_backend_api_report.md`
 9. Faz 6 Step 3 report: `docs/phase6_step3_web_portal_report.md`
 10. Faz 6 Step 4 report: `docs/phase6_step4_ops_guard_report.md`
+11. Faz 6 Step 5 report: `docs/phase6_step5_final_integration_report.md`
 
 ## Son Dogrulanmis Strict Snapshot (2026-02-21)
 
@@ -39,5 +40,5 @@ python scripts/run_recovery_v2_regression_guard.py --fpocket-report docs/fpocket
 python scripts/recovery_v2_intake_check.py --strict --recall-floor 0.30 --overlap-floor 0.25
 ```
 
-Step 1/2/3/4 tamamlandi.
-Siradaki adim: Step 5 (final integration + staging).
+Step 1/2/3/4/5 tamamlandi (engineering package).
+Operasyonel devam adimi: 7-gun staging soak takibi (`docs/phase6_staging_runbook.md`).

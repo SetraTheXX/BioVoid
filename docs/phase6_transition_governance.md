@@ -40,7 +40,8 @@ Plan references:
    - Step 2 backend/api implementation: completed.
    - Step 3 web portal implementation: completed.
     - Step 4 ops/release guard implementation: completed.
-   - Next active stage: Step 5 (final integration + staging).
+    - Step 5 final integration package: completed.
+   - Next active stage: 7-day staging soak observation window.
 
 ## Phase 6 Start Rules
 
