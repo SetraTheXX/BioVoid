@@ -34,8 +34,11 @@ Plan references:
 ## Governance Decision
 
 1. Technical status: `PHASE6_READY`
-2. Operational status: `PHASE6_PAUSED` (operator hold)
-3. Yani: Faz 6 baslatmak teknik olarak serbest, ancak bu repository durumunda manuel onay gelmeden baslatilmayacak.
+2. Operational status: `PHASE6_IN_PROGRESS`
+3. Execution note:
+   - Step 1 pre-start safety freeze: completed.
+   - Step 2 backend/api implementation: completed.
+   - Next active stage: Step 3 (web portal).
 
 ## Phase 6 Start Rules
 

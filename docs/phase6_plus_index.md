@@ -20,8 +20,18 @@ Bu dosya, Faz 6 ve sonrasi icin ana plan dosyalarinin tek indexidir.
 3. Intake strict: `PASS` (`hard_checks_ok=True`, `readiness_signals_ok=True`)
 4. Faz 6 status:
    - Technical: `READY`
-   - Operational: `PAUSED`
-   - Execution: `NOT_STARTED`
+   - Operational: `IN_PROGRESS`
+   - Execution: `STEP2_COMPLETED (backend/api)`
+
+## Step Progress
+
+1. Step 1 pre-start safety freeze: `COMPLETED`
+   - `docs/phase6_step1_prestart_freeze_report.md`
+2. Step 2 backend/api: `COMPLETED`
+   - `docs/phase6_step2_backend_api_report.md`
+3. Step 3 (web portal): `PENDING`
+4. Step 4 (ops/release guard): `PENDING`
+5. Step 5 (final integration + staging): `PENDING`
 
 ## Pre-Start Command Pack
 
