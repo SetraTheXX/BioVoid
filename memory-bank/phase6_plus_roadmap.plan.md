@@ -30,7 +30,7 @@ Amac:
 2. Analiz kosularini izlenebilir, tekrar uretilebilir ve operasyonel hale getirmek.
 
 Tahmini sure: 2-3 hafta
-Durum: `NOT_STARTED (READY_BUT_PAUSED)`
+Durum: `IN_PROGRESS (Step 1/2 tamamlandi)`
 
 ### 6A Backend/API
 
@@ -78,6 +78,16 @@ Kabul kriteri:
 1. 6A/6B/6C kabul kriterleri PASS
 2. En az 1 haftalik staging run'da kritik incident yok
 3. Strict gate PASS korunuyor (drift yok)
+
+### Faz 6 Execution Snapshot
+
+1. Step 1 (Pre-start safety freeze): `COMPLETED`
+   - `docs/phase6_step1_prestart_freeze_report.md`
+2. Step 2 (6A Backend/API): `COMPLETED`
+   - `docs/phase6_step2_backend_api_report.md`
+3. Step 3 (6B Web portal): `PENDING`
+4. Step 4 (6C Ops/release guard): `PENDING`
+5. Step 5 (Final integration + staging): `PENDING`
 
 ---
 
