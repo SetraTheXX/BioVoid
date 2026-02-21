@@ -12,16 +12,29 @@ Bu dosya, Faz 6 ve sonrasi icin ana plan dosyalarinin tek indexidir.
    - Faz 6 calisma prompt paketi.
 4. `memory-bank/phase6_plus_roadmap.plan.md`
    - Faz 6, Faz 7, Faz 8 yol haritasi ve exit kriterleri.
+5. `docs/scientific_validation_plan_v1.md`
+   - G1-G7 publication hardening plani ve kapanis durumu.
+6. `docs/publication_freeze_gate_v1.md`
+   - G9 freeze gate snapshot (SoT + guard + bundle verify).
 
 ## Current State (2026-02-21)
 
 1. Strict gate: `PASS` (`docs/phase5_5_gate_decision.md`)
 2. WS-C guard: `PASS` (`docs/recovery_v2_regression_guard_report.md`)
 3. Intake strict: `PASS` (`hard_checks_ok=True`, `readiness_signals_ok=True`)
-4. Faz 6 status:
+4. Publication freeze gate: `PASS` (`docs/publication_freeze_gate_v1.md`)
+5. Scientific readiness: `READY_WITH_DISCLOSURES` (`docs/scientific_validation_plan_v1.md`)
+6. Faz 6 status:
    - Technical: `READY`
-   - Operational: `IN_PROGRESS`
+   - Operational: `READY_FOR_EXIT_REVIEW`
    - Execution: `STEP5_COMPLETED (final integration + staging package)`
+
+## Next Planned Step
+
+1. Faz 6 exit review paketi:
+   - release checklist final pass
+   - 7-gun staging soak sonucunun tek raporda kilitlenmesi
+   - Phase 7 kickoff TODO'nun acilmasi (dataset split + leakage guard)
 
 ## Step Progress
 

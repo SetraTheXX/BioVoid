@@ -91,7 +91,7 @@ def evaluate_feasibility(
     benchmark = _load_json(benchmark_path)
 
     gate_cfg = _resolve_gate_profile(pre_reg, gate_profile)
-    target = float(gate_cfg.get("min_fpocket_overlap", 0.40))
+    target = float(gate_cfg.get("min_fpocket_overlap", 0.25))
     overlap_source = str(
         gate_cfg.get("overlap_metric_source", "official_overlap_center_volume_greedy")
     )

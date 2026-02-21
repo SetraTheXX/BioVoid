@@ -1,6 +1,6 @@
 # Phase 5.5 Gate Decision
 
-- Generated at (UTC): 2026-02-21T17:29:53Z
+- Generated at (UTC): 2026-02-21T23:21:42Z
 - Decision: **PASS**
 - Gate profile: `strict`
 - Overlap source: `benchmark_json:global.official_overlap_center_volume_greedy`

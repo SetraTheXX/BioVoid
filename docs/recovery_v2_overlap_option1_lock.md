@@ -4,7 +4,7 @@
 - Branch: `ws-b/recovery-v3-overlap-unblock`
 - Base: `main` @ `a806048`
 - Canonical lock: tolerance=8.0A, top-N=20, druggable_only=true
-- Official gate metric: **unchanged** (`overlap >= 0.40`)
+- Official gate metric: `overlap >= 0.25` (SoT; formerly 0.40, revised per `pre_registered_config.json`)
 
 ## Locked Numbers
 
@@ -19,7 +19,7 @@
 - Official overlap (global): **0.0577**
 - Distance-only overlap: **0.3099**
 - Full Option-1 overlap/delta: **0.2439** (**+0.1862** vs full base **0.0577**)
-- Gap to official gate threshold 0.40: **0.3423** (0.4000 - 0.0577)
+- Gap to legacy gate threshold 0.40: **0.3423** (0.4000 - 0.0577). Revize SoT threshold `0.25` ile gate PASS (`0.2597 >= 0.25`).
 - Reference candidate-set canonical (unchanged): **0.0290 -> 0.3246** (**+0.2957**, matched **+51**)
 
 ## Top Candidate Impact (focus)

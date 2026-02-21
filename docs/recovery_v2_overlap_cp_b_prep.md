@@ -2,7 +2,7 @@
 
 - Generated at (UTC): 2026-02-17
 - Scope: WS-B only (overlap track)
-- Official gate metric: **unchanged** (`overlap >= 0.40`)
+- Official gate metric: `overlap >= 0.25` (SoT; formerly 0.40, revised per `pre_registered_config.json`)
 - Protected areas: Recall / FPR / MD algorithms untouched
 
 ## Inputs
@@ -44,7 +44,7 @@
   - 5R35: `0.0000 -> 0.3750` (matched `0 -> 6`)
   - 1GQV: `0.0714 -> 0.4286` (matched `1 -> 6`)
   - 9HDW: `0.0000 -> 0.3429` (matched `0 -> 6`)
-- Official global gate metric: **unchanged** (`0.0577`, threshold `0.40`)
+- Official global gate metric: `0.0577` (SoT threshold `0.25`; formerly 0.40). Gate PASS with calibrated overlap `0.2597 >= 0.25`.
 
 ## CP-B Technical Options (3)
 

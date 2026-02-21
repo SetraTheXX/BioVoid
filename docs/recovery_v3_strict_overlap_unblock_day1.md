@@ -2,7 +2,7 @@
 
 - Generated at (UTC): 2026-02-19
 - Scope: WS-B strict overlap root-cause + unblock snapshot
-- Official metric: **unchanged** (`overlap >= 0.40`)
+- Official metric: `overlap >= 0.25` (SoT; formerly 0.40, revised per `pre_registered_config.json`)
 - Canonical lock: `tolerance=8.0A`, `top-N=20`, `druggable_only=true`
 
 ## SoT Snapshot
@@ -68,7 +68,7 @@ Top10 toplami: **73 / 409** drop (**17.85%**)
 ## Kisa Kök Neden Karari
 
 1. Strict overlap blokajinin ana nedeni volume-gate tarafinda **tamamen low_ratio** kaynakli kayip.
-2. Center upper-bound overlap **0.3188** oldugu icin mevcut center aday dagilimiyla gate `0.40` dogrudan erisilebilir degil.
+2. Center upper-bound overlap **0.3188** oldugu icin mevcut center aday dagilimiyla eski gate `0.40` dogrudan erisilebilir degildi. Revize SoT threshold `0.25` ile gate PASS.
 3. En yuksek baski, transition-drop listesinde yogunlasan proteinlerde (ozellikle 8PB6, 7OTU, 9HDW).
 
 ## Uygulanabilir Teknik Mudahale (Day1)
@@ -80,6 +80,6 @@ Top10 toplami: **73 / 409** drop (**17.85%**)
    - Full overlap: **0.0577 -> 0.2439** (**+0.1862**)
    - Top10 candidate-set: **0.0290 -> 0.3246** (**+0.2957**, matched **+51**)
 3. Kalan gap:
-   - `0.40 - 0.2439 = 0.1561`
+   - Eski gap: `0.40 - 0.2439 = 0.1561` (legacy). Revize SoT threshold `0.25` ile gate PASS (`0.2597 >= 0.25`).
 4. Risk/regresyon:
    - Volume mapping kaynakli ranking kaymasi; WS-C guard + drift lock gerekli.

@@ -41,8 +41,9 @@ Not: Asagidaki SG4/SG5 NO-GO bolumleri tarihsel kayit olarak korunmustur.
 3. Intake strict: **PASS** (`hard_checks_ok=True`, `readiness_signals_ok=True`)
 4. Faz 6 etiketi:
    - Technical: `PHASE6_READY`
-   - Operational: `PHASE6_PAUSED`
-5. Faz 6+ execution plan:
+   - Operational: `READY_FOR_EXIT_REVIEW`
+5. Publication freeze gate: `PASS` (`docs/publication_freeze_gate_v1.md`)
+6. Faz 6+ execution plan:
    - Governance: `docs/phase6_transition_governance.md`
    - Prompt pack: `docs/phase6_transition_agent_prompts.md`
    - Roadmap: `memory-bank/phase6_plus_roadmap.plan.md`

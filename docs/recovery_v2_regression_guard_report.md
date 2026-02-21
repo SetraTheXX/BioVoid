@@ -1,6 +1,6 @@
 # Recovery v2 Regression Guard Report
 
-- Generated at (UTC): 2026-02-21T17:29:53Z
+- Generated at (UTC): 2026-02-21T23:54:17Z
 - Overall WS-C guard status: **PASS**
 
 ## Guard Summary
@@ -11,6 +11,7 @@
 | MD guard | PASS | md_validated_count=1 threshold>=1 status=VALIDATION_SUCCESS |
 | Drift guard | PASS | tolerance=8.0 top_n=20 druggable=true |
 | Report consistency guard | PASS | decision_match=true row_status=true row_metrics=true center_link=true fresh=true |
+| SoT alignment guard | PASS | violations=0 |
 
 ## Gate Snapshot
 

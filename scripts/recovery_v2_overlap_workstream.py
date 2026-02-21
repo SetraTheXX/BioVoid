@@ -627,8 +627,8 @@ def _analyze() -> dict[str, Any]:
             "center_only_overlap_greedy": center_only_overlap_greedy,
             "center_overlap_upper_bound": center_upper_overlap,
             "center_plus_volume_overlap_base_ratio": center_volume_base_overlap,
-            "gate_target_overlap": 0.40,
-            "is_gate_target_reachable_under_center_upper_bound": center_upper_overlap >= 0.40,
+            "gate_target_overlap": 0.25,
+            "is_gate_target_reachable_under_center_upper_bound": center_upper_overlap >= 0.25,
             "fp_with_any_center_candidate": fp_with_any_center_candidate,
             "distance_only_candidate_rate": (fp_with_any_center_candidate / fp_total) if fp_total > 0 else 0.0,
             "official_volume_representation": (

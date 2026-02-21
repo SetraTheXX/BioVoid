@@ -1,3 +1,7 @@
 data/
 *.pyc
 __pycache__/
+.pytest_cache/
+artifacts/
+docker/fpocket/fpocket-src/
+docker/fpocket/*.zip

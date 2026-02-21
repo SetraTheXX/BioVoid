@@ -1,6 +1,6 @@
 # Phase 6 Step 5 Integration Snapshot
 
-- Generated at (UTC): 2026-02-21T17:30:03.279127+00:00
+- Generated at (UTC): 2026-02-21T17:30:40.061396+00:00
 - Overall status: **PASS**
 - Dry run: `False`
 
@@ -18,6 +18,6 @@
 - jobs_submitted: `80`
 - jobs_succeeded: `80`
 - jobs_failed: `0`
-- p95_latency_seconds: `0.001219` (max `2.5`)
+- p95_latency_seconds: `0.001291` (max `2.5`)
 - result_download_ok: `80`
 - result_download_fail: `0`

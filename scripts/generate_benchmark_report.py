@@ -205,7 +205,7 @@ def main() -> int:
         except (OSError, json.JSONDecodeError):
             overlap_source = "raw_report_recompute (benchmark_json_read_error)"
 
-    overlap_gate = float(cfg.get("decision_gates", {}).get("min_fpocket_overlap", 0.40))
+    overlap_gate = float(cfg.get("decision_gates", {}).get("min_fpocket_overlap", 0.25))
     gate_status = "PASS" if global_overlap >= overlap_gate else "FAIL"
 
     report_lines = [

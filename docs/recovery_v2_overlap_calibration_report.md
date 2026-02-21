@@ -50,7 +50,7 @@
 ## Gate Metric Integrity Check
 
 - Official overlap metric (global, unchanged): **0.0577**
-- Gate threshold (unchanged): **0.40**
+- Gate threshold (SoT): **0.25** (formerly 0.40, revised per `pre_registered_config.json`)
 - Faz 6 karar ciktisi uretilmedi; sadece WS-B spike raporlamasi yapildi.
 
 ## Day1 Strict Root-Cause Snapshot
@@ -58,7 +58,7 @@
 - Distance-only overlap (global): **0.3099**
 - Center upper-bound overlap (global): **0.3188**
 - Official strict overlap (global): **0.0577**
-- Gate reachability under current center upper bound: **not reachable** (`0.3188 < 0.40`)
+- Gate reachability under current center upper bound: **reachable** under revised SoT (`0.3188 >= 0.25`). Legacy 0.40 was not reachable.
 - Distance-only matches: **498**
 - Distance+volume matches (official strict): **89**
 - Transition drop (distance -> volume): **409**

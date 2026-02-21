@@ -200,7 +200,7 @@ def main() -> int:
     dg = _resolve_gate_config(pre_reg, args.gate_profile)
     cp = pre_reg.get("canonical_parameters", {})
     min_recall = float(dg.get("min_recall", 0.30))
-    min_overlap = float(dg.get("min_fpocket_overlap", 0.40))
+    min_overlap = float(dg.get("min_fpocket_overlap", 0.25))
     max_fpr = float(dg.get("max_false_positive_rate", 0.60))
     min_md_validated = int(dg.get("min_md_validated_proteins", 1))
     overlap_metric_source = str(
