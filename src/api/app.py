@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from typing import Any
 
 from fastapi import FastAPI, Header, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from .errors import ApiError
 from .models import (
@@ -15,10 +16,12 @@ from .models import (
     CANONICAL_LOCK_KEYS,
     ErrorEnvelope,
     JobDetailResponse,
+    JobStatus,
     JobSubmissionResponse,
     JobSubmitRequest,
 )
 from .orchestrator import JobOrchestrator
+from .portal import render_portal_html
 from .rate_limit import InMemoryRateLimiter
 
 
@@ -152,6 +155,10 @@ def create_app(
     async def ready() -> dict[str, str]:
         return {"status": "ready"}
 
+    @app.get("/portal", response_class=HTMLResponse)
+    async def portal() -> str:
+        return render_portal_html()
+
     async def enforce_rate_limit(request: Request) -> None:
         client_id = request.client.host if request.client else "unknown"
         allowed, retry_after = app.state.rate_limiter.allow(client_id)
@@ -234,6 +241,41 @@ def create_app(
         await enforce_rate_limit(request)
         record = app.state.orchestrator.get(job_id)
         return record.to_response()
+
+    @app.get(
+        "/jobs/{job_id}/result",
+        responses={404: {"model": ErrorEnvelope}, 409: {"model": ErrorEnvelope}},
+    )
+    async def download_job_result(job_id: str, request: Request) -> Response:
+        await enforce_rate_limit(request)
+        record = app.state.orchestrator.get(job_id)
+        if record.status != JobStatus.SUCCEEDED:
+            raise ApiError(
+                status_code=409,
+                code="JOB_RESULT_NOT_READY",
+                message="Job result is not available yet.",
+                details={"job_id": job_id, "status": record.status},
+            )
+        payload = {
+            "job_id": record.job_id,
+            "status": record.status,
+            "created_at_utc": record.created_at_utc.isoformat(),
+            "started_at_utc": (
+                record.started_at_utc.isoformat() if record.started_at_utc else None
+            ),
+            "finished_at_utc": (
+                record.finished_at_utc.isoformat() if record.finished_at_utc else None
+            ),
+            "attempts": record.attempts,
+            "request": record.request.model_dump(mode="json"),
+            "result": record.result,
+        }
+        filename = f"biovoid-job-{job_id}.json"
+        return Response(
+            content=json.dumps(payload, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     return app
 

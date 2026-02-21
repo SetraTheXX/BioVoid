@@ -3,8 +3,8 @@
 # Ilerleme Durumu: Bio-Void Hunter
 
 > **Son Guncelleme:** 2026-02-21  
-> **Su Anki Faz:** Faz 6 in-progress (Step 1 + Step 2 tamamlandi)  
-> **Genel Tamamlanma:** 92% (Step 3/4/5 bekliyor)
+> **Su Anki Faz:** Faz 6 in-progress (Step 1 + Step 2 + Step 3 tamamlandi)  
+> **Genel Tamamlanma:** 94% (Step 4/5 bekliyor)
 > **Not:** Asagidaki uzun bolumlerde tarihsel NO-GO kayitlari korunur; guncel Faz 6+ plan indexi `docs/phase6_plus_index.md`.
 
 ---

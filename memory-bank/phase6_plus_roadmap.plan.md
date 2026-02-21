@@ -18,7 +18,7 @@ Phase 5.5 strict gate sonucu PASS:
 Phase 6 durum etiketi:
 
 1. Technical: `READY`
-2. Operational: `PAUSED` (manuel baslatma bekliyor)
+2. Operational: `IN_PROGRESS`
 
 ---
 
@@ -30,7 +30,7 @@ Amac:
 2. Analiz kosularini izlenebilir, tekrar uretilebilir ve operasyonel hale getirmek.
 
 Tahmini sure: 2-3 hafta
-Durum: `IN_PROGRESS (Step 1/2 tamamlandi)`
+Durum: `IN_PROGRESS (Step 1/2/3 tamamlandi)`
 
 ### 6A Backend/API
 
@@ -85,7 +85,8 @@ Kabul kriteri:
    - `docs/phase6_step1_prestart_freeze_report.md`
 2. Step 2 (6A Backend/API): `COMPLETED`
    - `docs/phase6_step2_backend_api_report.md`
-3. Step 3 (6B Web portal): `PENDING`
+3. Step 3 (6B Web portal): `COMPLETED`
+   - `docs/phase6_step3_web_portal_report.md`
 4. Step 4 (6C Ops/release guard): `PENDING`
 5. Step 5 (Final integration + staging): `PENDING`
 
