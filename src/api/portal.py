@@ -447,10 +447,17 @@ function showResult(data){
     const scores=cavities.map(c=>c.bio_score||0);
     const cls=cavities.map(c=>c.druggability_class||'low');
     const cc={high:'#10b981',medium:'#fbbf24',low:'#f87171'};
-    const resultChart=document.createElement('div');
-    resultChart.style.height='200px';resultChart.style.marginTop='12px';
-    $('#result-card').appendChild(resultChart);
-    Plotly.newPlot(resultChart,[{x:ranks.map(r=>'#'+r),y:scores,type:'bar',marker:{color:cls.map(c=>cc[c]||'#f87171')}}],{...PL,height:200,xaxis:{...PL.xaxis,title:'Pocket Rank'},yaxis:{...PL.yaxis,title:'Bio-Score'},margin:{l:40,r:16,t:8,b:36}},{responsive:true});
+    const chartGrid=document.createElement('div');
+    chartGrid.className='grid g2';chartGrid.style.marginTop='12px';
+    const ch1=document.createElement('div');ch1.style.height='250px';
+    const ch2=document.createElement('div');ch2.style.height='250px';
+    chartGrid.appendChild(ch1);chartGrid.appendChild(ch2);
+    $('#result-card').appendChild(chartGrid);
+
+    Plotly.newPlot(ch1,[{x:ranks.map(r=>'#'+r),y:scores,type:'bar',marker:{color:cls.map(c=>cc[c]||'#f87171'),opacity:0.85}}],{...PL,height:250,title:{text:'Pocket Scores',font:{size:13,color:'#22d3ee'}},xaxis:{...PL.xaxis,title:'Rank'},yaxis:{...PL.yaxis,title:'Bio-Score'}},{responsive:true});
+
+    const vols=cavities.map(c=>c.volume||0);
+    Plotly.newPlot(ch2,[{x:vols,y:scores,mode:'markers',type:'scatter',marker:{color:cls.map(c=>cc[c]||'#f87171'),size:vols.map(v=>Math.max(6,Math.min(20,v/80))),opacity:0.8},text:ranks.map(r=>'Pocket #'+r)}],{...PL,height:250,title:{text:'Volume vs Score',font:{size:13,color:'#22d3ee'}},xaxis:{...PL.xaxis,title:'Volume (A³)'},yaxis:{...PL.yaxis,title:'Bio-Score'}},{responsive:true});
   }
 
   $('#result-card').style.display='block';

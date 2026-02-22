@@ -282,6 +282,68 @@ def compare_with_fpocket(
     }
 
 
+def run_fpocket_docker(
+    pdb_path: str | Path,
+    output_dir: str | Path | None = None,
+    docker_image: str = "biovoid-fpocket",
+) -> list[dict[str, Any]]:
+    """
+    Run fpocket via Docker on a PDB file and return detected pockets.
+
+    Requires Docker and the biovoid-fpocket image built from docker/fpocket/Dockerfile.
+    If Docker is not available, returns empty list.
+    """
+    import subprocess
+    import re
+
+    pdb_path = Path(pdb_path).resolve()
+    if output_dir is None:
+        output_dir = pdb_path.parent / "fpocket_out"
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        result = subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "-v", f"{pdb_path.parent}:/data",
+                docker_image,
+                "-f", f"/data/{pdb_path.name}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        logger.info("fpocket Docker exit code: %d", result.returncode)
+    except FileNotFoundError:
+        logger.warning("Docker not found — fpocket comparison skipped")
+        return []
+    except subprocess.TimeoutExpired:
+        logger.warning("fpocket Docker timed out")
+        return []
+    except Exception as e:
+        logger.warning("fpocket Docker failed: %s", e)
+        return []
+
+    output_text = result.stdout + result.stderr
+    pockets: list[dict[str, Any]] = []
+
+    pocket_pattern = re.compile(
+        r"Pocket\s+(\d+)\s*:.*?Score\s*:\s*([\d.]+).*?Volume\s*:\s*([\d.]+)",
+        re.DOTALL,
+    )
+    for match in pocket_pattern.finditer(output_text):
+        pockets.append({
+            "id": int(match.group(1)),
+            "fpocket_score": float(match.group(2)),
+            "volume": float(match.group(3)),
+            "source": "fpocket",
+        })
+
+    logger.info("fpocket found %d pockets", len(pockets))
+    return pockets
+
+
 def format_benchmark_table(summary: BenchmarkSummary) -> str:
     """Format benchmark results as a human-readable table."""
     lines = [
