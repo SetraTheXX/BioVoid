@@ -1,44 +1,63 @@
 # Aktif Baglam
 
-## Su Anki Faz
+## Su Anki Mod
 
-- Faz: **5.5 Recovery v2 (strict-unblock tamamlandi)**
-- Teknik durum: **PHASE6_READY**
-- Operasyonel durum: **PHASE6_IN_PROGRESS**
-- Faz 6 execution status: **STEP5_COMPLETED (final integration package)**
+- **Mod:** Surekli Kod Gelistirme
+- **Faz:** Phase 7 Hazirlik (Phase 6 Complete)
+- **Aktif Plan:** `memory-bank/dev_plan_2026_02_22.md`
+- **Son Guncelleme:** 2026-02-22
+
+## Proje Durumu
+
+| Alan | Durum |
+|------|-------|
+| Core Pipeline | Stabil + profiling + caching |
+| Phase 6 API + Portal | Tamamlandi + Portal v2 (birlesik) |
+| ML Scaffold | Tamamlandi (features, dataset, classifier, evaluation) |
+| Bilimsel Metrikler | Recall 0.35, Overlap 0.26, FPR 0.13 |
+| 3D Viewer | Entegre (3Dmol.js + Plotly 3D fallback) |
+
+## Birlestirilen Ozellikler
+
+Eski ayri arayuzler (Streamlit dashboard + API portal) tek bir BioVoid sitesine
+birlestirildi: http://127.0.0.1:8000/portal
+
+Sekmeler: Dashboard, New Analysis, Job History, Pocket Atlas, Reports, Gallery, System
 
 ## Canonical SoT
 
-1. Strict gate sonucu: `docs/phase5_5_gate_decision.md`
-2. Guard sonucu: `docs/recovery_v2_regression_guard_report.md`
-3. Readiness snapshot: `docs/phase6_transition_readiness_report.md`
-4. Faz 6 governance: `docs/phase6_transition_governance.md`
-5. Faz 6+ roadmap: `memory-bank/phase6_plus_roadmap.plan.md`
-6. Faz 6+ index: `docs/phase6_plus_index.md`
-7. Faz 6 Step 1 report: `docs/phase6_step1_prestart_freeze_report.md`
-8. Faz 6 Step 2 report: `docs/phase6_step2_backend_api_report.md`
-9. Faz 6 Step 3 report: `docs/phase6_step3_web_portal_report.md`
-10. Faz 6 Step 4 report: `docs/phase6_step4_ops_guard_report.md`
-11. Faz 6 Step 5 report: `docs/phase6_step5_final_integration_report.md`
+1. Dev plan: `memory-bank/dev_plan_2026_02_22.md`
+2. Strict gate: `docs/phase5_5_gate_decision.md`
+3. Faz 6 roadmap: `memory-bank/phase6_plus_roadmap.plan.md`
+4. Kod analiz: `CODE_ANALYSIS_REPORT.md`
 
-## Son Dogrulanmis Strict Snapshot (2026-02-21)
+## Bu Oturumda Yapilan Degisiklikler
 
-1. Recall: **0.3500 (7/20)** -> PASS (hedef >= 0.30)
-2. fpocket overlap: **0.2597** -> PASS (hedef >= 0.25)
-3. Conservative FPR: **0.1311** -> PASS (hedef <= 0.60)
-4. MD validated proteins: **1** -> PASS (hedef >= 1)
-5. WS-C guard chain: **PASS**
-6. Intake strict: **hard_checks_ok=True**, **readiness_signals_ok=True**
+### Yeni Dosyalar (17)
+- `src/config.py` - Merkezi config
+- `src/profiling.py` - Pipeline profiling
+- `src/cache.py` - Analiz caching
+- `src/comparison.py` - Cross-protein similarity
+- `src/benchmark.py` - Benchmark suite
+- `src/cli.py` - Modern CLI
+- `src/ml/__init__.py` - ML module
+- `src/ml/features.py` - 17 feature columns
+- `src/ml/dataset.py` - Label policy, splits, leakage guard
+- `src/ml/classifier.py` - RF/GB/Logistic + calibration
+- `src/ml/evaluation.py` - PR-AUC, ECE, recall@k, ablation
+- `pyproject.toml` - Modern packaging
+- `memory-bank/dev_plan_2026_02_22.md` - Gelistirme plani
+- `memory-bank/current_snapshot_2026-02-22.md` - Durum snapshot
 
-## Sonraki Operasyon Adimi
-
-Faz 6 implementation baslamadan hemen once su 3 komut yeniden calistirilacak:
-
-```bash
-python scripts/generate_phase5_5_gate_decision.py --gate-profile strict --fpocket-report docs/fpocket_benchmark_report.md
-python scripts/run_recovery_v2_regression_guard.py --fpocket-report docs/fpocket_benchmark_report.md
-python scripts/recovery_v2_intake_check.py --strict --recall-floor 0.30 --overlap-floor 0.25
-```
-
-Step 1/2/3/4/5 tamamlandi (engineering package).
-Operasyonel devam adimi: 7-gun staging soak takibi (`docs/phase6_staging_runbook.md`).
+### Guncellenen Dosyalar (12+)
+- `src/__init__.py` - 264 -> 55 satir, lazy import
+- `src/scoring.py` - v2: sphericity, confidence, CustomProfile
+- `src/multiframe.py` - Persistence tracking
+- `src/fetcher.py` - AlphaFold DB + batch download
+- `src/docker.py` - 45KB dead code temizlendi
+- `src/api/app.py` - WebSocket, batch, visualization, protein endpoints
+- `src/api/models.py` - Batch + WS + full_analysis modelleri
+- `src/api/orchestrator.py` - Gercek pipeline runner + DB save + cancel + list
+- `src/api/portal.py` - Tamamen yeniden yazildi (birlestirilen portal v2)
+- `main.py` - DRY, logging, config, profiling, cache entegrasyonu
+- `memory-bank/techContext.md` - Dizin yapisi guncellendi

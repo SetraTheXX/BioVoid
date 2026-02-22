@@ -1,14 +1,16 @@
 """
-Bio-Void Hunter: Multi-frame Aggregation Utilities
-==================================================
+Bio-Void Hunter: Multi-frame Aggregation & Persistence
+=======================================================
 
-Consensus-based aggregation over NMA frame ensembles.
+Consensus-based aggregation over NMA frame ensembles plus
+temporal persistence tracking for pocket dynamics.
 
-This module is focused on Phase 5.5 (P1.1):
+Features:
 - Analyze all generated NMA frames
 - Aggregate recurring pockets across frames
 - Enforce minimum frame support for consensus
 - Report center/volume stability metrics
+- Track pocket opening dynamics (persistence, flicker, streaks)
 """
 
 from __future__ import annotations
@@ -340,7 +342,7 @@ def run_multiframe_consensus(
         config=config,
     )
 
-    return {
+    result = {
         "frame_files_total": len(frame_files),
         "frames_analyzed": len(frame_labels),
         "frame_errors": frame_errors,
@@ -348,4 +350,146 @@ def run_multiframe_consensus(
         "per_frame_pockets": per_frame_pockets,
         "consensus_pockets": consensus_pockets,
         "consensus_stats": consensus_stats,
+    }
+
+    if consensus_pockets and frame_labels:
+        persistence = analyze_pocket_persistence(
+            consensus_pockets, frame_labels
+        )
+        result["persistence"] = persistence
+
+    return result
+
+
+# ============================================================================
+# POCKET PERSISTENCE ANALYSIS
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class PersistenceMetrics:
+    """Temporal pocket dynamics for a single consensus pocket."""
+
+    pocket_id: int
+    total_frames: int
+    hit_count: int
+    support_ratio: float
+    first_appearance: int
+    last_appearance: int
+    span: int
+    consecutive_max: int
+    flicker_count: int
+    persistence_score: float
+
+
+def _frame_index_map(frame_labels: list[str]) -> dict[str, int]:
+    """Map frame label strings to ordered integer indices."""
+    return {label: idx for idx, label in enumerate(frame_labels)}
+
+
+def _compute_streaks(present: list[bool]) -> tuple[int, int]:
+    """Return (max_consecutive_true, number_of_off→on_transitions)."""
+    max_streak = 0
+    current_streak = 0
+    flicker = 0
+    prev = False
+
+    for val in present:
+        if val:
+            current_streak += 1
+            max_streak = max(max_streak, current_streak)
+            if not prev and current_streak > 1:
+                pass
+            if not prev:
+                flicker += 1
+        else:
+            current_streak = 0
+        prev = val
+
+    flicker = max(0, flicker - 1)
+    return max_streak, flicker
+
+
+def compute_persistence(
+    pocket: dict[str, Any],
+    frame_labels: list[str],
+    frame_index: dict[str, int],
+) -> PersistenceMetrics:
+    """Compute temporal persistence metrics for one consensus pocket."""
+    total = len(frame_labels)
+    hits: set[str] = set(pocket.get("frame_hits", []))
+    hit_count = len(hits)
+
+    present = [label in hits for label in frame_labels]
+
+    indices = sorted(frame_index[h] for h in hits if h in frame_index)
+    first = indices[0] if indices else 0
+    last = indices[-1] if indices else 0
+    span = last - first + 1 if indices else 0
+
+    max_consec, flicker = _compute_streaks(present)
+
+    support_ratio = hit_count / max(1, total)
+    streak_ratio = max_consec / max(1, total)
+    flicker_penalty = 1.0 - min(1.0, flicker / max(1, hit_count))
+
+    persistence_score = round(
+        0.50 * support_ratio
+        + 0.30 * streak_ratio
+        + 0.20 * flicker_penalty,
+        4,
+    )
+
+    return PersistenceMetrics(
+        pocket_id=pocket.get("id", 0),
+        total_frames=total,
+        hit_count=hit_count,
+        support_ratio=round(support_ratio, 4),
+        first_appearance=first,
+        last_appearance=last,
+        span=span,
+        consecutive_max=max_consec,
+        flicker_count=flicker,
+        persistence_score=persistence_score,
+    )
+
+
+def analyze_pocket_persistence(
+    consensus_pockets: list[dict[str, Any]],
+    frame_labels: list[str],
+) -> dict[str, Any]:
+    """
+    Analyze temporal persistence of all consensus pockets.
+
+    Returns summary stats and per-pocket persistence metrics.
+    Enriches each consensus pocket dict with persistence fields.
+    """
+    frame_idx = _frame_index_map(frame_labels)
+    results: list[dict[str, Any]] = []
+
+    for pocket in consensus_pockets:
+        pm = compute_persistence(pocket, frame_labels, frame_idx)
+        pocket["persistence_score"] = pm.persistence_score
+        pocket["persistence_consecutive_max"] = pm.consecutive_max
+        pocket["persistence_flicker_count"] = pm.flicker_count
+        pocket["persistence_span"] = pm.span
+
+        results.append({
+            "pocket_id": pm.pocket_id,
+            "hit_count": pm.hit_count,
+            "support_ratio": pm.support_ratio,
+            "first_appearance": pm.first_appearance,
+            "last_appearance": pm.last_appearance,
+            "span": pm.span,
+            "consecutive_max": pm.consecutive_max,
+            "flicker_count": pm.flicker_count,
+            "persistence_score": pm.persistence_score,
+        })
+
+    scores = [r["persistence_score"] for r in results]
+    return {
+        "n_pockets": len(results),
+        "avg_persistence": round(float(np.mean(scores)), 4) if scores else 0.0,
+        "max_persistence": round(float(np.max(scores)), 4) if scores else 0.0,
+        "pockets": results,
     }
