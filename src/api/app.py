@@ -7,20 +7,27 @@ import json
 import logging
 from pathlib import Path
 import time
-from typing import Any
+from typing import Any, Optional
 import uuid
 
-from fastapi import FastAPI, Header, Query, Request, Response
+import asyncio
+
+from fastapi import FastAPI, Header, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.database import AtlasDB
 from .errors import ApiError
 from .models import (
     ALLOWED_OPTION_KEYS,
+    BatchJobSubmissionResponse,
+    BatchJobSubmitRequest,
     CANONICAL_LOCK_KEYS,
     ErrorEnvelope,
     JobDetailResponse,
+    JobInput,
+    JobProgressEvent,
     JobStatus,
     JobSubmissionResponse,
     JobSubmitRequest,
@@ -472,6 +479,460 @@ def create_app(
             media_type="application/json",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
+
+    @app.get("/jobs")
+    async def list_jobs(
+        request: Request,
+        status: Optional[str] = Query(default=None),
+        limit: int = Query(default=50, ge=1, le=200),
+    ) -> dict[str, Any]:
+        """List all jobs, optionally filtered by status."""
+        await enforce_rate_limit(request)
+        records = app.state.orchestrator.list_jobs(
+            status_filter=status, limit=limit
+        )
+        return {
+            "jobs": [
+                {
+                    "job_id": r.job_id,
+                    "status": r.status,
+                    "pdb_id": r.request.input.pdb_id,
+                    "job_type": r.request.job_type,
+                    "created_at_utc": r.created_at_utc.isoformat(),
+                    "attempts": r.attempts,
+                }
+                for r in records
+            ],
+            "count": len(records),
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        }
+
+    @app.post("/jobs/{job_id}/cancel")
+    async def cancel_job(job_id: str, request: Request) -> dict[str, Any]:
+        """Cancel a queued job."""
+        await enforce_rate_limit(request)
+        record = app.state.orchestrator.cancel(job_id)
+        return {
+            "job_id": record.job_id,
+            "status": record.status,
+            "message": "Job cancelled",
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        }
+
+    @app.post(
+        "/jobs/batch",
+        response_model=BatchJobSubmissionResponse,
+        responses={400: {"model": ErrorEnvelope}},
+    )
+    async def submit_batch(
+        request: Request,
+        response: Response,
+        idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    ) -> BatchJobSubmissionResponse:
+        await enforce_rate_limit(request)
+
+        try:
+            raw_payload = await request.json()
+        except Exception as exc:
+            raise ApiError(
+                status_code=400,
+                code="INVALID_JSON",
+                message="Request body must be valid JSON.",
+                details={"detail": str(exc)},
+            ) from exc
+
+        batch_req = BatchJobSubmitRequest.model_validate(raw_payload)
+        batch_id = uuid.uuid4().hex[:12]
+        job_ids: list[str] = []
+
+        for i, pdb_id in enumerate(batch_req.pdb_ids):
+            single_req = JobSubmitRequest(
+                job_type=batch_req.job_type,
+                input=JobInput(pdb_id=pdb_id),
+                options=batch_req.options,
+            )
+            per_key = f"{idempotency_key.strip()}_batch_{batch_id}_{i}"
+            record, _ = app.state.orchestrator.submit(
+                request=single_req,
+                idempotency_key=per_key,
+            )
+            job_ids.append(record.job_id)
+
+        response.status_code = 202
+        return BatchJobSubmissionResponse(
+            batch_id=batch_id,
+            job_ids=job_ids,
+            total_jobs=len(job_ids),
+        )
+
+    @app.websocket("/ws/jobs/{job_id}")
+    async def ws_job_progress(websocket: WebSocket, job_id: str):
+        """WebSocket endpoint for real-time job status streaming."""
+        await websocket.accept()
+        try:
+            prev_status = None
+            while True:
+                try:
+                    record = app.state.orchestrator.get(job_id)
+                except ApiError:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Job {job_id} not found",
+                    })
+                    break
+
+                current_status = record.status
+
+                if current_status != prev_status:
+                    progress = 0
+                    if current_status == JobStatus.QUEUED:
+                        progress = 0
+                    elif current_status == JobStatus.RUNNING:
+                        progress = 50
+                    elif current_status == JobStatus.SUCCEEDED:
+                        progress = 100
+                    elif current_status == JobStatus.FAILED:
+                        progress = 100
+
+                    event = JobProgressEvent(
+                        job_id=job_id,
+                        status=current_status,
+                        progress_pct=progress,
+                        message=f"Job {current_status}",
+                        timestamp=record.started_at_utc or record.created_at_utc,
+                    )
+                    await websocket.send_json(event.model_dump(mode="json"))
+                    prev_status = current_status
+
+                if current_status in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                    break
+
+                await asyncio.sleep(0.5)
+
+        except WebSocketDisconnect:
+            pass
+
+    @app.get("/jobs/{job_id}/visualization")
+    async def job_visualization(job_id: str, request: Request) -> dict[str, Any]:
+        """Return Plotly-ready visualization data for a completed job."""
+        await enforce_rate_limit(request)
+        record = app.state.orchestrator.get(job_id)
+
+        if record.status != JobStatus.SUCCEEDED:
+            raise ApiError(
+                status_code=409,
+                code="JOB_NOT_COMPLETE",
+                message="Visualization requires a completed job.",
+                details={"job_id": job_id, "status": record.status},
+            )
+
+        result = record.result or {}
+        pdb_id = result.get("pdb_id", "unknown")
+
+        cavities = result.get("cavities", [])
+        scores = [c.get("bio_score", 0) for c in cavities]
+        volumes = [c.get("volume", 0) for c in cavities]
+        ranks = [c.get("rank", 0) for c in cavities]
+        classes = [c.get("druggability_class", "low") for c in cavities]
+
+        class_counts = {}
+        for cls in classes:
+            class_counts[cls] = class_counts.get(cls, 0) + 1
+
+        return {
+            "pdb_id": pdb_id,
+            "job_id": job_id,
+            "charts": {
+                "score_bar": {
+                    "type": "bar",
+                    "x": ranks,
+                    "y": scores,
+                    "text": classes,
+                    "title": f"Pocket Druggability Scores - {pdb_id}",
+                    "xaxis": "Pocket Rank",
+                    "yaxis": "Bio-Score",
+                },
+                "volume_scatter": {
+                    "type": "scatter",
+                    "x": volumes,
+                    "y": scores,
+                    "text": [f"Rank {r}" for r in ranks],
+                    "title": f"Volume vs Score - {pdb_id}",
+                    "xaxis": "Volume (A³)",
+                    "yaxis": "Bio-Score",
+                },
+                "class_pie": {
+                    "type": "pie",
+                    "labels": list(class_counts.keys()),
+                    "values": list(class_counts.values()),
+                    "title": f"Druggability Classes - {pdb_id}",
+                },
+            },
+            "summary": {
+                "total_cavities": len(cavities),
+                "avg_score": round(sum(scores) / max(len(scores), 1), 4),
+                "max_score": max(scores) if scores else 0,
+                "class_distribution": class_counts,
+            },
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        }
+
+    @app.get("/protein/{pdb_id}/detail")
+    async def protein_detail(pdb_id: str, request: Request) -> dict[str, Any]:
+        """Full protein detail view with all pockets and stats."""
+        await enforce_rate_limit(request)
+        pdb_id_upper = pdb_id.strip().upper()
+
+        protein_info: dict[str, Any] = {"pdb_id": pdb_id_upper, "available": False}
+        pockets: list[dict[str, Any]] = []
+
+        if _atlas_db_exists():
+            try:
+                with AtlasDB(str(ATLAS_DB_PATH), check_same_thread=False) as db:
+                    rows = db.search_pockets(pdb_id=pdb_id_upper, limit=100)
+                    pockets = [
+                        {
+                            "pocket_id": r.get("pocket_id", 0),
+                            "rank": int(r.get("rank", 0) or 0),
+                            "bio_score": float(r.get("bio_score", 0) or 0),
+                            "volume": float(r.get("volume", 0) or 0),
+                            "center": [
+                                float(r.get("center_x", 0) or 0),
+                                float(r.get("center_y", 0) or 0),
+                                float(r.get("center_z", 0) or 0),
+                            ],
+                            "hydrophobic_ratio": float(r.get("hydrophobic_ratio", 0) or 0),
+                            "druggability_class": r.get("druggability_class", "low"),
+                            "druggable": bool(r.get("druggable", False)),
+                            "enclosure_score": float(r.get("enclosure_score", 0) or 0),
+                            "depth_score": float(r.get("depth_score", 0) or 0),
+                            "profile_used": r.get("profile_used", ""),
+                        }
+                        for r in rows
+                    ]
+                    protein_info["available"] = bool(pockets)
+            except Exception as exc:
+                protein_info["error"] = str(exc)
+
+        scores = [p["bio_score"] for p in pockets]
+        volumes = [p["volume"] for p in pockets]
+        druggable_count = sum(1 for p in pockets if p["druggable"])
+        class_dist: dict[str, int] = {}
+        for p in pockets:
+            c = p["druggability_class"]
+            class_dist[c] = class_dist.get(c, 0) + 1
+
+        protein_info.update({
+            "pockets": pockets,
+            "total_pockets": len(pockets),
+            "druggable_pockets": druggable_count,
+            "avg_bio_score": round(sum(scores) / max(1, len(scores)), 4) if scores else 0,
+            "max_bio_score": round(max(scores), 4) if scores else 0,
+            "avg_volume": round(sum(volumes) / max(1, len(volumes)), 1) if volumes else 0,
+            "class_distribution": class_dist,
+        })
+        return protein_info
+
+    @app.get("/export/pockets.csv")
+    async def export_pockets_csv(
+        request: Request,
+        pdb_id: str | None = Query(default=None),
+        min_score: float = Query(default=0.0),
+        druggable_only: bool = True,
+    ) -> Response:
+        """Export pockets as CSV download."""
+        await enforce_rate_limit(request)
+        if not _atlas_db_exists():
+            raise ApiError(status_code=404, code="NO_ATLAS", message="Atlas DB not found")
+
+        with AtlasDB(str(ATLAS_DB_PATH), check_same_thread=False) as db:
+            rows = db.search_pockets(
+                pdb_id=pdb_id,
+                min_score=min_score,
+                druggable_only=druggable_only,
+                limit=5000,
+            )
+
+        if not rows:
+            raise ApiError(status_code=404, code="NO_DATA", message="No pockets found")
+
+        headers = ["pdb_id", "pocket_id", "rank", "bio_score", "volume",
+                    "druggability_class", "druggable", "hydrophobic_ratio",
+                    "enclosure_score", "depth_score", "profile_used"]
+        lines = [",".join(headers)]
+        for r in rows:
+            line = ",".join(str(r.get(h, "")) for h in headers)
+            lines.append(line)
+
+        csv_content = "\n".join(lines)
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="biovoid_pockets.csv"'},
+        )
+
+    @app.get("/publication/figure-data")
+    async def publication_figure_data(request: Request) -> dict[str, Any]:
+        """Generate publication-ready figure data (Plotly JSON for paper figures)."""
+        await enforce_rate_limit(request)
+        if not _atlas_db_exists():
+            return {"available": False, "message": "No atlas data"}
+
+        try:
+            with AtlasDB(str(ATLAS_DB_PATH), check_same_thread=False) as db:
+                stats = db.get_statistics()
+                all_pockets = db.search_pockets(limit=5000)
+        except Exception as exc:
+            return {"available": False, "message": str(exc)}
+
+        scores = [float(p.get("bio_score", 0) or 0) for p in all_pockets]
+        volumes = [float(p.get("volume", 0) or 0) for p in all_pockets]
+        classes = [p.get("druggability_class", "low") for p in all_pockets]
+        pdb_ids = [p.get("pdb_id", "") for p in all_pockets]
+
+        return {
+            "available": True,
+            "n_pockets": len(all_pockets),
+            "n_proteins": stats.get("total_proteins", 0),
+            "figures": {
+                "fig1_score_distribution": {
+                    "data": scores,
+                    "title": "Distribution of BioVoid Druggability Scores",
+                    "xlabel": "Bio-Score",
+                    "ylabel": "Frequency",
+                },
+                "fig2_volume_vs_score": {
+                    "volumes": volumes,
+                    "scores": scores,
+                    "classes": classes,
+                    "title": "Pocket Volume vs Druggability Score",
+                    "xlabel": "Volume (A³)",
+                    "ylabel": "Bio-Score",
+                },
+                "fig3_class_distribution": {
+                    "distribution": stats.get("class_distribution", {}),
+                    "title": "Druggability Classification",
+                },
+                "fig4_per_protein": {
+                    "pdb_ids": pdb_ids,
+                    "scores": scores,
+                    "title": "Per-Protein Discovery Summary",
+                },
+            },
+        }
+
+    @app.get("/benchmark/fpocket-comparison")
+    async def fpocket_comparison(request: Request) -> dict[str, Any]:
+        """Load fpocket vs BioVoid comparison data."""
+        await enforce_rate_limit(request)
+        fp_path = Path(__file__).resolve().parents[2] / "data" / "benchmark" / "fpocket_benchmark_v3.json"
+        if not fp_path.exists():
+            return {"available": False, "message": "fpocket benchmark data not found"}
+
+        try:
+            data = json.loads(fp_path.read_text())
+            g = data.get("global", {})
+            return {
+                "available": True,
+                "common_proteins": g.get("common_proteins", 0),
+                "fpocket_pockets": g.get("fpocket_valid_total", 0),
+                "biovoid_pockets": g.get("biovoid_valid_total", 0),
+                "overlap": round(g.get("official_overlap_center_volume_greedy", 0) * 100, 1),
+                "center_overlap": round(g.get("center_only_overlap_greedy", 0) * 100, 1),
+                "biovoid_unique_rate": round(
+                    (1 - g.get("official_overlap_center_volume_greedy", 0)) * 100, 1
+                ),
+            }
+        except Exception as e:
+            return {"available": False, "message": str(e)}
+
+    @app.get("/benchmark/known-pockets")
+    async def get_known_pockets(request: Request) -> dict[str, Any]:
+        """Return the known cryptic pockets test set."""
+        await enforce_rate_limit(request)
+        try:
+            from src.benchmark import KNOWN_CRYPTIC_POCKETS
+            pockets = []
+            for pdb_id, info in KNOWN_CRYPTIC_POCKETS.items():
+                pockets.append({
+                    "pdb_id": pdb_id,
+                    "name": info.get("name", ""),
+                    "center": info.get("center", []),
+                    "pocket_type": info.get("pocket_type", ""),
+                    "known_ligand": info.get("known_ligand", ""),
+                    "reference": info.get("reference", ""),
+                })
+            return {"pockets": pockets, "count": len(pockets)}
+        except Exception as e:
+            return {"pockets": [], "count": 0, "error": str(e)}
+
+    results_dir = Path(__file__).resolve().parents[2] / "data" / "results"
+    if results_dir.exists():
+        app.mount("/static/results", StaticFiles(directory=str(results_dir)), name="results")
+
+    @app.get("/artifacts")
+    async def list_artifacts(request: Request) -> dict[str, Any]:
+        """List visualization artifacts (images, HTMLs)."""
+        await enforce_rate_limit(request)
+        artifacts = []
+        if results_dir.exists():
+            for f in sorted(results_dir.iterdir()):
+                if f.suffix in ('.png', '.jpg', '.html', '.svg'):
+                    artifacts.append({
+                        "name": f.name,
+                        "type": f.suffix[1:],
+                        "size_kb": round(f.stat().st_size / 1024, 1),
+                        "url": f"/static/results/{f.name}",
+                    })
+        return {"artifacts": artifacts, "count": len(artifacts)}
+
+    @app.get("/protein/{pdb_id}/structure")
+    async def get_protein_structure(pdb_id: str, request: Request) -> Response:
+        """Return PDB file content for 3D visualization."""
+        await enforce_rate_limit(request)
+        pdb_id = pdb_id.strip().lower()
+        pdb_path = Path(__file__).resolve().parents[2] / "data" / "raw_pdb" / f"{pdb_id}.pdb"
+        if not pdb_path.exists():
+            raise ApiError(
+                status_code=404,
+                code="PDB_NOT_FOUND",
+                message=f"PDB file not found for {pdb_id.upper()}. Run an analysis first.",
+            )
+        return Response(
+            content=pdb_path.read_text(),
+            media_type="text/plain",
+        )
+
+    @app.get("/protein/{pdb_id}/pockets")
+    async def get_protein_pockets(pdb_id: str, request: Request) -> dict[str, Any]:
+        """Return pocket positions for 3D overlay."""
+        await enforce_rate_limit(request)
+        pdb_id_upper = pdb_id.strip().upper()
+        if not _atlas_db_exists():
+            return {"pdb_id": pdb_id_upper, "pockets": [], "message": "No atlas DB"}
+
+        try:
+            with AtlasDB(str(ATLAS_DB_PATH), check_same_thread=False) as db:
+                rows = db.search_pockets(pdb_id=pdb_id_upper, limit=50)
+        except Exception as exc:
+            return {"pdb_id": pdb_id_upper, "pockets": [], "message": str(exc)}
+
+        pockets = []
+        for row in rows:
+            pockets.append({
+                "id": row.get("pocket_id", 0),
+                "center": [
+                    float(row.get("center_x", 0) or 0),
+                    float(row.get("center_y", 0) or 0),
+                    float(row.get("center_z", 0) or 0),
+                ],
+                "radius": float(row.get("radius_geom", 3.0) or 3.0),
+                "bio_score": float(row.get("bio_score", 0) or 0),
+                "volume": float(row.get("volume", 0) or 0),
+                "druggability_class": row.get("druggability_class", "low"),
+                "druggable": bool(row.get("druggable", False)),
+            })
+        return {"pdb_id": pdb_id_upper, "pockets": pockets}
 
     return app
 

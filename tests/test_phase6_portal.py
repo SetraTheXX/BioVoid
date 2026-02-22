@@ -37,10 +37,8 @@ def test_portal_page_renders() -> None:
         response = client.get("/portal")
         assert response.status_code == 200
         html = response.text
-        assert "BioVoid Phase 6 Web Portal" in html
-        assert "Submit Job" in html
-        assert "Stop Tracking" in html
-        assert "Download Result JSON" in html
+        assert "BioVoid" in html
+        assert "Cryptic Pocket Discovery" in html
 
 
 def test_portal_submit_poll_download_path() -> None:

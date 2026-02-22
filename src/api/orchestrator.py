@@ -13,9 +13,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+import logging
+
 from .errors import ApiError
 from .models import JobDetailResponse, JobErrorResponse, JobStatus, JobSubmitRequest
 
+logger = logging.getLogger(__name__)
 Runner = Callable[[JobSubmitRequest], dict[str, Any]]
 
 
@@ -75,7 +78,10 @@ class JobOrchestrator:
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
         self._worker: threading.Thread | None = None
-        self._runners: dict[str, Runner] = {"quick_probe": self._run_quick_probe}
+        self._runners: dict[str, Runner] = {
+            "quick_probe": self._run_quick_probe,
+            "full_analysis": self._run_full_analysis,
+        }
         self._started_monotonic = time.monotonic()
         self._submitted_count = 0
         self._succeeded_count = 0
@@ -287,6 +293,47 @@ class JobOrchestrator:
             fut = pool.submit(runner, request)
             return fut.result(timeout=timeout_seconds)
 
+    def list_jobs(
+        self,
+        status_filter: str | None = None,
+        limit: int = 50,
+    ) -> list[JobRecord]:
+        """List jobs, optionally filtered by status."""
+        with self._lock:
+            jobs = list(self._jobs.values())
+
+        if status_filter:
+            jobs = [j for j in jobs if j.status == status_filter]
+
+        jobs.sort(key=lambda j: j.created_at_utc, reverse=True)
+        return jobs[:limit]
+
+    def cancel(self, job_id: str) -> JobRecord:
+        """Cancel a queued job. Running jobs cannot be cancelled."""
+        with self._lock:
+            record = self._jobs.get(job_id)
+            if not record:
+                raise ApiError(
+                    status_code=404,
+                    code="JOB_NOT_FOUND",
+                    message=f"Job not found: {job_id}",
+                )
+            if record.status != JobStatus.QUEUED:
+                raise ApiError(
+                    status_code=409,
+                    code="JOB_NOT_CANCELLABLE",
+                    message=f"Job {job_id} is {record.status}, only queued jobs can be cancelled.",
+                )
+            record.status = JobStatus.FAILED
+            record.finished_at_utc = utc_now()
+            record.error = JobErrorResponse(
+                code="CANCELLED",
+                message="Job cancelled by user.",
+                attempts=0,
+            )
+            self._failed_count += 1
+            return record
+
     @staticmethod
     def _run_quick_probe(request: JobSubmitRequest) -> dict[str, Any]:
         """Deterministic lightweight probe to validate orchestration flow."""
@@ -304,3 +351,92 @@ class JobOrchestrator:
                 "druggable_only": True,
             },
         }
+
+    @staticmethod
+    def _run_full_analysis(request: JobSubmitRequest) -> dict[str, Any]:
+        """Run the complete BioVoid analysis pipeline and save to Atlas DB."""
+        import sys
+        from pathlib import Path
+
+        project_root = Path(__file__).resolve().parents[2]
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+
+        from main import BioVoidPipeline
+
+        pdb_id = request.input.pdb_id.upper()
+        options = request.options or {}
+        n_frames = int(options.get("n_frames", 20))
+        profile = str(options.get("profile", "default"))
+
+        logger.info("Starting full analysis for %s (frames=%d, profile=%s)",
+                     pdb_id, n_frames, profile)
+
+        pipeline = BioVoidPipeline(
+            pdb_id=pdb_id,
+            n_frames=n_frames,
+            profile=profile,
+            use_cache=True,
+        )
+        report = pipeline.run()
+
+        report["engine"] = "biovoid.full_analysis"
+        report["canonical_lock"] = {
+            "tolerance": 8.0,
+            "top_n": 20,
+            "druggable_only": True,
+        }
+
+        try:
+            from src.database import AtlasDB, ProteinRecord, PocketRecord
+            db_path = project_root / "data" / "atlas.db"
+            with AtlasDB(str(db_path)) as db:
+                protein = ProteinRecord(
+                    pdb_id=pdb_id,
+                    total_cavities=report.get("total_cavities", 0),
+                    druggable_cavities=report.get("druggable_cavities", 0),
+                    high_score_count=report.get("high_druggability", 0),
+                    medium_score_count=report.get("medium_druggability", 0),
+                    top_bio_score=max(
+                        (c.get("bio_score", 0) for c in report.get("cavities", [])),
+                        default=0.0,
+                    ),
+                    analysis_runtime=report.get("runtime_seconds", 0.0),
+                    n_frames=n_frames,
+                    scoring_profile=profile,
+                )
+                db.upsert_protein(protein)
+
+                pockets = []
+                for c in report.get("cavities", []):
+                    center = c.get("center", [0, 0, 0])
+                    sc = c.get("score_components", {})
+                    pockets.append(PocketRecord(
+                        pdb_id=pdb_id,
+                        pocket_id=c.get("id", 0),
+                        rank=c.get("rank", 0),
+                        bio_score=c.get("bio_score", 0.0),
+                        volume=c.get("volume", 0.0),
+                        center_x=center[0] if len(center) > 0 else 0.0,
+                        center_y=center[1] if len(center) > 1 else 0.0,
+                        center_z=center[2] if len(center) > 2 else 0.0,
+                        radius_geom=c.get("radius_geom", 0.0),
+                        radius_clear=c.get("radius_clear", 0.0),
+                        merged_vertices=c.get("merged_vertices", 0),
+                        hydrophobic_ratio=c.get("hydrophobic_ratio", 0.0),
+                        polar_atoms=c.get("polar_atoms", 0),
+                        druggable=c.get("druggable", False),
+                        druggability_class=c.get("druggability_class", "low"),
+                        enclosure_score=sc.get("enclosure_score", 0.0),
+                        depth_score=sc.get("depth_score", 0.0),
+                        volume_score=sc.get("volume_score", 0.0),
+                        hydrophobicity_score=sc.get("hydrophobicity_score", 0.0),
+                        profile_used=c.get("profile_used", "Default"),
+                    ))
+                if pockets:
+                    db.batch_insert_pockets(pockets)
+                logger.info("Saved %d pockets for %s to Atlas DB", len(pockets), pdb_id)
+        except Exception as e:
+            logger.warning("Failed to save to Atlas DB: %s", e)
+
+        return report

@@ -1,949 +1,673 @@
-"""Portal page renderer for unified BioVoid operations + discovery UI."""
+"""
+BioVoid — Unified Web Application
+====================================
+
+Single web application that combines:
+- Scientific dashboard (charts, KPIs, pocket browser)
+- Analysis submission & tracking
+- Discovery reports
+- System health monitoring
+
+All served from FastAPI at /portal
+"""
 
 from __future__ import annotations
 
 
 def render_portal_html() -> str:
-    """Return portal HTML."""
-    return """<!doctype html>
+    return _HTML
+
+
+_HTML = r"""<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BioVoid Phase 6 Portal</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@400;600;700;800&display=swap" />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg-0: #f3eee6;
-      --bg-1: #e6f0ec;
-      --ink: #1d2830;
-      --ink-soft: #4e5f6d;
-      --line: #cfd8de;
-      --card: #fffdf9;
-      --brand: #146c63;
-      --brand-strong: #0f4f49;
-      --accent: #d86f39;
-      --warn: #b45309;
-      --danger: #b42318;
-      --ok: #13795b;
-      --shadow: 0 24px 44px rgba(22, 34, 45, 0.12);
-      --radius: 16px;
-    }
-    * { box-sizing: border-box; }
-    html, body { min-height: 100%; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      font-family: "Manrope", "Segoe UI", sans-serif;
-      line-height: 1.5;
-      -webkit-tap-highlight-color: rgba(20, 108, 99, 0.22);
-      background:
-        radial-gradient(1000px 520px at 12% -10%, #dbece4 0%, rgba(219, 236, 228, 0) 60%),
-        radial-gradient(840px 420px at 92% 2%, #fbe3d6 0%, rgba(251, 227, 214, 0) 62%),
-        linear-gradient(160deg, var(--bg-0), var(--bg-1));
-    }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(0deg, rgba(29, 40, 48, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(29, 40, 48, 0.035) 1px, transparent 1px);
-      background-size: 20px 20px;
-      opacity: 0.28;
-      z-index: -1;
-    }
-    .skip-link {
-      position: absolute;
-      left: 10px;
-      top: -48px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      color: #fff;
-      background: var(--brand-strong);
-      z-index: 1000;
-      text-decoration: none;
-    }
-    .skip-link:focus-visible { top: 10px; }
-    .shell {
-      max-width: 1220px;
-      margin: 0 auto;
-      padding: 22px 16px 38px;
-      display: grid;
-      gap: 16px;
-    }
-    .hero {
-      border-radius: calc(var(--radius) + 6px);
-      padding: 22px;
-      border: 1px solid #ced9df;
-      background:
-        linear-gradient(126deg, rgba(255, 253, 248, 0.96), rgba(237, 248, 244, 0.95)),
-        linear-gradient(0deg, #fff, #fff);
-      box-shadow: var(--shadow);
-      animation: lift .5s ease-out both;
-    }
-    .hero-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .logo {
-      font-family: "Archivo Black", sans-serif;
-      letter-spacing: 0.01em;
-      font-size: 28px;
-      margin: 0;
-      text-transform: uppercase;
-      text-wrap: balance;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid #b8cbc6;
-      border-radius: 999px;
-      padding: 7px 12px;
-      color: #0f504a;
-      background: #e9f8f4;
-      font-weight: 700;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-    .hero p {
-      margin: 8px 0 0;
-      color: var(--ink-soft);
-      max-width: 68ch;
-      line-height: 1.45;
-    }
-    .board {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 16px;
-    }
-    .panel {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--card);
-      box-shadow: var(--shadow);
-      padding: 16px;
-      animation: lift .55s ease-out both;
-    }
-    .panel h2 {
-      margin: 0 0 10px;
-      font-size: 20px;
-      letter-spacing: -0.01em;
-      text-wrap: balance;
-    }
-    .subtitle {
-      margin: 0 0 14px;
-      font-size: 13px;
-      color: var(--ink-soft);
-    }
-    .field {
-      display: grid;
-      gap: 6px;
-      margin-bottom: 11px;
-    }
-    .field label {
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      color: #2f4352;
-    }
-    input, select {
-      width: 100%;
-      min-height: 44px;
-      border: 1px solid #c5d1da;
-      border-radius: 11px;
-      padding: 11px 12px;
-      font: inherit;
-      color: var(--ink);
-      background: #fff;
-      transition: border-color .16s ease, box-shadow .16s ease;
-    }
-    input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
-      outline: 2px solid transparent;
-      border-color: #2d8d83;
-      box-shadow: 0 0 0 4px rgba(20, 108, 99, 0.18);
-    }
-    .inline-3 {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 9px;
-      margin-top: 4px;
-    }
-    button {
-      appearance: none;
-      min-height: 44px;
-      border: 1px solid transparent;
-      border-radius: 11px;
-      padding: 10px 13px;
-      font: inherit;
-      font-weight: 800;
-      letter-spacing: 0.01em;
-      cursor: pointer;
-      touch-action: manipulation;
-      transition: transform .1s ease, filter .14s ease, box-shadow .14s ease;
-    }
-    button:hover { filter: brightness(1.04); }
-    button:active { transform: translateY(1px); }
-    button[disabled] {
-      opacity: 0.55;
-      cursor: not-allowed;
-      filter: grayscale(0.2);
-    }
-    .btn-primary {
-      color: #fff;
-      background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-      box-shadow: 0 8px 18px rgba(20, 108, 99, 0.3);
-    }
-    .btn-secondary {
-      color: #223542;
-      background: #edf3f6;
-      border-color: #ccd8e0;
-    }
-    .btn-accent {
-      color: #fff;
-      background: linear-gradient(135deg, #d56a32, #b55628);
-      box-shadow: 0 8px 18px rgba(213, 106, 50, 0.28);
-    }
-    .btn-danger {
-      color: #7d1f1f;
-      background: #fff4f4;
-      border-color: #efc6c6;
-    }
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 5px 11px;
-      font-size: 12px;
-      font-weight: 800;
-      border: 1px solid #c7d6df;
-      background: #f2f6fa;
-      color: #223949;
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
-      min-height: 28px;
-    }
-    .status-idle { border-color: #c7d6df; color: #2f4352; background: #f2f6fa; }
-    .status-queued { border-color: #e7cdb0; color: #865415; background: #fff8ec; }
-    .status-running { border-color: #9ec8c3; color: #0d5951; background: #e6f7f4; }
-    .status-succeeded { border-color: #9fd6bd; color: #0f5c3b; background: #e8faef; }
-    .status-failed { border-color: #efb7b7; color: #841717; background: #ffeeee; }
-    .mono {
-      margin-top: 10px;
-      border-radius: 12px;
-      border: 1px solid #d8e1e8;
-      background: #f8fbfd;
-      color: #2d4251;
-      font-family: "Consolas", "SFMono-Regular", monospace;
-      font-size: 12px;
-      padding: 10px;
-      overflow-wrap: anywhere;
-      min-height: 42px;
-    }
-    .timeline {
-      margin: 10px 0 0;
-      list-style: none;
-      padding: 0;
-      display: grid;
-      gap: 7px;
-      max-height: 248px;
-      overflow: auto;
-    }
-    .timeline li {
-      border-left: 3px solid #d3dde5;
-      border-radius: 8px;
-      padding: 6px 9px;
-      background: #f7fafc;
-      font-size: 12px;
-      color: #334a59;
-      line-height: 1.4;
-      animation: fadeSlide .2s ease both;
-    }
-    .discovery-grid {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .metric {
-      border: 1px solid #d7e0e5;
-      border-radius: 12px;
-      background: #fff;
-      padding: 10px;
-      min-height: 92px;
-    }
-    .metric span {
-      display: block;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      color: #4f6472;
-      font-weight: 800;
-    }
-    .metric strong {
-      display: block;
-      margin-top: 8px;
-      font-size: 24px;
-      line-height: 1.1;
-      font-family: "Archivo Black", sans-serif;
-    }
-    .bars {
-      display: grid;
-      gap: 7px;
-      margin-top: 10px;
-    }
-    .bar-row {
-      display: grid;
-      grid-template-columns: 88px 1fr 62px;
-      gap: 8px;
-      align-items: center;
-      font-size: 12px;
-      color: #314451;
-    }
-    .bar-track {
-      height: 10px;
-      border-radius: 999px;
-      border: 1px solid #d8e3ea;
-      background: #f1f6fa;
-      overflow: hidden;
-    }
-    .bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #2f9c8f, #58b6a7);
-    }
-    .table-wrap {
-      margin-top: 12px;
-      border: 1px solid #d6e0e8;
-      border-radius: 12px;
-      overflow: auto;
-      background: #fff;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 760px;
-    }
-    caption {
-      text-align: left;
-      padding: 10px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      color: #4d6372;
-      border-bottom: 1px solid #d6e0e8;
-      background: #f8fbfd;
-    }
-    th, td {
-      text-align: left;
-      padding: 9px 10px;
-      border-bottom: 1px solid #edf2f6;
-      font-size: 12px;
-      vertical-align: middle;
-    }
-    th {
-      color: #344c5d;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      background: #fbfdff;
-    }
-    .score {
-      font-family: "Consolas", "SFMono-Regular", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-    }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      border: 1px solid #d6dee5;
-      padding: 2px 8px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: lowercase;
-    }
-    .chip-high { color: #0d5c45; background: #e9f8f2; border-color: #b7dfcd; }
-    .chip-medium { color: #8c5100; background: #fff5e9; border-color: #efd6b5; }
-    .chip-low { color: #475b68; background: #eff4f8; border-color: #d1dde8; }
-    .footer-note {
-      font-size: 12px;
-      color: #506373;
-      margin-top: 12px;
-      border-top: 1px dashed #d6e0e8;
-      padding-top: 10px;
-    }
-    .legacy-note {
-      margin-top: 12px;
-      border: 1px dashed #d8c9b8;
-      border-radius: 11px;
-      background: #fef8f1;
-      padding: 9px 10px;
-      font-size: 12px;
-      color: #684f30;
-    }
-    @keyframes lift {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateX(6px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-    @media (max-width: 1080px) {
-      .board { grid-template-columns: 1fr; }
-      .discovery-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-    @media (max-width: 720px) {
-      .inline-3 { grid-template-columns: 1fr; }
-      .discovery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .logo { font-size: 22px; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-      }
-    }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BioVoid — Cryptic Pocket Discovery</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+// Try loading 3Dmol.js from multiple CDNs
+(function(){
+  var urls=['https://3dmol.csb.pitt.edu/build/3Dmol-min.js','https://unpkg.com/3dmol@2.0.6/build/3Dmol-min.js','https://cdn.jsdelivr.net/npm/3dmol@2.0.6/build/3Dmol-min.js'];
+  var loaded=false;
+  function tryLoad(i){
+    if(i>=urls.length||loaded)return;
+    var s=document.createElement('script');
+    s.src=urls[i];
+    s.onload=function(){loaded=true;window._3dmol_loaded=true;console.log('3Dmol loaded from: '+urls[i])};
+    s.onerror=function(){console.warn('3Dmol CDN failed: '+urls[i]);tryLoad(i+1)};
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
+})();
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0c0e14;--s1:#13161f;--s2:#1a1e2a;--s3:#232836;--border:#2a3040;--text:#e2e6ef;--text2:#7b83a0;--cyan:#22d3ee;--cyan2:#06b6d4;--green:#34d399;--emerald:#10b981;--red:#f87171;--amber:#fbbf24;--purple:#a78bfa;--r:12px}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+
+/* SIDEBAR */
+.layout{display:flex;min-height:100vh}
+.sidebar{width:240px;background:var(--s1);border-right:1px solid var(--border);padding:20px 0;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:50}
+.sidebar-logo{padding:0 20px 24px;font-size:22px;font-weight:800;color:var(--cyan);letter-spacing:-0.5px}
+.sidebar-logo small{display:block;font-size:11px;font-weight:400;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--text2);cursor:pointer;font-size:14px;font-weight:500;transition:all .15s;border-left:3px solid transparent}
+.nav-item:hover{color:var(--text);background:rgba(34,211,238,.04)}
+.nav-item.active{color:var(--cyan);background:rgba(34,211,238,.08);border-left-color:var(--cyan)}
+.nav-section{padding:16px 20px 6px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px}
+.sidebar-footer{position:absolute;bottom:0;left:0;right:0;padding:12px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text2)}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.dot-ok{background:var(--green)}.dot-err{background:var(--red)}.dot-warn{background:var(--amber)}
+
+/* MAIN */
+.main{margin-left:240px;padding:24px 32px;flex:1;min-height:100vh}
+@media(max-width:900px){.sidebar{display:none}.main{margin-left:0;padding:16px}}
+
+/* CARDS */
+.card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:600;color:var(--text)}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+/* KPI */
+.kpi{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:20px;text-align:center}
+.kpi-icon{font-size:28px;margin-bottom:8px}
+.kpi-val{font-size:32px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.kpi-label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;color:var(--text2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+td{padding:10px 12px;border-bottom:1px solid rgba(42,48,64,.5)}
+tr:hover td{background:rgba(34,211,238,.03)}
+
+/* FORM */
+input,select,textarea{background:var(--s3);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:14px;width:100%;font-family:inherit;transition:border .15s}
+input:focus,select:focus{outline:none;border-color:var(--cyan)}
+label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:500}
+
+/* BUTTONS */
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
+.btn-cyan{background:var(--cyan);color:var(--bg)}.btn-cyan:hover{background:var(--cyan2);transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{border-color:var(--cyan);color:var(--text)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn:active{transform:scale(.97)}
+
+/* BADGES */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.b-high{background:rgba(16,185,129,.15);color:var(--emerald)}.b-medium{background:rgba(251,191,36,.15);color:var(--amber)}.b-low{background:rgba(248,113,113,.12);color:var(--red)}
+.b-queued{background:rgba(167,139,250,.12);color:var(--purple)}.b-running{background:rgba(34,211,238,.12);color:var(--cyan)}.b-succeeded{background:rgba(52,211,153,.12);color:var(--green)}.b-failed{background:rgba(248,113,113,.12);color:var(--red)}
+
+/* MISC */
+.progress-bar{height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .3s;border-radius:3px}
+.log-area{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'Courier New',monospace;font-size:12px;color:var(--green);max-height:180px;overflow-y:auto;white-space:pre-wrap}
+.section{display:none}.section.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.card,.kpi{animation:fadeUp .35s ease-out both}
+</style>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Skip to main content</a>
-  <main class="shell" id="main-content">
-    <section class="hero" aria-labelledby="page-title">
-      <div class="hero-head">
-        <h1 class="logo" id="page-title">BioVoid Phase 6 Web Portal</h1>
-        <span class="badge" id="ops-status-badge">Ops: booting…</span>
-      </div>
-      <p>
-        Unified interface for discovery and operations: submit jobs, monitor pipeline state,
-        inspect atlas signals, and download validated artifacts from a single surface.
-      </p>
-    </section>
+<div class="layout">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">BioVoid<small>Cryptic Pocket Discovery</small></div>
+    <div class="nav-section">Analysis</div>
+    <div class="nav-item active" data-section="dashboard">Dashboard</div>
+    <div class="nav-item" data-section="analyze">New Analysis</div>
+    <div class="nav-item" data-section="jobs">Job History</div>
+    <div class="nav-section">Discovery</div>
+    <div class="nav-item" data-section="atlas">Pocket Atlas</div>
+    <div class="nav-item" data-section="report">Reports</div>
+    <div class="nav-section">Validation</div>
+    <div class="nav-item" data-section="benchmark">Benchmark</div>
+    <div class="nav-section">Visuals</div>
+    <div class="nav-item" data-section="gallery">Gallery</div>
+    <div class="nav-section">System</div>
+    <div class="nav-item" data-section="system">System Info</div>
+    <div class="sidebar-footer"><span class="status-dot dot-ok" id="health-dot"></span><span id="health-text">Online</span></div>
+  </nav>
 
-    <section class="board" aria-label="Job Operations">
-      <article class="panel" aria-labelledby="submit-job-title">
-        <h2 id="submit-job-title">Submit Job</h2>
-        <p class="subtitle">Use deterministic <code>quick_probe</code> runs to validate orchestration and compare candidate IDs.</p>
-        <form id="job-form">
-          <div class="field">
-            <label for="pdb-id">PDB ID</label>
-            <input id="pdb-id" name="pdb-id" placeholder="e.g., 1CBS…" minlength="4" maxlength="12" required autocomplete="off" />
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="section active" id="sec-dashboard">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">Dashboard</h2>
+      <div class="grid g4" id="dash-kpis">
+        <div class="kpi"><div class="kpi-icon">🧬</div><div class="kpi-val" id="kpi-proteins">-</div><div class="kpi-label">Proteins</div></div>
+        <div class="kpi"><div class="kpi-icon">🔬</div><div class="kpi-val" id="kpi-pockets">-</div><div class="kpi-label">Pockets</div></div>
+        <div class="kpi"><div class="kpi-icon">💊</div><div class="kpi-val" id="kpi-druggable">-</div><div class="kpi-label">Druggable</div></div>
+        <div class="kpi"><div class="kpi-icon">⭐</div><div class="kpi-val" id="kpi-elite">-</div><div class="kpi-label">Elite</div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><div class="card-title">Score Distribution</div><div id="ch-hist" style="height:280px"></div></div>
+        <div class="card"><div class="card-title">Volume vs Score</div><div id="ch-scatter" style="height:280px"></div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><div class="card-title">Druggability Classes</div><div id="ch-pie" style="height:280px"></div></div>
+        <div class="card"><div class="card-title">Top Discoveries</div><div id="ch-bar" style="height:280px"></div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Recent Discoveries</div></div>
+          <table><thead><tr><th>PDB</th><th>Pocket</th><th>Bio-Score</th><th>Volume</th><th>Class</th></tr></thead><tbody id="dash-recent"></tbody></table>
+        </div>
+        <div class="card">
+          <div class="card-title">Scientific Validation</div>
+          <div style="padding:8px 0">
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text2)">Recall (known pockets)</span><span style="font-weight:700;color:var(--green)">35.0% (7/20)</span></div>
+            <div class="progress-bar" style="margin-bottom:16px"><div class="progress-fill" style="width:35%;background:var(--green)"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text2)">fpocket Overlap</span><span style="font-weight:700;color:var(--amber)">25.97%</span></div>
+            <div class="progress-bar" style="margin-bottom:16px"><div class="progress-fill" style="width:26%;background:var(--amber)"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text2)">False Positive Rate</span><span style="font-weight:700;color:var(--green)">13.11%</span></div>
+            <div class="progress-bar" style="margin-bottom:16px"><div class="progress-fill" style="width:13%;background:var(--green)"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text2)">MD Validated</span><span style="font-weight:700;color:var(--green)">1 protein</span></div>
           </div>
-          <div class="field">
-            <label for="idempotency-key">Idempotency Key</label>
-            <input id="idempotency-key" name="idempotency-key" placeholder="e.g., portal-abc123…" autocomplete="off" />
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text2)">
+            <strong style="color:var(--green)">Phase 5.5 Strict Gate: PASS</strong> | Publication Freeze: PASS
           </div>
-          <div class="inline-3">
-            <div class="field">
-              <label for="priority">Priority</label>
-              <select id="priority" name="priority">
-                <option value="normal">normal</option>
-                <option value="high">high</option>
-              </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYZE -->
+    <div class="section" id="sec-analyze">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">New Analysis</h2>
+      <div class="grid g2">
+        <div class="card">
+          <div class="card-title">Submit Protein</div>
+          <form id="frm-analyze">
+            <div style="margin-bottom:12px"><label>PDB ID</label><input id="inp-pdb" placeholder="e.g. 1CBS, 1AKE, 1TUP" required/></div>
+            <div class="grid g2" style="margin-bottom:12px">
+              <div><label>Type</label><select id="inp-type"><option value="full_analysis">Full Analysis</option><option value="quick_probe">Quick Probe</option></select></div>
+              <div><label>NMA Frames</label><input id="inp-frames" type="number" value="20" min="5" max="200"/></div>
             </div>
-            <div class="field">
-              <label for="timeout-seconds">Timeout (sec)</label>
-              <input id="timeout-seconds" name="timeout-seconds" type="number" min="1" max="600" value="30" inputmode="numeric" />
+            <div class="grid g2" style="margin-bottom:16px">
+              <div><label>Profile</label><select id="inp-profile"><option value="default">Default</option><option value="enzyme">Enzyme</option><option value="ppi">PPI</option><option value="gpcr">GPCR</option></select></div>
+              <div><label>Timeout (s)</label><input id="inp-timeout" type="number" value="120" min="10" max="600"/></div>
             </div>
-            <div class="field">
-              <label for="max-retries">Max Retries</label>
-              <input id="max-retries" name="max-retries" type="number" min="0" max="5" value="2" inputmode="numeric" />
-            </div>
+            <button type="submit" class="btn btn-cyan" id="btn-submit">Start Analysis</button>
+            <span id="submit-msg" style="margin-left:12px;font-size:13px;color:var(--text2)"></span>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Progress</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span id="prog-label">Idle</span><span id="prog-pct">0%</span></div>
+          <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+          <div class="log-area" id="log-area">Ready.</div>
+        </div>
+      </div>
+      <div class="card" id="result-card" style="display:none">
+        <div class="card-title">Results</div>
+        <div class="grid g4" id="result-kpis"></div>
+        <table style="margin-top:12px"><thead><tr><th>Rank</th><th>Volume</th><th>Bio-Score</th><th>Class</th><th>Hydro%</th></tr></thead><tbody id="result-rows"></tbody></table>
+        <button class="btn btn-ghost" id="btn-download" style="margin-top:12px">Download JSON</button>
+        <button class="btn btn-cyan" id="btn-3d" style="margin-top:12px;margin-left:8px" onclick="show3D()">View 3D Structure</button>
+      </div>
+      <div class="card" id="viewer-card" style="display:none">
+        <div class="card-title">3D Protein Structure & Discovered Pockets</div>
+        <div id="viewer-3d" style="width:100%;height:500px;background:#0a0d14;border-radius:8px;position:relative"></div>
+        <div style="margin-top:8px;display:flex;gap:16px;font-size:12px;color:var(--text2)">
+          <span><span style="display:inline-block;width:12px;height:12px;background:#10b981;border-radius:50%;vertical-align:middle"></span> High druggability</span>
+          <span><span style="display:inline-block;width:12px;height:12px;background:#fbbf24;border-radius:50%;vertical-align:middle"></span> Medium</span>
+          <span><span style="display:inline-block;width:12px;height:12px;background:#f87171;border-radius:50%;vertical-align:middle"></span> Low</span>
+          <span>Drag to rotate | Scroll to zoom</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- JOBS -->
+    <div class="section" id="sec-jobs">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">Job History</h2>
+      <div class="card">
+        <div class="card-header"><div class="card-title">All Jobs</div><button class="btn btn-ghost" onclick="loadJobs()">Refresh</button></div>
+        <table><thead><tr><th>ID</th><th>PDB</th><th>Type</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody id="jobs-rows"></tbody></table>
+        <p id="jobs-empty" style="text-align:center;padding:24px;color:var(--text2)">No jobs yet.</p>
+      </div>
+    </div>
+
+    <!-- ATLAS -->
+    <div class="section" id="sec-atlas">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">Pocket Atlas</h2>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Browse Pockets</div>
+          <div style="display:flex;gap:8px">
+            <select id="atlas-cls" style="width:auto"><option value="">All</option><option value="high">High</option><option value="medium">Medium</option></select>
+            <select id="atlas-lim" style="width:auto"><option value="15">15</option><option value="25">25</option><option value="50">50</option></select>
+            <button class="btn btn-ghost" onclick="loadAtlas()">Refresh</button>
           </div>
-          <div class="actions">
-            <button class="btn-primary" type="submit" id="submit-job-btn">Submit</button>
-            <button class="btn-secondary" type="button" id="reset-form-btn">Reset</button>
-          </div>
-        </form>
-        <div class="mono" id="submit-feedback" role="status" aria-live="polite">Ready.</div>
-      </article>
-
-      <article class="panel" aria-labelledby="job-monitor-title">
-        <h2 id="job-monitor-title">Job Monitor</h2>
-        <p class="subtitle">Polls every 1.5s while tracking is active. Stop tracking only affects your browser session.</p>
-        <div class="actions">
-          <span class="status-pill status-idle" id="job-status-pill">idle</span>
-          <button class="btn-danger" type="button" id="stop-tracking-btn">Stop Tracking</button>
         </div>
-        <div class="mono" id="job-meta" role="status" aria-live="polite">No active job.</div>
-        <ul class="timeline" id="timeline" aria-live="polite"></ul>
-        <div class="actions">
-          <button class="btn-accent" type="button" id="download-result-btn" disabled>Download Result JSON</button>
-        </div>
-        <p class="subtitle" id="cancel-feedback">Tracking can be stopped from UI; server job continues safely.</p>
-      </article>
-    </section>
-
-    <section class="panel" aria-labelledby="discovery-title">
-      <div class="hero-head">
-        <h2 id="discovery-title">Discovery Dashboard</h2>
-        <div class="actions">
-          <button class="btn-secondary" type="button" id="refresh-discovery-btn">Refresh Discovery</button>
+        <table><thead><tr><th>PDB</th><th>Pocket</th><th>Score</th><th>Volume</th><th>Class</th><th>Profile</th></tr></thead><tbody id="atlas-rows"></tbody></table>
+        <p id="atlas-empty" style="text-align:center;padding:24px;color:var(--text2)">No data. Run analyses to populate.</p>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <a href="/export/pockets.csv?druggable_only=true" class="btn btn-ghost" style="text-decoration:none">Export CSV</a>
         </div>
       </div>
-      <p class="subtitle">Atlas metrics (from <code>data/atlas.db</code>) and high-signal pockets are now embedded directly in this portal.</p>
-
-      <div class="discovery-grid" aria-label="Discovery KPIs">
-        <div class="metric"><span>Total Proteins</span><strong id="kpi-total-proteins">-</strong></div>
-        <div class="metric"><span>Total Pockets</span><strong id="kpi-total-pockets">-</strong></div>
-        <div class="metric"><span>Druggable Pockets</span><strong id="kpi-druggable-pockets">-</strong></div>
-        <div class="metric"><span>Elite Pockets</span><strong id="kpi-elite-pockets">-</strong></div>
-        <div class="metric"><span>Avg Bio Score</span><strong id="kpi-avg-bio-score">-</strong></div>
-        <div class="metric"><span>Avg Volume</span><strong id="kpi-avg-volume">-</strong></div>
+      <div class="card" id="protein-detail" style="display:none">
+        <div class="card-header">
+          <div class="card-title" id="detail-title">Protein Detail</div>
+          <button class="btn btn-ghost" onclick="$('#protein-detail').style.display='none'">Close</button>
+        </div>
+        <div class="grid g4" id="detail-kpis"></div>
+        <table style="margin-top:12px"><thead><tr><th>Pocket</th><th>Score</th><th>Volume</th><th>Class</th><th>Hydro%</th><th>Enclosure</th><th>Depth</th></tr></thead><tbody id="detail-rows"></tbody></table>
       </div>
+    </div>
 
-      <div class="bars" aria-label="Druggability distribution">
-        <div class="bar-row">
-          <strong>high</strong>
-          <div class="bar-track"><div class="bar-fill" id="class-high-bar" style="width: 0%"></div></div>
-          <span id="class-high-value">0</span>
+    <!-- REPORT -->
+    <div class="section" id="sec-report">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">Discovery Reports</h2>
+      <div class="card">
+        <div class="card-title">Generate Report</div>
+        <p style="color:var(--text2);margin-bottom:16px">Create a summary of BioVoid discoveries for a specific protein.</p>
+        <div class="grid g2">
+          <div><label>PDB ID</label><input id="rpt-pdb" placeholder="e.g. 1CBS"/></div>
+          <div style="display:flex;align-items:end"><button class="btn btn-cyan" onclick="genReport()">Generate</button></div>
         </div>
-        <div class="bar-row">
-          <strong>medium</strong>
-          <div class="bar-track"><div class="bar-fill" id="class-medium-bar" style="width: 0%"></div></div>
-          <span id="class-medium-value">0</span>
-        </div>
-        <div class="bar-row">
-          <strong>low</strong>
-          <div class="bar-track"><div class="bar-fill" id="class-low-bar" style="width: 0%"></div></div>
-          <span id="class-low-value">0</span>
-        </div>
+        <div id="rpt-out" style="margin-top:20px;display:none"></div>
       </div>
+    </div>
 
-      <div class="inline-3" style="margin-top:12px;">
-        <div class="field">
-          <label for="filter-min-score">Min Score</label>
-          <input id="filter-min-score" name="filter-min-score" type="number" min="0" max="1" step="0.01" value="0.2" inputmode="decimal" autocomplete="off" />
+    <!-- BENCHMARK -->
+    <div class="section" id="sec-benchmark">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">Scientific Benchmark</h2>
+      <div class="card">
+        <div class="card-title">Known Cryptic Pockets Test Set (20 proteins)</div>
+        <p style="color:var(--text2);margin-bottom:16px">Validated against literature: Meller et al. 2023, CryptoSite, PocketMiner, Bowman Lab</p>
+        <div class="grid g3" style="margin-bottom:16px">
+          <div class="kpi"><div class="kpi-val" style="color:var(--green)">35.0%</div><div class="kpi-label">Recall (7/20)</div></div>
+          <div class="kpi"><div class="kpi-val" style="color:var(--amber)">25.97%</div><div class="kpi-label">fpocket Overlap</div></div>
+          <div class="kpi"><div class="kpi-val" style="color:var(--green)">13.11%</div><div class="kpi-label">False Positive Rate</div></div>
         </div>
-        <div class="field">
-          <label for="filter-class">Class</label>
-          <select id="filter-class" name="filter-class" autocomplete="off">
-            <option value="">all</option>
-            <option value="high">high</option>
-            <option value="medium">medium</option>
-            <option value="low">low</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="filter-limit">Row Limit</label>
-          <select id="filter-limit" name="filter-limit" autocomplete="off">
-            <option value="8">8</option>
-            <option value="12" selected>12</option>
-            <option value="20">20</option>
-            <option value="25">25</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table id="pockets-table">
-          <caption>Top pocket candidates (druggable-first).</caption>
-          <thead>
-            <tr>
-              <th scope="col">PDB</th>
-              <th scope="col">Pocket</th>
-              <th scope="col">Score</th>
-              <th scope="col">Volume</th>
-              <th scope="col">Class</th>
-              <th scope="col">Rank</th>
-              <th scope="col">Profile</th>
-            </tr>
-          </thead>
-          <tbody id="pockets-tbody"></tbody>
+        <table>
+          <thead><tr><th>PDB</th><th>Protein</th><th>Type</th><th>Ligand</th><th>Status</th></tr></thead>
+          <tbody id="bench-table"></tbody>
         </table>
       </div>
-      <div class="mono" id="discovery-feedback" role="status" aria-live="polite">Loading discovery snapshot…</div>
-      <p class="legacy-note">Legacy Streamlit dashboard is deprecated. Daily use should stay on this unified portal.</p>
-      <p class="footer-note">Single interface mode: jobs + ops + discovery in one page.</p>
-    </section>
+      <div class="card">
+        <div class="card-title">Competitive Landscape</div>
+        <table>
+          <thead><tr><th>Method</th><th>Approach</th><th>Speed</th><th>Cryptic?</th><th>Cost</th></tr></thead>
+          <tbody>
+            <tr><td><strong style="color:var(--cyan)">BioVoid</strong></td><td>NMA + Voronoi + ML</td><td>Minutes</td><td style="color:var(--green)">YES</td><td>Low</td></tr>
+            <tr><td>fpocket</td><td>Voronoi (static)</td><td>Seconds</td><td style="color:var(--red)">NO</td><td>Very Low</td></tr>
+            <tr><td>PocketMiner</td><td>GNN</td><td>Seconds</td><td style="color:var(--green)">YES</td><td>Low (GPU)</td></tr>
+            <tr><td>MD Simulation</td><td>Full dynamics</td><td>Days-Weeks</td><td style="color:var(--green)">YES</td><td>Very High</td></tr>
+            <tr><td>AlphaFold+MD</td><td>Ensemble+MD</td><td>Hours-Days</td><td style="color:var(--green)">YES</td><td>High</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- GALLERY -->
+    <div class="section" id="sec-gallery">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">Visualization Gallery</h2>
+      <div id="gallery-grid" class="grid g3"></div>
+      <p id="gallery-empty" style="text-align:center;padding:40px;color:var(--text2)">Loading artifacts...</p>
+    </div>
+
+    <!-- SYSTEM -->
+    <div class="section" id="sec-system">
+      <h2 style="font-size:24px;font-weight:700;margin-bottom:20px">System Info</h2>
+      <div class="grid g3" id="sys-kpis"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">About BioVoid</div>
+        <p style="color:var(--text2);line-height:1.8">
+          BioVoid is a cryptic pocket discovery pipeline that uses Normal Mode Analysis (NMA) to simulate protein dynamics,
+          Voronoi tessellation to detect hidden cavities, and AI-powered scoring to rank druggability.
+          Unlike traditional tools like fpocket that only analyze static structures, BioVoid explores the conformational space
+          to find pockets that open transiently during protein motion.
+        </p>
+      </div>
+    </div>
+
   </main>
+</div>
 
-  <script>
-    const pollIntervalMs = 1500;
-    const opsPollMs = 4000;
-    let activeJobId = null;
-    let pollingEnabled = false;
-    let pollHandle = null;
-    let opsHandle = null;
+<script>
+const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+const PL={paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(26,30,42,0.6)',font:{color:'#7b83a0',family:'Inter',size:12},margin:{l:40,r:16,t:24,b:36},xaxis:{gridcolor:'#232836'},yaxis:{gridcolor:'#232836'}};
 
-    const statusPill = document.getElementById("job-status-pill");
-    const submitFeedback = document.getElementById("submit-feedback");
-    const jobMeta = document.getElementById("job-meta");
-    const timeline = document.getElementById("timeline");
-    const downloadBtn = document.getElementById("download-result-btn");
-    const cancelFeedback = document.getElementById("cancel-feedback");
-    const opsBadge = document.getElementById("ops-status-badge");
-    const discoveryFeedback = document.getElementById("discovery-feedback");
-    const pocketsTbody = document.getElementById("pockets-tbody");
-    const submitBtn = document.getElementById("submit-job-btn");
-    const formEl = document.getElementById("job-form");
-    let hasUnsavedChanges = false;
+// NAV
+$$('.nav-item').forEach(n=>{n.addEventListener('click',()=>{
+  $$('.nav-item').forEach(x=>x.classList.remove('active'));
+  $$('.section').forEach(x=>x.classList.remove('active'));
+  n.classList.add('active');
+  $(`#sec-${n.dataset.section}`).classList.add('active');
+  if(n.dataset.section==='dashboard')loadDashboard();
+  if(n.dataset.section==='jobs')loadJobs();
+  if(n.dataset.section==='atlas')loadAtlas();
+  if(n.dataset.section==='benchmark')loadBenchmark();
+  if(n.dataset.section==='gallery')loadGallery();
+  if(n.dataset.section==='system')loadSystem();
+})});
 
-    function nowStamp() {
-      return new Date().toISOString();
+let activeJob=null;
+
+// DASHBOARD
+async function loadDashboard(){
+  try{
+    const r=await(await fetch('/atlas/overview')).json();
+    const s=r.summary||{};
+    $('#kpi-proteins').textContent=s.total_proteins||0;
+    $('#kpi-pockets').textContent=s.total_pockets||0;
+    $('#kpi-druggable').textContent=s.druggable_pockets||0;
+    $('#kpi-elite').textContent=s.elite_pockets||0;
+
+    const pr=await(await fetch('/atlas/pockets?limit=25&druggable_only=true')).json();
+    const items=pr.items||[];
+    const cd=r.class_distribution||{};
+
+    // Recent table
+    const tb=$('#dash-recent');tb.innerHTML='';
+    items.slice(0,8).forEach(p=>{
+      tb.innerHTML+=`<tr><td>${p.pdb_id}</td><td>#${p.pocket_id}</td><td>${(p.bio_score||0).toFixed(4)}</td><td>${(p.volume||0).toFixed(0)}</td><td><span class="badge b-${p.druggability_class||'low'}">${p.druggability_class||'low'}</span></td></tr>`;
+    });
+
+    // Charts
+    if(items.length>0&&typeof Plotly!=='undefined'){
+      const sc=items.map(i=>i.bio_score||0),vo=items.map(i=>i.volume||0),cl=items.map(i=>i.druggability_class||'low');
+      const cc={high:'#10b981',medium:'#fbbf24',low:'#f87171'};
+      Plotly.newPlot('ch-hist',[{x:sc,type:'histogram',nbinsx:20,marker:{color:'#22d3ee',opacity:.8}}],{...PL,xaxis:{...PL.xaxis,title:'Bio-Score'},yaxis:{...PL.yaxis,title:'Count'}},{responsive:true});
+      Plotly.newPlot('ch-scatter',[{x:vo,y:sc,mode:'markers',type:'scatter',marker:{color:cl.map(c=>cc[c]||'#666'),size:9,opacity:.7},text:items.map(i=>`${i.pdb_id} #${i.pocket_id}`)}],{...PL,xaxis:{...PL.xaxis,title:'Volume (A³)'},yaxis:{...PL.yaxis,title:'Bio-Score'}},{responsive:true});
+      Plotly.newPlot('ch-pie',[{labels:Object.keys(cd),values:Object.values(cd),type:'pie',hole:.45,marker:{colors:['#10b981','#fbbf24','#f87171']},textfont:{color:'#e2e6ef'}}],{...PL,showlegend:true,legend:{font:{color:'#7b83a0'}}},{responsive:true});
+      const ps={};items.forEach(i=>{if(!ps[i.pdb_id]||i.bio_score>ps[i.pdb_id])ps[i.pdb_id]=i.bio_score});
+      const top=Object.entries(ps).sort((a,b)=>b[1]-a[1]).slice(0,10);
+      Plotly.newPlot('ch-bar',[{x:top.map(t=>t[0]),y:top.map(t=>t[1]),type:'bar',marker:{color:'#06b6d4'}}],{...PL,xaxis:{...PL.xaxis,title:'Protein'},yaxis:{...PL.yaxis,title:'Top Score'}},{responsive:true});
+    }
+  }catch(e){console.error(e)}
+}
+
+// ANALYZE
+$('#frm-analyze').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const pdb=$('#inp-pdb').value.trim();if(!pdb)return;
+  const key=`bv_${pdb}_${Date.now()}`;
+  const body={job_type:$('#inp-type').value,input:{pdb_id:pdb},options:{n_frames:+$('#inp-frames').value,profile:$('#inp-profile').value,timeout_seconds:+$('#inp-timeout').value}};
+  try{
+    $('#btn-submit').disabled=true;
+    const r=await(await fetch('/jobs',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(body)})).json();
+    if(r.error){$('#submit-msg').textContent=r.error.message;$('#btn-submit').disabled=false;return}
+    activeJob=r.job_id;$('#submit-msg').textContent=`Job: ${r.job_id.slice(0,8)}...`;
+    log(`Submitted ${pdb} (${body.job_type})`);
+    pollJob(r.job_id);
+  }catch(err){$('#submit-msg').textContent=err.message;$('#btn-submit').disabled=false}
+});
+function log(m){const a=$('#log-area');a.textContent+='\n['+new Date().toLocaleTimeString()+'] '+m;a.scrollTop=a.scrollHeight}
+function setProg(p,l){$('#prog-fill').style.width=p+'%';$('#prog-pct').textContent=p+'%';if(l)$('#prog-label').textContent=l}
+async function pollJob(id){
+  const iv=setInterval(async()=>{
+    try{const r=await(await fetch('/jobs/'+id)).json();
+      if(r.status==='running'){setProg(50,'Running...');log('Running...')}
+      if(r.status==='succeeded'){clearInterval(iv);setProg(100,'Complete');log('Done!');showResult(r);$('#btn-submit').disabled=false}
+      if(r.status==='failed'){clearInterval(iv);setProg(100,'Failed');log('Failed: '+(r.error?.message||''));$('#btn-submit').disabled=false}
+    }catch(e){clearInterval(iv)}
+  },1500);
+}
+function showResult(data){
+  const r=data.result||{};
+  const cavities=r.cavities||[];
+  $('#result-kpis').innerHTML=`
+    <div class="kpi"><div class="kpi-val">${r.total_cavities||0}</div><div class="kpi-label">Total Cavities</div></div>
+    <div class="kpi"><div class="kpi-val">${r.druggable_cavities||0}</div><div class="kpi-label">Druggable</div></div>
+    <div class="kpi"><div class="kpi-val">${r.high_druggability||0}</div><div class="kpi-label">High Score</div></div>
+    <div class="kpi"><div class="kpi-val">${(r.runtime_seconds||0).toFixed(1)}s</div><div class="kpi-label">Runtime</div></div>`;
+
+  const tb=$('#result-rows');tb.innerHTML='';
+  cavities.forEach(c=>{
+    const cl=c.druggability_class||'low';
+    const sc=c.score_components||{};
+    const conf=c.confidence||{};
+    tb.innerHTML+=`<tr>
+      <td><strong>#${c.rank}</strong></td>
+      <td>${(c.volume||0).toFixed(0)} A³</td>
+      <td><strong style="color:var(--cyan)">${(c.bio_score||0).toFixed(4)}</strong></td>
+      <td><span class="badge b-${cl}">${cl}</span></td>
+      <td>${((c.hydrophobic_ratio||0)*100).toFixed(0)}%</td>
+    </tr>
+    <tr style="background:rgba(34,211,238,.03)"><td colspan="5" style="padding:4px 12px;border:none">
+      <div style="display:flex;gap:16px;font-size:11px;color:var(--text2)">
+        <span>Vol: ${(sc.volume_score||0).toFixed(2)}</span>
+        <span>Hydro: ${(sc.hydrophobicity_score||0).toFixed(2)}</span>
+        <span>Encl: ${(sc.enclosure_score||0).toFixed(2)}</span>
+        <span>Depth: ${(sc.depth_score||0).toFixed(2)}</span>
+        ${sc.sphericity?`<span>Spher: ${sc.sphericity.toFixed(2)}</span>`:''}
+        ${conf.overall?`<span style="color:var(--green)">Conf: ${(conf.overall*100).toFixed(0)}%</span>`:''}
+      </div>
+    </td></tr>`;
+  });
+
+  // Score chart for result
+  if(cavities.length>0&&typeof Plotly!=='undefined'){
+    const ranks=cavities.map(c=>c.rank);
+    const scores=cavities.map(c=>c.bio_score||0);
+    const cls=cavities.map(c=>c.druggability_class||'low');
+    const cc={high:'#10b981',medium:'#fbbf24',low:'#f87171'};
+    const resultChart=document.createElement('div');
+    resultChart.style.height='200px';resultChart.style.marginTop='12px';
+    $('#result-card').appendChild(resultChart);
+    Plotly.newPlot(resultChart,[{x:ranks.map(r=>'#'+r),y:scores,type:'bar',marker:{color:cls.map(c=>cc[c]||'#f87171')}}],{...PL,height:200,xaxis:{...PL.xaxis,title:'Pocket Rank'},yaxis:{...PL.yaxis,title:'Bio-Score'},margin:{l:40,r:16,t:8,b:36}},{responsive:true});
+  }
+
+  $('#result-card').style.display='block';
+  $('#btn-download').onclick=()=>location.href='/jobs/'+activeJob+'/result';
+}
+
+// JOBS
+async function loadJobs(){
+  try{const r=await(await fetch('/jobs?limit=50')).json();const j=r.jobs||[];
+    const tb=$('#jobs-rows');tb.innerHTML='';
+    if(!j.length){$('#jobs-empty').style.display='block';return}
+    $('#jobs-empty').style.display='none';
+    j.forEach(x=>{const s=x.status||'unknown';
+      tb.innerHTML+=`<tr><td style="font-family:monospace;font-size:11px">${x.job_id.slice(0,10)}</td><td>${x.pdb_id}</td><td>${x.job_type}</td><td><span class="badge b-${s}">${s}</span></td><td style="font-size:12px">${new Date(x.created_at_utc).toLocaleString()}</td><td>${s==='queued'?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px" onclick="cancelJ('${x.job_id}')">Cancel</button>`:''}</td></tr>`});
+  }catch(e){}}
+async function cancelJ(id){await fetch('/jobs/'+id+'/cancel',{method:'POST'});loadJobs()}
+
+// ATLAS
+async function loadAtlas(){
+  try{const cls=$('#atlas-cls').value;const lim=$('#atlas-lim').value;
+    let u=`/atlas/pockets?limit=${lim}&druggable_only=true`;if(cls)u+=`&druggability_class=${cls}`;
+    const r=await(await fetch(u)).json();const items=r.items||[];
+    const tb=$('#atlas-rows');tb.innerHTML='';
+    if(!items.length){$('#atlas-empty').style.display='block';return}
+    $('#atlas-empty').style.display='none';
+    items.forEach(p=>{const c=p.druggability_class||'low';
+      tb.innerHTML+=`<tr><td><a href="#" onclick="showProteinDetail('${p.pdb_id}');return false" style="color:var(--cyan);text-decoration:none;font-weight:600">${p.pdb_id}</a></td><td>#${p.pocket_id}</td><td>${(p.bio_score||0).toFixed(4)}</td><td>${(p.volume||0).toFixed(0)}</td><td><span class="badge b-${c}">${c}</span></td><td>${p.profile_used||'-'}</td></tr>`});
+  }catch(e){}}
+$('#atlas-cls').addEventListener('change',loadAtlas);
+$('#atlas-lim').addEventListener('change',loadAtlas);
+
+// REPORT
+async function genReport(){
+  const pdb=$('#rpt-pdb').value.trim();if(!pdb)return;
+  const out=$('#rpt-out');out.style.display='block';out.innerHTML='<p style="color:var(--text2)">Loading...</p>';
+  try{
+    const ov=await(await fetch('/atlas/overview')).json();
+    const pk=await(await fetch(`/atlas/pockets?limit=50&druggable_only=false`)).json();
+    const items=(pk.items||[]).filter(p=>p.pdb_id===pdb.toUpperCase());
+    let h=`<div class="card"><h3 style="color:var(--cyan);margin-bottom:8px">BioVoid Report: ${pdb.toUpperCase()}</h3>`;
+    h+=`<p style="color:var(--text2);font-size:12px">Generated ${new Date().toISOString().slice(0,19)}</p>`;
+    if(items.length){h+=`<table style="margin-top:12px"><thead><tr><th>Pocket</th><th>Score</th><th>Volume</th><th>Class</th></tr></thead><tbody>`;
+      items.forEach(p=>{h+=`<tr><td>#${p.pocket_id}</td><td>${p.bio_score.toFixed(4)}</td><td>${p.volume.toFixed(0)}</td><td><span class="badge b-${p.druggability_class}">${p.druggability_class}</span></td></tr>`});
+      h+='</tbody></table>'
+    }else{h+=`<p style="margin-top:12px;color:var(--text2)">No pockets found. Run an analysis for ${pdb.toUpperCase()} first.</p>`}
+    h+=`<h4 style="margin-top:20px;color:var(--text)">Atlas Context</h4><p style="color:var(--text2)">Proteins: ${ov.summary?.total_proteins||0} | Pockets: ${ov.summary?.total_pockets||0} | Druggable: ${ov.summary?.druggable_pockets||0}</p></div>`;
+    out.innerHTML=h;
+  }catch(e){out.innerHTML=`<p style="color:var(--red)">${e.message}</p>`}}
+
+// SYSTEM
+async function loadSystem(){
+  try{const r=await(await fetch('/ops/metrics')).json();const rd=await(await fetch('/ready')).json();
+    $('#sys-kpis').innerHTML=`
+      <div class="kpi"><div class="kpi-val">${rd.status}</div><div class="kpi-label">Status</div></div>
+      <div class="kpi"><div class="kpi-val">${r.submitted_jobs||0}</div><div class="kpi-label">Total Jobs</div></div>
+      <div class="kpi"><div class="kpi-val">${(r.uptime_seconds/3600).toFixed(1)}h</div><div class="kpi-label">Uptime</div></div>`;
+  }catch(e){}}
+
+// HEALTH
+async function healthCheck(){try{const r=await(await fetch('/health')).json();$('#health-dot').className='status-dot '+(r.status==='ok'?'dot-ok':'dot-err');$('#health-text').textContent=r.status==='ok'?'Online':'Offline'}catch(e){$('#health-dot').className='status-dot dot-err';$('#health-text').textContent='Offline'}}
+setInterval(healthCheck,30000);healthCheck();
+
+// 3D VIEWER
+async function show3D(){
+  if(!activeJob)return;
+  try{
+    const jobData=await(await fetch('/jobs/'+activeJob)).json();
+    const pdbId=(jobData.result?.pdb_id||jobData.request?.input?.pdb_id||'').toLowerCase();
+    if(!pdbId){log('No PDB ID found');return}
+
+    $('#viewer-card').style.display='block';
+    const viewerDiv=$('#viewer-3d');
+    viewerDiv.innerHTML='<p style="color:var(--text2);padding:20px">Loading 3D structure...</p>';
+
+    // Get pockets from job result directly (more reliable than atlas DB)
+    let pockets=[];
+    const cavities=jobData.result?.cavities||[];
+    if(cavities.length>0){
+      pockets=cavities.map(c=>({
+        id:c.id||0,
+        center:c.center||[0,0,0],
+        radius:c.radius_geom||3,
+        bio_score:c.bio_score||0,
+        volume:c.volume||0,
+        druggability_class:c.druggability_class||'low',
+        druggable:c.druggable||false,
+      }));
+    }else{
+      const pocketRes=await(await fetch(`/protein/${pdbId}/pockets`)).json();
+      pockets=pocketRes.pockets||[];
     }
 
-    function pushTimeline(message) {
-      const li = document.createElement("li");
-      li.textContent = "[" + nowStamp() + "] " + message;
-      timeline.prepend(li);
-    }
-
-    function setStatus(status) {
-      const normalized = String(status || "idle").toLowerCase();
-      statusPill.textContent = normalized;
-      statusPill.className = "status-pill status-" + normalized;
-    }
-
-    function setSubmitting(isSubmitting) {
-      submitBtn.disabled = isSubmitting;
-      submitBtn.textContent = isSubmitting ? "Submitting…" : "Submit";
-    }
-
-    function makeIdempotencyKey() {
-      const randomPart = Math.random().toString(36).slice(2);
-      return "portal-" + Date.now().toString(36) + "-" + randomPart;
-    }
-
-    function stopPolling(feedback) {
-      pollingEnabled = false;
-      if (pollHandle) {
-        clearTimeout(pollHandle);
-        pollHandle = null;
-      }
-      cancelFeedback.textContent = feedback || "Tracking stopped.";
-    }
-
-    function nf(value, digits) {
-      if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
-      return Number(value).toLocaleString(undefined, {
-        minimumFractionDigits: digits || 0,
-        maximumFractionDigits: digits || 0
-      });
-    }
-
-    function setText(id, value) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = value;
-    }
-
-    function updateClassBars(dist) {
-      const high = Number(dist.high || 0);
-      const medium = Number(dist.medium || 0);
-      const low = Number(dist.low || 0);
-      const total = high + medium + low;
-      const toPct = (v) => total > 0 ? Math.max(0, Math.min(100, (v / total) * 100)) : 0;
-      const hiPct = toPct(high);
-      const medPct = toPct(medium);
-      const lowPct = toPct(low);
-      document.getElementById("class-high-bar").style.width = hiPct.toFixed(1) + "%";
-      document.getElementById("class-medium-bar").style.width = medPct.toFixed(1) + "%";
-      document.getElementById("class-low-bar").style.width = lowPct.toFixed(1) + "%";
-      setText("class-high-value", nf(high, 0));
-      setText("class-medium-value", nf(medium, 0));
-      setText("class-low-value", nf(low, 0));
-    }
-
-    function renderPocketRows(items) {
-      pocketsTbody.innerHTML = "";
-      if (!items || !items.length) {
-        const tr = document.createElement("tr");
-        const td = document.createElement("td");
-        td.colSpan = 7;
-        td.textContent = "No pockets found for current filters.";
-        tr.appendChild(td);
-        pocketsTbody.appendChild(tr);
-        return;
-      }
-      for (const item of items) {
-        const tr = document.createElement("tr");
-        const clsRaw = String(item.druggability_class || "low").toLowerCase();
-        const cls = ["high", "medium", "low"].includes(clsRaw) ? clsRaw : "low";
-
-        const pdbCell = document.createElement("td");
-        const pdbStrong = document.createElement("strong");
-        pdbStrong.textContent = item.pdb_id || "-";
-        pdbCell.appendChild(pdbStrong);
-
-        const pocketCell = document.createElement("td");
-        pocketCell.textContent = nf(item.pocket_id, 0);
-
-        const scoreCell = document.createElement("td");
-        scoreCell.className = "score";
-        scoreCell.textContent = nf(item.bio_score, 4);
-
-        const volumeCell = document.createElement("td");
-        volumeCell.className = "score";
-        volumeCell.textContent = nf(item.volume, 2);
-
-        const classCell = document.createElement("td");
-        const chip = document.createElement("span");
-        chip.className = "chip chip-" + cls;
-        chip.textContent = cls;
-        classCell.appendChild(chip);
-
-        const rankCell = document.createElement("td");
-        rankCell.textContent = nf(item.rank, 0);
-
-        const profileCell = document.createElement("td");
-        profileCell.textContent = item.profile_used || "-";
-
-        tr.appendChild(pdbCell);
-        tr.appendChild(pocketCell);
-        tr.appendChild(scoreCell);
-        tr.appendChild(volumeCell);
-        tr.appendChild(classCell);
-        tr.appendChild(rankCell);
-        tr.appendChild(profileCell);
-        pocketsTbody.appendChild(tr);
-      }
-    }
-
-    async function pollStatus() {
-      if (!pollingEnabled || !activeJobId) return;
-      try {
-        const res = await fetch("/jobs/" + activeJobId);
-        const data = await res.json();
-        if (!res.ok) {
-          pushTimeline("Polling failed: " + (data.error?.message || "unknown"));
-          stopPolling("Tracking stopped due to API error.");
-          return;
-        }
-        setStatus(data.status);
-        jobMeta.textContent = "job_id=" + data.job_id + " attempts=" + data.attempts;
-        if (data.status === "succeeded") {
-          pushTimeline("Job succeeded.");
-          downloadBtn.disabled = false;
-          stopPolling("Tracking finished. You can download result JSON.");
-          return;
-        }
-        if (data.status === "failed") {
-          const err = data.error ? (data.error.code + ": " + data.error.message) : "unknown";
-          pushTimeline("Job failed: " + err);
-          downloadBtn.disabled = true;
-          stopPolling("Tracking finished with failure.");
-          return;
-        }
-      } catch (err) {
-        pushTimeline("Network error: " + err);
-      }
-      pollHandle = setTimeout(pollStatus, pollIntervalMs);
-    }
-
-    async function refreshOpsBadge() {
-      try {
-        const res = await fetch("/ops/metrics");
-        const data = await res.json();
-        if (!res.ok) {
-          opsBadge.textContent = "Ops: degraded";
-        } else {
-          const status = data.worker_alive ? "healthy" : "degraded";
-          opsBadge.textContent =
-            "Ops: " + status +
-            " | queue " + nf(data.queue_depth, 0) +
-            " | p95 " + nf(data.p95_job_latency_seconds, 3) + "s";
-        }
-      } catch (_) {
-        opsBadge.textContent = "Ops: offline";
-      }
-      if (opsHandle) clearTimeout(opsHandle);
-      opsHandle = setTimeout(refreshOpsBadge, opsPollMs);
-    }
-
-    function readFiltersFromUrl() {
-      const params = new URLSearchParams(window.location.search);
-      const minScore = params.get("min_score");
-      const cls = params.get("class");
-      const limit = params.get("limit");
-      if (minScore !== null) document.getElementById("filter-min-score").value = minScore;
-      if (cls !== null) document.getElementById("filter-class").value = cls;
-      if (limit !== null) document.getElementById("filter-limit").value = limit;
-    }
-
-    function writeFiltersToUrl() {
-      const params = new URLSearchParams(window.location.search);
-      params.set("min_score", document.getElementById("filter-min-score").value);
-      params.set("class", document.getElementById("filter-class").value);
-      params.set("limit", document.getElementById("filter-limit").value);
-      const next = window.location.pathname + "?" + params.toString();
-      window.history.replaceState({}, "", next);
-    }
-
-    async function loadOverview() {
-      try {
-        const res = await fetch("/atlas/overview");
-        const data = await res.json();
-        if (!res.ok || !data.available) {
-          discoveryFeedback.textContent = data.message || "Atlas overview unavailable.";
-          return;
-        }
-        setText("kpi-total-proteins", nf(data.summary.total_proteins, 0));
-        setText("kpi-total-pockets", nf(data.summary.total_pockets, 0));
-        setText("kpi-druggable-pockets", nf(data.summary.druggable_pockets, 0));
-        setText("kpi-elite-pockets", nf(data.summary.elite_pockets, 0));
-        setText("kpi-avg-bio-score", nf(data.summary.avg_bio_score, 4));
-        setText("kpi-avg-volume", nf(data.summary.avg_volume, 2));
-        updateClassBars(data.class_distribution || {});
-      } catch (err) {
-        discoveryFeedback.textContent = "Overview load failed: " + err;
-      }
-    }
-
-    async function loadPockets() {
-      writeFiltersToUrl();
-      const minScore = Number(document.getElementById("filter-min-score").value || 0);
-      const cls = document.getElementById("filter-class").value;
-      const limit = Number(document.getElementById("filter-limit").value || 12);
-      const params = new URLSearchParams();
-      params.set("min_score", String(minScore));
-      params.set("limit", String(limit));
-      params.set("druggable_only", "true");
-      if (cls) params.set("druggability_class", cls);
-
-      discoveryFeedback.textContent = "Loading pockets…";
-      try {
-        const res = await fetch("/atlas/pockets?" + params.toString());
-        const data = await res.json();
-        if (!res.ok || !data.available) {
-          discoveryFeedback.textContent = data.message || "Pocket list unavailable.";
-          renderPocketRows([]);
-          return;
-        }
-        renderPocketRows(data.items || []);
-        discoveryFeedback.textContent = "Loaded " + nf(data.count || 0, 0) + " row(s).";
-      } catch (err) {
-        discoveryFeedback.textContent = "Pocket load failed: " + err;
-        renderPocketRows([]);
-      }
-    }
-
-    formEl.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      downloadBtn.disabled = true;
-      setSubmitting(true);
-
-      const pdbId = document.getElementById("pdb-id").value.trim().toUpperCase();
-      if (!/^[A-Z0-9]{4,12}$/.test(pdbId)) {
-        submitFeedback.textContent = "Invalid PDB ID. Use 4-12 alphanumeric chars, e.g., 1CBS.";
-        document.getElementById("pdb-id").focus();
-        setStatus("failed");
-        setSubmitting(false);
-        return;
-      }
-
-      const idemInput = document.getElementById("idempotency-key");
-      const idempotencyKey = (idemInput.value || makeIdempotencyKey()).trim();
-      idemInput.value = idempotencyKey;
-
-      const payload = {
-        job_type: "quick_probe",
-        input: { pdb_id: pdbId },
-        options: {
-          priority: document.getElementById("priority").value,
-          timeout_seconds: Number(document.getElementById("timeout-seconds").value),
-          max_retries: Number(document.getElementById("max-retries").value)
-        }
-      };
-
-      try {
-        const res = await fetch("/jobs", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": idempotencyKey
-          },
-          body: JSON.stringify(payload)
+    // Try 3Dmol.js first
+    if(typeof $3Dmol!=='undefined'&&window._3dmol_loaded){
+      const pdbRes=await fetch(`/protein/${pdbId}/structure`);
+      if(pdbRes.ok){
+        const pdbData=await pdbRes.text();
+        viewerDiv.innerHTML='';
+        const viewer=$3Dmol.createViewer(viewerDiv,{backgroundColor:'#0a0d14'});
+        viewer.addModel(pdbData,'pdb');
+        viewer.setStyle({},{cartoon:{color:'#4a90d9',opacity:0.85}});
+        const pocketColors={high:'#10b981',medium:'#fbbf24',low:'#f87171'};
+        pockets.forEach(p=>{
+          const c=p.center;const color=pocketColors[p.druggability_class]||'#f87171';
+          viewer.addSphere({center:{x:c[0],y:c[1],z:c[2]},radius:p.radius||3,color:color,opacity:0.6});
+          viewer.addLabel('P'+p.id+' ('+p.bio_score.toFixed(2)+')',{position:{x:c[0],y:c[1]+(p.radius||3)+1,z:c[2]},backgroundColor:color,fontColor:'#fff',fontSize:10,backgroundOpacity:0.8});
         });
-        const data = await res.json();
-        if (!res.ok) {
-          submitFeedback.textContent = JSON.stringify(data, null, 2);
-          setStatus("failed");
-          pushTimeline("Submission failed.");
-          setSubmitting(false);
-          return;
-        }
-        activeJobId = data.job_id;
-        setStatus(data.status);
-        submitFeedback.textContent = "Accepted. job_id=" + activeJobId + " reused=" + data.idempotent_reused;
-        jobMeta.textContent = "job_id=" + activeJobId + " created_at=" + data.created_at_utc;
-        pushTimeline("Job submitted.");
-        cancelFeedback.textContent = "Polling active.";
-        pollingEnabled = true;
-        hasUnsavedChanges = false;
-        pollStatus();
-        setSubmitting(false);
-      } catch (err) {
-        submitFeedback.textContent = "Submit failed: " + err;
-        setStatus("failed");
-        setSubmitting(false);
+        viewer.zoomTo();viewer.render();viewer.zoom(0.9);viewer.spin('y',0.5);
+        log('3Dmol view: '+pdbId.toUpperCase()+' with '+pockets.length+' pockets');
+        return;
+      }
+    }
+
+    // Fallback: Plotly 3D scatter
+    log('Using Plotly 3D fallback');
+    viewerDiv.innerHTML='';
+    const traces=[];
+
+    if(pockets.length>0){
+      const cc={high:'#10b981',medium:'#fbbf24',low:'#f87171'};
+      const x=[],y=[],z=[],colors=[],sizes=[],texts=[];
+      pockets.forEach(p=>{
+        x.push(p.center[0]);y.push(p.center[1]);z.push(p.center[2]);
+        colors.push(cc[p.druggability_class]||'#f87171');
+        sizes.push(Math.max(8,Math.min(25,(p.volume||100)/30)));
+        texts.push('P'+p.id+'<br>Score: '+p.bio_score.toFixed(3)+'<br>Vol: '+(p.volume||0).toFixed(0)+'<br>Class: '+p.druggability_class);
+      });
+      traces.push({x,y,z,mode:'markers',type:'scatter3d',marker:{color:colors,size:sizes,opacity:0.8,line:{color:'#fff',width:1}},text:texts,hoverinfo:'text',name:'Pockets'});
+    }
+
+    Plotly.newPlot(viewerDiv,traces,{
+      paper_bgcolor:'#0a0d14',plot_bgcolor:'#0a0d14',
+      scene:{xaxis:{title:'X (A)',gridcolor:'#1a1e2a',color:'#7b83a0'},yaxis:{title:'Y (A)',gridcolor:'#1a1e2a',color:'#7b83a0'},zaxis:{title:'Z (A)',gridcolor:'#1a1e2a',color:'#7b83a0'},bgcolor:'#0a0d14',aspectmode:'data'},
+      font:{color:'#7b83a0'},margin:{l:0,r:0,t:30,b:0},
+      title:{text:pdbId.toUpperCase()+' — Discovered Pockets (3D)',font:{size:14,color:'#22d3ee'}},
+    },{responsive:true});
+    log('Plotly 3D: '+pdbId.toUpperCase()+' with '+pockets.length+' pockets');
+  }catch(e){log('3D error: '+e.message)}
+}
+
+// PROTEIN DETAIL
+async function showProteinDetail(pdbId){
+  try{
+    const r=await(await fetch('/protein/'+pdbId+'/detail')).json();
+    $('#detail-title').textContent=pdbId+' — Protein Detail';
+    $('#detail-kpis').innerHTML=`
+      <div class="kpi"><div class="kpi-val">${r.total_pockets||0}</div><div class="kpi-label">Pockets</div></div>
+      <div class="kpi"><div class="kpi-val">${r.druggable_pockets||0}</div><div class="kpi-label">Druggable</div></div>
+      <div class="kpi"><div class="kpi-val">${(r.max_bio_score||0).toFixed(3)}</div><div class="kpi-label">Top Score</div></div>
+      <div class="kpi"><div class="kpi-val">${(r.avg_volume||0).toFixed(0)}</div><div class="kpi-label">Avg Volume</div></div>`;
+    const tb=$('#detail-rows');tb.innerHTML='';
+    (r.pockets||[]).forEach(p=>{
+      tb.innerHTML+=`<tr>
+        <td>#${p.pocket_id}</td>
+        <td><strong style="color:var(--cyan)">${(p.bio_score||0).toFixed(4)}</strong></td>
+        <td>${(p.volume||0).toFixed(0)} A³</td>
+        <td><span class="badge b-${p.druggability_class||'low'}">${p.druggability_class||'low'}</span></td>
+        <td>${((p.hydrophobic_ratio||0)*100).toFixed(0)}%</td>
+        <td>${(p.enclosure_score||0).toFixed(2)}</td>
+        <td>${(p.depth_score||0).toFixed(2)}</td>
+      </tr>`;
+    });
+    $('#protein-detail').style.display='block';
+    $('#protein-detail').scrollIntoView({behavior:'smooth'});
+  }catch(e){console.error(e)}
+}
+
+// BENCHMARK
+async function loadBenchmark(){
+  try{
+    const r=await(await fetch('/benchmark/known-pockets')).json();
+    const tb=$('#bench-table');tb.innerHTML='';
+    (r.pockets||[]).forEach(p=>{
+      const typeColors={side_chain_flip:'var(--cyan)',loop_rearrangement:'var(--amber)',helix_displacement:'var(--purple)',domain_motion:'var(--green)'};
+      const tc=typeColors[p.pocket_type]||'var(--text2)';
+      tb.innerHTML+=`<tr>
+        <td><strong>${p.pdb_id}</strong></td>
+        <td>${p.name}</td>
+        <td><span style="color:${tc}">${(p.pocket_type||'').replace(/_/g,' ')}</span></td>
+        <td style="font-size:12px">${p.known_ligand||'-'}</td>
+        <td><span class="badge b-queued">test case</span></td>
+      </tr>`;
+    });
+  }catch(e){console.error(e)}
+}
+
+// GALLERY
+async function loadGallery(){
+  try{
+    const r=await(await fetch('/artifacts')).json();
+    const items=r.artifacts||[];
+    const grid=$('#gallery-grid');grid.innerHTML='';
+    if(!items.length){$('#gallery-empty').textContent='No visualization artifacts found.';return}
+    $('#gallery-empty').style.display='none';
+    items.forEach(a=>{
+      if(a.type==='png'||a.type==='jpg'){
+        grid.innerHTML+=`<div class="card" style="padding:0;overflow:hidden">
+          <img src="${a.url}" style="width:100%;display:block;border-radius:var(--r) var(--r) 0 0" loading="lazy" alt="${a.name}"/>
+          <div style="padding:12px"><div style="font-size:13px;font-weight:600">${a.name}</div><div style="font-size:11px;color:var(--text2)">${a.size_kb} KB</div></div>
+        </div>`;
+      }else if(a.type==='html'){
+        grid.innerHTML+=`<div class="card" style="text-align:center;padding:24px">
+          <div style="font-size:36px;margin-bottom:8px">🧬</div>
+          <div style="font-size:14px;font-weight:600">${a.name}</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:12px">${a.size_kb} KB</div>
+          <a href="${a.url}" target="_blank" class="btn btn-ghost" style="text-decoration:none">Open Interactive View</a>
+        </div>`;
       }
     });
+  }catch(e){$('#gallery-empty').textContent='Error loading gallery.'}
+}
 
-    document.getElementById("stop-tracking-btn").addEventListener("click", () => {
-      stopPolling("Tracking stopped by user. Server-side job continues.");
-      pushTimeline("User stopped tracking.");
-    });
+// NAV handler for gallery
+const origNavHandler=$$('.nav-item')[0];
 
-    document.getElementById("download-result-btn").addEventListener("click", () => {
-      if (!activeJobId) return;
-      window.location.href = "/jobs/" + activeJobId + "/result";
-    });
-
-    document.getElementById("reset-form-btn").addEventListener("click", () => {
-      formEl.reset();
-      document.getElementById("idempotency-key").value = "";
-      submitFeedback.textContent = "Form reset.";
-      setStatus("idle");
-      hasUnsavedChanges = false;
-      setSubmitting(false);
-    });
-
-    document.getElementById("refresh-discovery-btn").addEventListener("click", async () => {
-      await loadOverview();
-      await loadPockets();
-    });
-
-    ["filter-min-score", "filter-class", "filter-limit"].forEach((id) => {
-      document.getElementById(id).addEventListener("change", () => {
-        loadPockets();
-      });
-    });
-
-    formEl.querySelectorAll("input, select").forEach((el) => {
-      el.addEventListener("input", () => {
-        hasUnsavedChanges = true;
-      });
-      el.addEventListener("change", () => {
-        hasUnsavedChanges = true;
-      });
-    });
-
-    window.addEventListener("beforeunload", (event) => {
-      if (!hasUnsavedChanges) return;
-      event.preventDefault();
-      event.returnValue = "";
-    });
-
-    readFiltersFromUrl();
-    setStatus("idle");
-    refreshOpsBadge();
-    loadOverview().then(loadPockets);
-  </script>
+// INIT
+loadDashboard();
+</script>
 </body>
-</html>
-"""
+</html>"""

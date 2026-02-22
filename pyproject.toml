@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biovoid"
+version = "1.0.0"
+description = "Cryptic pocket discovery pipeline using NMA, Voronoi tessellation, and druggability scoring"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "Bio-Void Hunter Team"}]
+
+dependencies = [
+    "biopython>=1.80",
+    "biotite>=1.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-learn>=1.2",
+    "pandas>=2.0",
+    "plotly>=5.15",
+    "requests>=2.28",
+    "tqdm>=4.65",
+    "fastapi>=0.110",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.30"]
+docking = ["meeko>=0.5"]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4",
+    "pre-commit>=3.0",
+]
+
+[project.scripts]
+biovoid = "src.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q --tb=short"

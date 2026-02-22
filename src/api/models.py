@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 CANONICAL_LOCK_KEYS = {"tolerance", "top_n", "druggable_only"}
-ALLOWED_OPTION_KEYS = {"priority", "timeout_seconds", "max_retries"}
+ALLOWED_OPTION_KEYS = {"priority", "timeout_seconds", "max_retries", "n_frames", "profile"}
 
 
 class JobStatus(str, Enum):
@@ -45,7 +45,7 @@ class JobInput(BaseModel):
 class JobSubmitRequest(BaseModel):
     """Create-job request model."""
 
-    job_type: Literal["quick_probe"] = "quick_probe"
+    job_type: Literal["quick_probe", "full_analysis"] = "quick_probe"
     input: JobInput
     options: dict[str, Any] = Field(default_factory=dict)
 
@@ -83,6 +83,46 @@ class JobDetailResponse(BaseModel):
     request: JobSubmitRequest
     result: dict[str, Any] | None = None
     error: JobErrorResponse | None = None
+
+
+class BatchJobSubmitRequest(BaseModel):
+    """Submit multiple PDB IDs for batch analysis."""
+
+    job_type: Literal["quick_probe", "full_analysis"] = "quick_probe"
+    pdb_ids: list[str] = Field(..., min_length=1, max_length=50)
+    options: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("pdb_ids")
+    @classmethod
+    def normalize_all_ids(cls, values: list[str]) -> list[str]:
+        result = []
+        for v in values:
+            normalized = v.strip().upper()
+            if not normalized.isalnum() or len(normalized) < 4:
+                raise ValueError(f"Invalid PDB ID: {v}")
+            result.append(normalized)
+        return result
+
+
+class BatchJobSubmissionResponse(BaseModel):
+    """Response for POST /jobs/batch."""
+
+    batch_id: str
+    job_ids: list[str]
+    total_jobs: int
+    status: str = "accepted"
+
+
+class JobProgressEvent(BaseModel):
+    """WebSocket progress event payload."""
+
+    job_id: str
+    status: str
+    progress_pct: int = 0
+    message: str = ""
+    timestamp: datetime
 
 
 class ErrorEnvelope(BaseModel):

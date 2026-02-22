@@ -31,20 +31,42 @@
 - **Ortam:** Conda `bio-void-env`.
 - **Versiyon Kontrolü:** Git.
 
-## Dizin Yapısı
+## Dizin Yapısı (Güncel - 2026-02-22)
 
 ```
 BioVoid/
-├── data/
-│   ├── raw_pdb/       # İndirilen PDB'ler
-│   ├── frames/        # Oluşturulan konformasyonlar
-│   ├── results/       # Analiz raporları
-│   └── docking/       # Docking çıktıları
 ├── src/
-│   ├── fetcher.py
-│   ├── dynamics.py    # NMA mantığı
-│   ├── geometry.py    # Voronoi mantığı
-│   └── docker.py      # Vina sarmalayıcı
-├── memory-bank/       # Dokümantasyon
-└── main.py            # Orkestratör
+│   ├── api/
+│   │   ├── app.py              # FastAPI backend (Phase 6)
+│   │   ├── orchestrator.py     # Job queue & worker
+│   │   ├── portal.py           # Unified web portal
+│   │   ├── models.py           # Pydantic models
+│   │   ├── rate_limit.py       # Rate limiting
+│   │   └── errors.py           # API errors
+│   ├── docking/
+│   │   ├── vina_wrapper.py     # AutoDock Vina wrapper
+│   │   ├── validation.py       # Docking validation
+│   │   └── interactions.py     # Protein-ligand interactions
+│   ├── fetcher.py              # PDB fetch
+│   ├── dynamics.py             # NMA simulation
+│   ├── geometry.py             # Voronoi scanning
+│   ├── cavities.py             # Cavity analysis
+│   ├── scoring.py              # Druggability scoring
+│   ├── multiframe.py           # Multi-frame analysis
+│   ├── parallel_crawler.py     # Parallel protein scanner
+│   ├── database.py             # SQLite atlas DB
+│   ├── frame_reconstruction.py # Frame rebuilding
+│   ├── visualizer.py           # Visualization
+│   └── dashboard.py            # Streamlit dashboard (legacy)
+├── tests/                      # Unit tests
+├── scripts/                    # Utility & integration scripts
+├── data/                       # Benchmark & validation data
+├── docs/                       # Governance, reports, runbooks
+├── docker/                     # Docker configs (fpocket)
+├── artifacts/                  # Generated artifacts
+├── memory-bank/                # Progress & planning memory
+├── main.py                     # Pipeline orchestrator
+├── main_parallel.py            # Parallel pipeline
+├── requirements.txt            # Python dependencies
+└── README.md
 ```

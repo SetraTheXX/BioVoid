@@ -24,7 +24,7 @@ Phase 3.2: Bio-Score formula + Enclosure Metric + Energy Filter
 Phase 3.3: Benchmarking & rank_pockets() API
 
 Author: Bio-Void Hunter Team
-Version: 0.5.0 (Phase 3)
+Version: 1.0.0 (Scoring v2)
 """
 
 from __future__ import annotations
@@ -58,9 +58,12 @@ DEPTH_CORE_THRESHOLD = 15.0     # Å — deeper = more buried
 DRUGGABILITY_HIGH = 0.65
 DRUGGABILITY_MEDIUM = 0.40
 
+# Sphericity ideal range — drug-like pockets are moderately spherical
+SPHERICITY_IDEAL = 0.6
+
 
 # ============================================================================
-# PHASE 3.1: SCORING PROFILES
+# SCORING PROFILES
 # ============================================================================
 
 class ScoringProfile(ABC):
@@ -209,6 +212,17 @@ class DefaultProfile(ScoringProfile):
         }
 
 
+class CustomProfile(ScoringProfile):
+    """Runtime-configurable profile with arbitrary weights."""
+
+    def __init__(self, weights: dict[str, float]):
+        self._custom_weights = weights
+        super().__init__()
+
+    def _define_weights(self) -> dict[str, float]:
+        return dict(self._custom_weights)
+
+
 # Profile registry for CLI/API access
 PROFILES: dict[str, type[ScoringProfile]] = {
     'enzyme': EnzymeProfile,
@@ -218,12 +232,16 @@ PROFILES: dict[str, type[ScoringProfile]] = {
 }
 
 
-def get_profile(name: str = 'default') -> ScoringProfile:
+def get_profile(name: str = 'default',
+                custom_weights: Optional[dict[str, float]] = None
+                ) -> ScoringProfile:
     """
-    Get a scoring profile by name.
+    Get a scoring profile by name, or create a custom one from weights.
     
     Args:
         name: Profile name ('enzyme', 'ppi', 'gpcr', 'default')
+        custom_weights: Optional dict of weights (overrides name if provided).
+                        Keys must match profile metric keys, values must sum to 1.0.
     
     Returns:
         ScoringProfile instance
@@ -231,6 +249,9 @@ def get_profile(name: str = 'default') -> ScoringProfile:
     Raises:
         ValueError: If profile name is unknown
     """
+    if custom_weights is not None:
+        return CustomProfile(custom_weights)
+
     name_lower = name.lower().strip()
     if name_lower not in PROFILES:
         available = ', '.join(PROFILES.keys())
@@ -430,40 +451,113 @@ def calculate_depth(cavity: Dict[str, Any],
     return max(0.0, min(1.0, depth_raw))
 
 
+def calculate_sphericity(cavity: Dict[str, Any]) -> float:
+    """
+    Estimate pocket sphericity from vertex spread.
+    
+    Sphericity measures how compact/globular the pocket shape is.
+    Drug-like pockets tend to be moderately spherical (~0.5-0.8).
+    
+    Uses principal axis ratio: eigenvalue spread of vertex positions.
+    Perfectly spherical = 1.0, highly elongated = 0.0.
+    """
+    vertices = cavity.get('vertices', [])
+    if len(vertices) < 4:
+        return SPHERICITY_IDEAL
+
+    vert_array = np.array([
+        v if isinstance(v, np.ndarray) else np.array(v)
+        for v in vertices
+    ])
+
+    try:
+        centered = vert_array - vert_array.mean(axis=0)
+        cov = np.cov(centered.T)
+        eigenvalues = np.sort(np.linalg.eigvalsh(cov))[::-1]
+
+        if eigenvalues[0] <= 0:
+            return SPHERICITY_IDEAL
+
+        ratios = eigenvalues[1:] / eigenvalues[0]
+        return float(np.mean(ratios))
+    except Exception:
+        return SPHERICITY_IDEAL
+
+
+def calculate_confidence(cavity: Dict[str, Any],
+                         metrics: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Estimate confidence in the scoring result.
+    
+    Returns per-metric and overall confidence scores based on
+    data quality indicators (vertex count, volume stability, etc.).
+    """
+    n_vertices = len(cavity.get('vertices', []))
+
+    vertex_conf = min(1.0, n_vertices / 10.0)
+
+    volume = cavity.get('volume', 0.0)
+    vol_conf = 1.0 if VOLUME_MIN < volume < VOLUME_MAX else 0.6
+
+    hydro = cavity.get('hydrophobic_ratio')
+    hydro_conf = 0.8 if hydro is not None else 0.3
+
+    metric_confs = {
+        'volume': vol_conf,
+        'hydrophobicity': hydro_conf,
+        'enclosure': vertex_conf,
+        'depth': 0.9,
+    }
+
+    overall = sum(metric_confs.values()) / len(metric_confs)
+
+    weighted_score = sum(
+        metrics.get(k, 0) * c for k, c in metric_confs.items()
+    ) / sum(metric_confs.values())
+
+    margin = 0.15 * (1.0 - overall)
+
+    return {
+        'overall': round(overall, 4),
+        'per_metric': {k: round(v, 4) for k, v in metric_confs.items()},
+        'score_lower': round(max(0.0, weighted_score - margin), 4),
+        'score_upper': round(min(1.0, weighted_score + margin), 4),
+    }
+
+
 # ============================================================================
-# PHASE 3.2: BIO-SCORE CALCULATOR
+# BIO-SCORE CALCULATOR (v2)
 # ============================================================================
 
 def calculate_bio_score(cavity: Dict[str, Any],
                         atom_coords: np.ndarray,
-                        profile: str = 'default') -> Dict[str, Any]:
+                        profile: str = 'default',
+                        custom_weights: Optional[dict[str, float]] = None,
+                        ) -> Dict[str, Any]:
     """
     Calculate composite Bio-Score for a single cavity.
     
-    Computes individual metric scores, then applies profile-weighted sum.
+    Computes individual metric scores, applies profile-weighted sum,
+    and produces confidence estimates.
     
     Args:
         cavity: Cavity dict from find_cavities()
         atom_coords: Protein atom coordinates (heavy atoms)
         profile: Scoring profile name ('enzyme', 'ppi', 'gpcr', 'default')
+        custom_weights: Optional custom weight dict (overrides profile)
     
     Returns:
-        Dict with:
-        - 'bio_score': float [0, 1]
-        - 'score_components': Dict of individual metric scores
-        - 'druggability_class': 'high', 'medium', or 'low'
-        - 'profile_used': str
+        Dict with bio_score, score_components, druggability_class,
+        confidence, sphericity, and profile_used.
     """
-    # Get profile
-    scoring_profile = get_profile(profile)
+    scoring_profile = get_profile(profile, custom_weights=custom_weights)
     
-    # Calculate individual metrics
     volume_score = normalize_volume(cavity.get('volume', 0.0))
     hydro_score = normalize_hydrophobicity(cavity.get('hydrophobic_ratio', 0.0))
     enclosure_score = calculate_enclosure(cavity, atom_coords)
     depth_score = calculate_depth(cavity, atom_coords)
+    sphericity_score = calculate_sphericity(cavity)
     
-    # Build metrics dict
     metrics = {
         'volume': volume_score,
         'hydrophobicity': hydro_score,
@@ -471,10 +565,10 @@ def calculate_bio_score(cavity: Dict[str, Any],
         'depth': depth_score,
     }
     
-    # Calculate weighted score
     bio_score = scoring_profile.calculate_score(metrics)
     
-    # Classify
+    confidence = calculate_confidence(cavity, metrics)
+    
     if bio_score >= DRUGGABILITY_HIGH:
         druggability_class = 'high'
     elif bio_score >= DRUGGABILITY_MEDIUM:
@@ -489,9 +583,11 @@ def calculate_bio_score(cavity: Dict[str, Any],
             'hydrophobicity_score': round(hydro_score, 4),
             'enclosure_score': round(enclosure_score, 4),
             'depth_score': round(depth_score, 4),
+            'sphericity': round(sphericity_score, 4),
         },
         'druggability_class': druggability_class,
         'profile_used': scoring_profile.name,
+        'confidence': confidence,
     }
 
 
@@ -562,6 +658,47 @@ def rank_pockets(cavities: List[Dict[str, Any]],
         ranked = ranked[:top_n]
     
     return ranked
+
+
+def calculate_novelty_score(
+    cavity: Dict[str, Any],
+    fpocket_pockets: Optional[List[Dict[str, Any]]] = None,
+    tolerance: float = 8.0,
+) -> float:
+    """
+    Calculate how 'novel' a discovery is — higher means less likely
+    to be found by traditional tools like fpocket.
+
+    Factors:
+    - Distance from nearest fpocket pocket (if comparison data available)
+    - Depth (deeper = harder to find statically)
+    - Enclosure (more enclosed = harder to find)
+    - Cryptic indicators (low volume but high score)
+    """
+    depth = cavity.get("score_components", {}).get("depth_score", 0.5)
+    enclosure = cavity.get("score_components", {}).get("enclosure_score", 0.5)
+    bio_score = cavity.get("bio_score", 0.0)
+
+    depth_factor = depth * 0.3
+    enclosure_factor = enclosure * 0.3
+    score_factor = bio_score * 0.2
+
+    fpocket_factor = 0.2
+    if fpocket_pockets:
+        center = np.array(cavity.get("center", [0, 0, 0]), dtype=float)
+        min_dist = float("inf")
+        for fp in fpocket_pockets:
+            fp_center = np.array(fp.get("center", [0, 0, 0]), dtype=float)
+            dist = float(np.linalg.norm(center - fp_center))
+            min_dist = min(min_dist, dist)
+
+        if min_dist > tolerance:
+            fpocket_factor = 0.2
+        else:
+            fpocket_factor = 0.2 * (min_dist / tolerance)
+
+    novelty = depth_factor + enclosure_factor + score_factor + fpocket_factor
+    return round(max(0.0, min(1.0, novelty)), 4)
 
 
 def get_elite_pockets(cavities: List[Dict[str, Any]],
