@@ -128,6 +128,32 @@ def cmd_cache(args):
         print(f"Invalidated cache for {args.pdb_id}")
 
 
+def cmd_alphafold(args):
+    """Run AlphaFold ensemble analysis."""
+    _setup_logging(args.verbose)
+    from .alphafold_ensemble import run_alphafold_ensemble_pipeline, EnsembleConfig
+
+    config = EnsembleConfig(
+        n_frames_per_amplitude=args.frames_per_amp,
+        profile=args.profile,
+    )
+    result = run_alphafold_ensemble_pipeline(
+        uniprot_id=args.uniprot_id,
+        config=config,
+    )
+
+    n_pockets = result["analysis"]["total_consensus_pockets"]
+    n_frames = result["analysis"]["total_frames_analyzed"]
+    print(f"\nAlphaFold Ensemble: {args.uniprot_id}")
+    print(f"Frames analyzed: {n_frames}")
+    print(f"Consensus pockets: {n_pockets}")
+
+    for p in result["analysis"].get("consensus_pockets", [])[:5]:
+        center = p.get("center", [0, 0, 0])
+        print(f"  Pocket #{p.get('id', 0)}: score={p.get('consensus_score', 0):.3f} "
+              f"center=[{center[0]:.1f}, {center[1]:.1f}, {center[2]:.1f}]")
+
+
 def cmd_benchmark(args):
     """Run benchmark against known cryptic pockets."""
     _setup_logging(args.verbose)
@@ -214,6 +240,14 @@ def main():
     p_cache.add_argument("action", choices=["stats", "clear", "invalidate"])
     p_cache.add_argument("--pdb-id", default=None)
     p_cache.set_defaults(func=cmd_cache)
+
+    # alphafold
+    p_af = sub.add_parser("alphafold", help="AlphaFold ensemble analysis")
+    p_af.add_argument("uniprot_id", help="UniProt ID (e.g. P04637)")
+    p_af.add_argument("--frames-per-amp", type=int, default=10)
+    p_af.add_argument("--profile", default=PIPELINE.profile)
+    p_af.add_argument("-v", "--verbose", action="store_true")
+    p_af.set_defaults(func=cmd_alphafold)
 
     # benchmark
     p_bench = sub.add_parser("benchmark", help="Run accuracy benchmark")
