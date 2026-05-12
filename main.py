@@ -32,7 +32,7 @@ from src.dynamics import run_nma_simulation
 from src.geometry import find_voids, extract_atom_coords
 from src.cavities import find_cavities
 from src.profiling import PipelineProfiler
-from src.scoring import rank_pockets
+from src.scoring import rank_pockets, estimate_drug_likeness
 from src.visualizer import BioVoidVisualizer
 from src.docking import dock_elite_pockets, DockingError
 
@@ -228,12 +228,16 @@ class BioVoidPipeline:
         logger.info("[SCORING] Druggability: %s",
                     ", ".join(f"{v} {k}" for k, v in by_class.items()))
         
+        for cavity in self.cavities:
+            cavity['drug_likeness'] = estimate_drug_likeness(cavity)
+
         if self.cavities:
             top = self.cavities[0]
-            logger.info("[SCORING] Top pocket: rank #%s | bio_score=%.4f | class=%s",
+            logger.info("[SCORING] Top pocket: rank #%s | bio_score=%.4f | class=%s | drug_likeness=%.2f",
                         top.get('rank', '?'),
                         top.get('bio_score', 0),
-                        top.get('druggability_class', '?'))
+                        top.get('druggability_class', '?'),
+                        top.get('drug_likeness', 0))
     
     def _run_multiframe_consensus(self):
         """Run multi-frame consensus analysis across all NMA frames."""
@@ -366,12 +370,19 @@ class BioVoidPipeline:
                 cavity_data['polar_atoms'] = cavity['polar_atoms']
                 cavity_data['druggable'] = cavity['druggable']
             
-            # Add scoring data (Phase 3)
             if 'bio_score' in cavity:
                 cavity_data['bio_score'] = cavity['bio_score']
                 cavity_data['druggability_class'] = cavity['druggability_class']
                 cavity_data['score_components'] = cavity['score_components']
                 cavity_data['profile_used'] = cavity['profile_used']
+
+            if 'drug_likeness' in cavity:
+                cavity_data['drug_likeness'] = cavity['drug_likeness']
+
+            if 'ml_score' in cavity:
+                cavity_data['ml_score'] = cavity['ml_score']
+            if 'ml_rank' in cavity:
+                cavity_data['ml_rank'] = cavity['ml_rank']
             
             cavity_list.append(cavity_data)
         
@@ -420,55 +431,12 @@ class BioVoidPipeline:
     def _save_to_atlas(self, report: Dict):
         """Save results to Atlas database for dashboard visibility."""
         try:
-            from src.database import AtlasDB, ProteinRecord, PocketRecord
+            from src.database import AtlasDB
 
             db_path = self.output_dir.parent / "atlas.db"
             with AtlasDB(str(db_path)) as db:
-                protein = ProteinRecord(
-                    pdb_id=self.pdb_id,
-                    total_cavities=report.get("total_cavities", 0),
-                    druggable_cavities=report.get("druggable_cavities", 0),
-                    high_score_count=report.get("high_druggability", 0),
-                    medium_score_count=report.get("medium_druggability", 0),
-                    top_bio_score=max(
-                        (c.get("bio_score", 0) for c in report.get("cavities", [])),
-                        default=0.0,
-                    ),
-                    analysis_runtime=report.get("runtime_seconds", 0.0),
-                    n_frames=self.n_frames,
-                    scoring_profile=self.profile,
-                )
-                db.upsert_protein(protein)
-
-                pockets = []
-                for c in report.get("cavities", []):
-                    center = c.get("center", [0, 0, 0])
-                    sc = c.get("score_components", {})
-                    pockets.append(PocketRecord(
-                        pdb_id=self.pdb_id,
-                        pocket_id=c.get("id", 0),
-                        rank=c.get("rank", 0),
-                        bio_score=c.get("bio_score", 0.0),
-                        volume=c.get("volume", 0.0),
-                        center_x=center[0] if len(center) > 0 else 0.0,
-                        center_y=center[1] if len(center) > 1 else 0.0,
-                        center_z=center[2] if len(center) > 2 else 0.0,
-                        radius_geom=c.get("radius_geom", 0.0),
-                        radius_clear=c.get("radius_clear", 0.0),
-                        merged_vertices=c.get("merged_vertices", 0),
-                        hydrophobic_ratio=c.get("hydrophobic_ratio", 0.0),
-                        polar_atoms=c.get("polar_atoms", 0),
-                        druggable=c.get("druggable", False),
-                        druggability_class=c.get("druggability_class", "low"),
-                        enclosure_score=sc.get("enclosure_score", 0.0),
-                        depth_score=sc.get("depth_score", 0.0),
-                        volume_score=sc.get("volume_score", 0.0),
-                        hydrophobicity_score=sc.get("hydrophobicity_score", 0.0),
-                        profile_used=c.get("profile_used", "Default"),
-                    ))
-                if pockets:
-                    db.batch_insert_pockets(pockets)
-                logger.info("[ATLAS] Saved %d pockets for %s", len(pockets), self.pdb_id)
+                saved = db.batch_insert_from_report(report)
+                logger.info("[ATLAS] Saved %d pockets for %s", saved, self.pdb_id)
         except Exception as e:
             logger.warning("[ATLAS] DB save failed: %s", e)
 

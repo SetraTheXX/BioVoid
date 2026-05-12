@@ -9,16 +9,37 @@ Single web application that combines:
 - System health monitoring
 
 All served from FastAPI at /portal
+
+Template lives in templates/portal.html (extracted from inline string).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
+_TEMPLATE_DIR = Path(__file__).parent / "templates"
+_PORTAL_CACHE: str | None = None
+_PORTAL_MTIME: float = 0.0
+
 
 def render_portal_html() -> str:
-    return _HTML
+    """Load portal HTML from template file. Reloads on file change."""
+    global _PORTAL_CACHE, _PORTAL_MTIME
+
+    template_path = _TEMPLATE_DIR / "portal.html"
+    if template_path.exists():
+        mtime = template_path.stat().st_mtime
+        if _PORTAL_CACHE is None or mtime != _PORTAL_MTIME:
+            _PORTAL_CACHE = template_path.read_text(encoding="utf-8")
+            _PORTAL_MTIME = mtime
+        return _PORTAL_CACHE
+
+    return _LEGACY_HTML
 
 
-_HTML = r"""<!doctype html>
+_FALLBACK_HTML = """<!doctype html><html><body><h1>BioVoid Portal</h1><p>Template file not found. Place portal.html in src/api/templates/.</p></body></html>"""
+
+_LEGACY_HTML = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -45,6 +66,7 @@ _HTML = r"""<!doctype html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0c0e14;--s1:#13161f;--s2:#1a1e2a;--s3:#232836;--border:#2a3040;--text:#e2e6ef;--text2:#7b83a0;--cyan:#22d3ee;--cyan2:#06b6d4;--green:#34d399;--emerald:#10b981;--red:#f87171;--amber:#fbbf24;--purple:#a78bfa;--r:12px}
+[data-theme="light"]{--bg:#f5f7fa;--s1:#ffffff;--s2:#ffffff;--s3:#eef1f6;--border:#d1d5db;--text:#1f2937;--text2:#6b7280;--cyan:#0891b2;--cyan2:#0e7490;--green:#059669;--emerald:#047857;--red:#dc2626;--amber:#d97706;--purple:#7c3aed}
 html{scroll-behavior:smooth}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
 
@@ -128,6 +150,7 @@ label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-wei
     <div class="nav-item" data-section="gallery">Gallery</div>
     <div class="nav-section">System</div>
     <div class="nav-item" data-section="system">System Info</div>
+    <div style="padding:8px 20px"><button class="btn btn-ghost" style="width:100%;padding:6px;font-size:11px" onclick="toggleTheme()">Toggle Theme</button></div>
     <div class="sidebar-footer"><span class="status-dot dot-ok" id="health-dot"></span><span id="health-text">Online</span></div>
   </nav>
 
@@ -169,6 +192,10 @@ label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-wei
           </div>
           <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text2)">
             <strong style="color:var(--green)">Phase 5.5 Strict Gate: PASS</strong> | Publication Freeze: PASS
+          </div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px">
+            <strong style="color:var(--purple)">ML Model:</strong>
+            <span id="ml-status" style="color:var(--text2)">Checking...</span>
           </div>
         </div>
       </div>
@@ -379,6 +406,12 @@ async function loadDashboard(){
       const top=Object.entries(ps).sort((a,b)=>b[1]-a[1]).slice(0,10);
       Plotly.newPlot('ch-bar',[{x:top.map(t=>t[0]),y:top.map(t=>t[1]),type:'bar',marker:{color:'#06b6d4'}}],{...PL,xaxis:{...PL.xaxis,title:'Protein'},yaxis:{...PL.yaxis,title:'Top Score'}},{responsive:true});
     }
+    // Check ML model
+    try{const ml=await fetch('/health');const hd=await ml.json();
+      const ms=$('#ml-status');
+      if(hd.ml_model_loaded){ms.textContent='Active (RF 200-tree)';ms.style.color='var(--green)'}
+      else{ms.textContent='Not loaded';ms.style.color='var(--amber)'}
+    }catch(e){}
   }catch(e){console.error(e)}
 }
 
@@ -672,6 +705,22 @@ async function loadGallery(){
 
 // NAV handler for gallery
 const origNavHandler=$$('.nav-item')[0];
+
+// THEME TOGGLE
+function toggleTheme(){
+  const h=document.documentElement;
+  const t=h.getAttribute('data-theme')==='light'?'dark':'light';
+  h.setAttribute('data-theme',t==='dark'?'':'light');
+  localStorage.setItem('bv-theme',t);
+}
+(function(){const t=localStorage.getItem('bv-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light')})();
+
+// KEYBOARD SHORTCUTS
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.key==='n'){e.preventDefault();$$('.nav-item')[1].click()}
+  if(e.ctrlKey&&e.key==='d'){e.preventDefault();$$('.nav-item')[0].click()}
+  if(e.ctrlKey&&e.key==='b'){e.preventDefault();$$('.nav-item')[5].click()}
+});
 
 // INIT
 loadDashboard();

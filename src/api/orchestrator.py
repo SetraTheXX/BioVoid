@@ -388,54 +388,11 @@ class JobOrchestrator:
         }
 
         try:
-            from src.database import AtlasDB, ProteinRecord, PocketRecord
+            from src.database import AtlasDB
             db_path = project_root / "data" / "atlas.db"
             with AtlasDB(str(db_path)) as db:
-                protein = ProteinRecord(
-                    pdb_id=pdb_id,
-                    total_cavities=report.get("total_cavities", 0),
-                    druggable_cavities=report.get("druggable_cavities", 0),
-                    high_score_count=report.get("high_druggability", 0),
-                    medium_score_count=report.get("medium_druggability", 0),
-                    top_bio_score=max(
-                        (c.get("bio_score", 0) for c in report.get("cavities", [])),
-                        default=0.0,
-                    ),
-                    analysis_runtime=report.get("runtime_seconds", 0.0),
-                    n_frames=n_frames,
-                    scoring_profile=profile,
-                )
-                db.upsert_protein(protein)
-
-                pockets = []
-                for c in report.get("cavities", []):
-                    center = c.get("center", [0, 0, 0])
-                    sc = c.get("score_components", {})
-                    pockets.append(PocketRecord(
-                        pdb_id=pdb_id,
-                        pocket_id=c.get("id", 0),
-                        rank=c.get("rank", 0),
-                        bio_score=c.get("bio_score", 0.0),
-                        volume=c.get("volume", 0.0),
-                        center_x=center[0] if len(center) > 0 else 0.0,
-                        center_y=center[1] if len(center) > 1 else 0.0,
-                        center_z=center[2] if len(center) > 2 else 0.0,
-                        radius_geom=c.get("radius_geom", 0.0),
-                        radius_clear=c.get("radius_clear", 0.0),
-                        merged_vertices=c.get("merged_vertices", 0),
-                        hydrophobic_ratio=c.get("hydrophobic_ratio", 0.0),
-                        polar_atoms=c.get("polar_atoms", 0),
-                        druggable=c.get("druggable", False),
-                        druggability_class=c.get("druggability_class", "low"),
-                        enclosure_score=sc.get("enclosure_score", 0.0),
-                        depth_score=sc.get("depth_score", 0.0),
-                        volume_score=sc.get("volume_score", 0.0),
-                        hydrophobicity_score=sc.get("hydrophobicity_score", 0.0),
-                        profile_used=c.get("profile_used", "Default"),
-                    ))
-                if pockets:
-                    db.batch_insert_pockets(pockets)
-                logger.info("Saved %d pockets for %s to Atlas DB", len(pockets), pdb_id)
+                saved = db.batch_insert_from_report(report)
+                logger.info("Saved %d pockets for %s to Atlas DB", saved, pdb_id)
         except Exception as e:
             logger.warning("Failed to save to Atlas DB: %s", e)
 
