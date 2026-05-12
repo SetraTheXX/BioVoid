@@ -23,7 +23,7 @@ import numpy as np
 from scipy.spatial import Voronoi, ConvexHull, Delaunay
 import biotite.structure.io.pdb as pdb
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 import time
 
 
@@ -33,10 +33,10 @@ import time
 
 # Distance window for druggable pockets (Angstroms)
 MIN_DISTANCE = 2.5  # Below this: inside atom (physically impossible)
-MAX_DISTANCE = 8.0  # Above this: surface valley, not pocket
+MAX_DISTANCE = 10.0  # Above this: surface valley, not pocket (relaxed for cryptic pockets)
 
 # Volume threshold for ligand binding
-MIN_VOLUME = 200.0  # Å³ (minimum volume for small molecule binding)
+MIN_VOLUME = 60.0  # Å³ (aggressive: catch small cryptic pockets for later filtering)
 
 # NOTE: ConvexHull filtering uses Delaunay.find_simplex (more stable)
 # Floating-point tolerance not needed for this approach
@@ -256,7 +256,7 @@ def calculate_vertex_void_properties(vertex: np.ndarray, coords: np.ndarray) -> 
 # ============================================================================
 
 def find_voids(pdb_file: str, min_volume: float = MIN_VOLUME,
-               atom_type: str = 'heavy') -> List[Dict]:
+               atom_type: str = 'heavy') -> List[Dict[str, Any]]:
     """
     Main API: Find voids in protein structure.
     
@@ -280,41 +280,58 @@ def find_voids(pdb_file: str, min_volume: float = MIN_VOLUME,
        - Filter by min_volume
     5. Sort by volume (descending)
     
-    Elite-Level Refinements:
+    Refinements:
     - Heavy Atoms default
     - ConvexHull filtering (ghost void elimination)
-    - Distance window (2.5-8.0 Å)
+    - Adaptive distance window based on protein size
     - Volume filter (> min_volume)
     """
     # 1. Extract atom coordinates
     coords = extract_atom_coords(pdb_file, atom_type=atom_type)
     
+    # Adaptive thresholds based on protein size
+    n_atoms = len(coords)
+    adaptive_max = MAX_DISTANCE
+    adaptive_min_vol = min_volume
+    if n_atoms > 2000:
+        adaptive_max = MAX_DISTANCE + 2.0
+    elif n_atoms < 500:
+        adaptive_max = MAX_DISTANCE - 1.0
+
+    if n_atoms < 300:
+        adaptive_min_vol = min(min_volume, 40.0)
+    elif n_atoms > 3000:
+        adaptive_min_vol = min_volume * 1.2
+
     # 2. Calculate Voronoi diagram
     vor = calculate_voronoi(coords)
     
     # 3. Filter surface voids (ConvexHull)
     buried_vertices = filter_surface_voids(vor, coords)
     
-    # 4. Calculate void properties and filter
+    # 4. Multi-scale distance scanning: primary + relaxed pass
     voids = []
-    
-    for vertex in buried_vertices:
-        # Calculate distances to all atoms
-        distances = np.linalg.norm(coords - vertex, axis=1)
-        min_dist = np.min(distances)
-        
-        # Distance window filter (2.5-8.0 Å)
-        if not (MIN_DISTANCE <= min_dist <= MAX_DISTANCE):
-            continue
-        
-        # Calculate void properties
-        void_props = calculate_vertex_void_properties(vertex, coords)
-        
-        # Volume filter
-        if void_props['volume'] < min_volume:
-            continue
-        
-        voids.append(void_props)
+    seen_centers: set[tuple] = set()
+
+    for scale_max in [adaptive_max, adaptive_max + 2.0]:
+        for vertex in buried_vertices:
+            key = tuple(np.round(vertex, 2))
+            if key in seen_centers:
+                continue
+
+            distances = np.linalg.norm(coords - vertex, axis=1)
+            min_dist = np.min(distances)
+
+            if not (MIN_DISTANCE <= min_dist <= scale_max):
+                continue
+
+            void_props = calculate_vertex_void_properties(vertex, coords)
+
+            if void_props['volume'] < adaptive_min_vol:
+                continue
+
+            seen_centers.add(key)
+            voids.append(void_props)
     
     # 5. Sort by volume (descending)
     voids = sorted(voids, key=lambda x: x['volume'], reverse=True)

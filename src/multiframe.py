@@ -31,11 +31,11 @@ class ConsensusConfig:
     """Configuration for multi-frame consensus aggregation."""
 
     profile: str = "default"
-    per_frame_top_n: int = 20
-    min_support_frames: int = 3
-    cluster_distance: float = 4.0
-    center_stability_max: float = 2.0
-    volume_cv_max: float = 0.20
+    per_frame_top_n: int = 50
+    min_support_frames: int = 2
+    cluster_distance: float = 6.0
+    center_stability_max: float = 4.0
+    volume_cv_max: float = 0.35
 
 
 def list_frame_files(frames_dir: str | Path) -> list[Path]:

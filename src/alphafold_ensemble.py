@@ -24,16 +24,22 @@ from typing import Any, Optional
 
 import numpy as np
 
+from .config import PIPELINE
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class EnsembleConfig:
-    """Configuration for ensemble generation."""
+    """Configuration for ensemble generation.
+
+    Uses 3 amplitude levels (2.0, 3.0, 5.0) by default for better
+    multi-amplitude sampling across conformational space.
+    """
 
     n_modes: int = 10
     n_frames_per_amplitude: int = 10
-    amplitudes: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0, 3.0)
+    amplitudes: tuple[float, ...] = (2.0, 3.0, 5.0)
     profile: str = "default"
     consensus_min_support: int = 3
     cluster_distance: float = 4.0
@@ -121,8 +127,12 @@ def analyze_ensemble(
     config: EnsembleConfig = EnsembleConfig(),
 ) -> dict[str, Any]:
     """
-    Run BioVoid cavity analysis on all ensemble members and
-    build consensus pockets.
+    Run BioVoid cavity analysis on all ensemble members across all
+    amplitude levels and aggregate results into a single consensus.
+
+    Frames from all amplitudes (e.g. 2.0, 3.0, 5.0) are pooled,
+    clustered by pocket center, and merged into consensus pockets
+    with min_support_frames threshold.
     """
     from .multiframe import (
         ConsensusConfig,
@@ -191,16 +201,20 @@ def analyze_ensemble(
 
 def run_alphafold_ensemble_pipeline(
     uniprot_id: str,
-    config: EnsembleConfig = EnsembleConfig(),
+    config: EnsembleConfig | None = None,
     output_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """
     Complete AlphaFold ensemble pipeline:
     1. Fetch AlphaFold structure
-    2. Generate NMA ensemble with varying amplitudes
-    3. Analyze all ensemble members
-    4. Return consensus pockets with persistence data
+    2. Generate NMA ensemble with 3 amplitude levels (2.0, 3.0, 5.0)
+    3. Analyze all ensemble members across all amplitudes
+    4. Aggregate results from all amplitudes into a single consensus
+    5. Return consensus pockets with persistence data
     """
+    if config is None:
+        config = EnsembleConfig(amplitudes=PIPELINE.alphafold_amplitudes)
+
     logger.info("AlphaFold ensemble pipeline for %s", uniprot_id)
 
     pdb_path = fetch_alphafold_structure(uniprot_id)

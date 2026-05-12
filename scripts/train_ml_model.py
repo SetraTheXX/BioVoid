@@ -80,12 +80,17 @@ def main():
         logger.error("Not enough data to train (need >= 50)")
         return
 
+    scores = np.array([p.get("bio_score", 0) for p in pockets])
+    p75 = float(np.percentile(scores, 75))
+    p30 = float(np.percentile(scores, 30))
+    logger.info("Score distribution: P30=%.4f, P75=%.4f", p30, p75)
+
     logger.info("Building dataset...")
     ds = build_dataset(
         pockets, pdb_ids,
         label_policy=LabelPolicy(
-            positive_min_bio_score=0.65,
-            negative_max_bio_score=0.40,
+            positive_min_bio_score=p75,
+            negative_max_bio_score=p30,
             positive_require_druggable=True,
         ),
         split_config=SplitConfig(train_ratio=0.70, val_ratio=0.15, test_ratio=0.15, seed=42),
@@ -97,8 +102,8 @@ def main():
     logger.info("Positive: %d, Negative: %d",
                 ds["manifest"].n_positive, ds["manifest"].n_negative)
 
-    if ds["X_train"].shape[0] < 20:
-        logger.error("Not enough labeled samples")
+    if ds["X_train"].shape[0] < 20 or ds["manifest"].n_positive < 5 or ds["manifest"].n_negative < 5:
+        logger.error("Not enough labeled samples (need both classes)")
         return
 
     X_train, stats = normalize_features(ds["X_train"], method="standard")

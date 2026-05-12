@@ -303,7 +303,8 @@ class TestAnalyzeSingleProtein:
         )
         assert result["status"] == "success"
         assert result["pdb_id"] == "1CBS"
-        assert result["cavities"] > 0
+        cavities = result["cavities"]
+        assert (isinstance(cavities, int) and cavities > 0) or (isinstance(cavities, list) and len(cavities) > 0)
         assert result["top_bio_score"] > 0.0
         assert result["runtime"] > 0.0
 

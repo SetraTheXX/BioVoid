@@ -21,7 +21,9 @@ from scipy.spatial import Voronoi, ConvexHull, KDTree
 from scipy.cluster.hierarchy import fclusterdata
 import biotite.structure.io.pdb as pdb
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+from .config import CavityDict
 
 # Import Phase 2.3 functions
 from .geometry import find_voids, extract_atom_coords
@@ -32,16 +34,16 @@ from .geometry import find_voids, extract_atom_coords
 # ============================================================================
 
 # Cavity merging threshold (parametric for adaptive tuning)
-MERGE_THRESHOLD = 3.0  # Å (distance threshold for hierarchical clustering)
+MERGE_THRESHOLD = 4.0  # Å (increased for better cryptic pocket capture)
 
 # Hydrophobic residues (druggability filter)
 HYDROPHOBIC_RESIDUES = {'LEU', 'ILE', 'VAL', 'PHE', 'TRP', 'MET', 'ALA', 'PRO'}
 
 # Polar atom threshold for druggable cavity
-POLAR_THRESHOLD = 3  # Max polar atoms near cavity center
+POLAR_THRESHOLD = 6  # Max polar atoms near cavity center (relaxed for mixed-character pockets)
 
 # Search radius for hydrophobic analysis
-HYDROPHOBIC_SEARCH_RADIUS = 5.0  # Å
+HYDROPHOBIC_SEARCH_RADIUS = 6.0  # Å (increased for better neighborhood sampling)
 
 
 # ============================================================================
@@ -179,7 +181,7 @@ def merge_cavities(voids: List[Dict],
 # 3. CAVITY PROPERTIES (Dual Radii + Weighted Centroid)
 # ============================================================================
 
-def calculate_cavity_properties(cavity: Dict, coords: np.ndarray) -> Dict:
+def calculate_cavity_properties(cavity: CavityDict, coords: np.ndarray) -> CavityDict:
     """
     Calculate merged cavity properties with dual radii.
     
@@ -233,8 +235,8 @@ def calculate_cavity_properties(cavity: Dict, coords: np.ndarray) -> Dict:
 # 4. HYDROPHOBIC FILTERING (KD-Tree + Polar Threshold)
 # ============================================================================
 
-def filter_hydrophobic(cavities: List[Dict], pdb_file: str,
-                       search_radius: float = HYDROPHOBIC_SEARCH_RADIUS) -> List[Dict]:
+def filter_hydrophobic(cavities: List[CavityDict], pdb_file: str,
+                       search_radius: float = HYDROPHOBIC_SEARCH_RADIUS) -> List[CavityDict]:
     """
     Filter cavities by hydrophobicity for druggability prediction.
     
@@ -308,8 +310,8 @@ def filter_hydrophobic(cavities: List[Dict], pdb_file: str,
         else:
             polar_atoms = 0
         
-        # Druggability criteria
-        druggable = (hydrophobic_ratio > 0.5 and polar_atoms < POLAR_THRESHOLD)
+        # Druggability criteria (relaxed to capture more cryptic pockets)
+        druggable = (hydrophobic_ratio > 0.3 and polar_atoms < POLAR_THRESHOLD)
         
         cavity['druggable'] = druggable
         cavity['hydrophobic_ratio'] = hydrophobic_ratio
@@ -323,12 +325,12 @@ def filter_hydrophobic(cavities: List[Dict], pdb_file: str,
 # ============================================================================
 
 def find_cavities(pdb_file: str, 
-                  min_volume: float = 200.0,
-                  max_volume: float = 3000.0, # New filter
+                  min_volume: float = 100.0,
+                  max_volume: float = 5000.0,
                   atom_type: str = 'heavy',
                   merge: bool = True,
                   hydrophobic: bool = True,
-                  merge_threshold: float = MERGE_THRESHOLD) -> List[Dict]:
+                  merge_threshold: float = MERGE_THRESHOLD) -> List[CavityDict]:
     """
     Main API: Find and analyze cavities in protein structure.
     
@@ -364,9 +366,22 @@ def find_cavities(pdb_file: str,
     # Get coords for property calculation
     coords = extract_atom_coords(pdb_file, atom_type=atom_type)
     
+    # Adaptive merge threshold based on void density and protein size
+    effective_threshold = merge_threshold
+    if len(voids) > 200:
+        effective_threshold = merge_threshold + 1.5
+    elif len(voids) > 100:
+        effective_threshold = merge_threshold + 1.0
+    elif len(voids) < 10:
+        effective_threshold = max(2.5, merge_threshold - 0.5)
+
+    n_atoms = len(coords)
+    if n_atoms > 2000:
+        effective_threshold += 0.5
+    
     if merge:
         # 2. Merge adjacent vertices
-        cavities = merge_cavities(voids, merge_threshold=merge_threshold)
+        cavities = merge_cavities(voids, merge_threshold=effective_threshold)
         
         # 3. Calculate cavity properties
         for cavity in cavities:

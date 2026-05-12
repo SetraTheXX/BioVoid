@@ -9,11 +9,15 @@ Author: Bio-Void Hunter Team
 Version: 0.1.0 (Phase 2.6)
 """
 
-import plotly.graph_objects as go
+import logging
+from pathlib import Path
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import List, Dict, Optional
+import plotly.graph_objects as go
+
+logger = logging.getLogger(__name__)
 
 class BioVoidVisualizer:
     """Hybrid visualization engine (Plotly + PyMOL Scripting)"""
@@ -29,7 +33,7 @@ class BioVoidVisualizer:
         Create structured interactive 3D view using Plotly.
         Returns path to generated HTML file.
         """
-        print(f"[VIS] Generating interactive view for {pdb_id}...")
+        logger.info("[VIS] Generating interactive view for %s...", pdb_id)
         
         # 1. Parse PDB for visualization (Simple CA trace)
         atoms = self._parse_pdb_for_vis(pdb_file)
@@ -154,7 +158,7 @@ class BioVoidVisualizer:
         # Save HTML
         output_path = self.output_dir / f"{pdb_id.lower()}_view.html"
         fig.write_html(str(output_path))
-        print(f"[VIS] Analysis saved: {output_path}")
+        logger.info("[VIS] Analysis saved: %s", output_path)
         
         return str(output_path)
 
@@ -219,7 +223,7 @@ class BioVoidVisualizer:
             f.write("ray 1200, 1000\n")
             f.write(f"png {pdb_id.lower()}_render.png\n")
         
-        print(f"[VIS] PyMOL script generated: {pml_path}")
+        logger.info("[VIS] PyMOL script generated: %s", pml_path)
         return str(pml_path)
 
 if __name__ == "__main__":

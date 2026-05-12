@@ -36,9 +36,10 @@ class JobInput(BaseModel):
     @field_validator("pdb_id")
     @classmethod
     def normalize_pdb_id(cls, value: str) -> str:
+        import re
         normalized = value.strip().upper()
-        if not normalized.isalnum():
-            raise ValueError("pdb_id must be alphanumeric")
+        if not re.match(r'^[A-Z0-9]{4,12}$', normalized):
+            raise ValueError("pdb_id must be 4-12 alphanumeric characters (e.g. 1CBS)")
         return normalized
 
 

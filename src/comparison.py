@@ -170,6 +170,71 @@ def find_similar_pockets(
     return results[:top_n]
 
 
+def ensemble_consensus_score(
+    pocket: dict[str, Any],
+    total_frames: int | None = None,
+    w_bio: float = 0.40,
+    w_persistence: float = 0.25,
+    w_geometry: float = 0.20,
+    w_support: float = 0.15,
+) -> float:
+    """
+    Compute a composite confidence score combining BioVoid bio_score with
+    ensemble-derived metrics.
+
+    Combines:
+    - bio_score: BioVoid druggability score
+    - Pocket persistence (if available): temporal stability across frames
+    - Pocket depth and enclosure: from score_components
+    - Multi-frame support ratio: consensus_support_ratio or hit_count/total_frames
+
+    Args:
+        pocket: Pocket dict with bio_score, score_components, optionally
+                persistence_score, consensus_support_ratio, frame_hits
+        total_frames: Total frames in ensemble (for support ratio if not in pocket)
+        w_bio: Weight for bio_score (default 0.40)
+        w_persistence: Weight for persistence (default 0.25)
+        w_geometry: Weight for depth+enclosure (default 0.20)
+        w_support: Weight for multi-frame support (default 0.15)
+
+    Returns:
+        Composite confidence score in [0, 1].
+    """
+    components = pocket.get("score_components", {})
+    bio = float(pocket.get("bio_score", 0.0))
+    bio = max(0.0, min(1.0, bio))
+
+    depth = float(components.get("depth_score", 0.0))
+    enclosure = float(components.get("enclosure_score", 0.0))
+    geometry = (depth + enclosure) / 2.0
+    geometry = max(0.0, min(1.0, geometry))
+
+    support_ratio = pocket.get("consensus_support_ratio")
+    if support_ratio is not None:
+        support = float(support_ratio)
+    elif total_frames and total_frames > 0:
+        hits = pocket.get("frame_hits", [])
+        support = len(hits) / total_frames if isinstance(hits, (list, set)) else 0.0
+    else:
+        support = 0.0
+    support = max(0.0, min(1.0, support))
+
+    persistence = pocket.get("persistence_score")
+    if persistence is not None:
+        persist = float(persistence)
+    else:
+        persist = 0.0
+    persist = max(0.0, min(1.0, persist))
+
+    score = (
+        w_bio * bio
+        + w_persistence * persist
+        + w_geometry * geometry
+        + w_support * support
+    )
+    return round(max(0.0, min(1.0, score)), 4)
+
+
 def batch_compare(
     pockets_a: list[dict[str, Any]],
     pockets_b: list[dict[str, Any]],

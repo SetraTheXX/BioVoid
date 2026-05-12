@@ -40,8 +40,8 @@ from typing import Any, Dict, List, Optional
 # ============================================================================
 
 # Volume normalization range (Å³) — Lipinski-compatible drug pocket
-VOLUME_MIN = 100.0   # Minimum meaningful pocket
-VOLUME_MAX = 2000.0  # Maximum single-drug pocket
+VOLUME_MIN = 80.0    # Lowered to score smaller cryptic pockets
+VOLUME_MAX = 2500.0  # Increased for larger binding sites
 
 # Hydrophobicity normalization
 HYDRO_MIN = 0.0
@@ -54,9 +54,9 @@ ENCLOSURE_MIN_VERTICES = 4  # Minimum vertices for ConvexHull
 DEPTH_SURFACE_THRESHOLD = 5.0   # Å — closer = surface noise
 DEPTH_CORE_THRESHOLD = 15.0     # Å — deeper = more buried
 
-# Druggability class thresholds
-DRUGGABILITY_HIGH = 0.65
-DRUGGABILITY_MEDIUM = 0.40
+# Druggability class thresholds (lowered for better cryptic pocket sensitivity)
+DRUGGABILITY_HIGH = 0.55
+DRUGGABILITY_MEDIUM = 0.30
 
 # Sphericity ideal range — drug-like pockets are moderately spherical
 SPHERICITY_IDEAL = 0.6
@@ -727,3 +727,105 @@ def get_elite_pockets(cavities: List[Dict[str, Any]],
     elite = [c for c in ranked if c.get('bio_score', 0.0) >= min_score]
     
     return elite[:top_n]
+
+
+def estimate_drug_likeness(pocket: Dict[str, Any]) -> float:
+    """
+    DrugBank-lite lookup: estimate drug-likeness from pocket properties
+    using Lipinski's Rule of Five heuristics.
+
+    Favorable ranges (Lipinski-inspired):
+    - Volume 200-1000 A3 -> favorable
+    - Hydrophobicity 0.3-0.7 -> favorable (mixed character)
+    - Enclosure > 0.5 -> favorable
+    - Depth > 0.3 -> favorable
+
+    Args:
+        pocket: Pocket dict with volume, hydrophobic_ratio, score_components
+                (enclosure_score, depth_score)
+
+    Returns:
+        drug_likeness_score in [0, 1].
+    """
+    components = pocket.get("score_components", {})
+    volume = float(pocket.get("volume", 0.0))
+    hydro = pocket.get("hydrophobic_ratio")
+    if hydro is None:
+        hydro = components.get("hydrophobicity_score", 0.0)
+    hydro = float(hydro) if hydro is not None else 0.0
+    enclosure = float(components.get("enclosure_score", 0.0))
+    depth = float(components.get("depth_score", 0.0))
+
+    vol_score = 1.0 if 200 <= volume <= 1000 else 0.0
+    hydro_score = 1.0 if 0.3 <= hydro <= 0.7 else 0.0
+    encl_score = 1.0 if enclosure > 0.5 else 0.0
+    depth_score = 1.0 if depth > 0.3 else 0.0
+
+    drug_likeness_score = (vol_score + hydro_score + encl_score + depth_score) / 4.0
+    return round(max(0.0, min(1.0, drug_likeness_score)), 4)
+
+
+def classify_pocket_evidence(cavity: Dict[str, Any]) -> str:
+    """
+    Classify pocket evidence level for FPR reduction.
+    
+    Uses multiple signals to assign a confidence tier instead of
+    binary supported/unsupported classification.
+    
+    Returns:
+        One of: 'strong', 'moderate', 'weak', 'insufficient'
+    """
+    bio_score = cavity.get('bio_score', 0.0)
+    confidence = cavity.get('confidence', {})
+    overall_conf = confidence.get('overall', 0.5)
+    n_vertices = cavity.get('merged_vertices', 1)
+    volume = cavity.get('volume', 0.0)
+    druggable = cavity.get('druggable', False)
+    sphericity = cavity.get('score_components', {}).get('sphericity', 0.5)
+    depth = cavity.get('score_components', {}).get('depth_score', 0.0)
+    enclosure = cavity.get('score_components', {}).get('enclosure_score', 0.0)
+    hydro = cavity.get('hydrophobic_ratio', 0.0) or 0.0
+    
+    evidence_points = 0.0
+    
+    if bio_score >= DRUGGABILITY_HIGH:
+        evidence_points += 3.0
+    elif bio_score >= DRUGGABILITY_MEDIUM:
+        evidence_points += 2.0
+    elif bio_score >= 0.20:
+        evidence_points += 1.0
+    
+    if overall_conf >= 0.8:
+        evidence_points += 2.0
+    elif overall_conf >= 0.6:
+        evidence_points += 1.0
+    
+    if n_vertices >= 8:
+        evidence_points += 2.0
+    elif n_vertices >= 4:
+        evidence_points += 1.0
+    
+    if druggable:
+        evidence_points += 1.5
+    
+    if 150.0 <= volume <= 2500.0:
+        evidence_points += 1.0
+    elif 80.0 <= volume < 150.0:
+        evidence_points += 0.5
+
+    if depth >= 0.5:
+        evidence_points += 1.0
+    if enclosure >= 0.6:
+        evidence_points += 1.0
+    if 0.3 <= sphericity <= 0.9:
+        evidence_points += 0.5
+    if hydro >= 0.4:
+        evidence_points += 0.5
+    
+    if evidence_points >= 8.0:
+        return 'strong'
+    elif evidence_points >= 5.0:
+        return 'moderate'
+    elif evidence_points >= 2.5:
+        return 'weak'
+    return 'insufficient'

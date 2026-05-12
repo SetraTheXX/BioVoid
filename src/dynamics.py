@@ -14,12 +14,16 @@ References:
 - Bahar et al. (1997) "Direct evaluation of thermal fluctuations in proteins"
 """
 
-import numpy as np
+import logging
 import time
 from pathlib import Path
-from typing import List, Tuple, Optional
-import biotite.structure.io.pdb as pdb
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import biotite.structure as struc
+import biotite.structure.io.pdb as pdb
+import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -204,7 +208,7 @@ def generate_conformations(coords: np.ndarray, eigenvectors: np.ndarray,
 
 def save_frames_as_pdb(conformations: List[np.ndarray], 
                        template_pdb: str,
-                       output_dir: Path) -> List[Path]:
+                       output_dir: Union[Path, str]) -> List[Path]:
     """
     Save conformations as PDB files.
     
@@ -258,7 +262,7 @@ def run_nma_simulation(pdb_path: str,
                        gamma: float = DEFAULT_GAMMA,
                        output_dir: Optional[Path] = None,
                        save_frames: bool = True,
-                       verbose: bool = True) -> dict:
+                       verbose: bool = True) -> Dict[str, Any]:
     """
     Run complete NMA simulation pipeline.
     
@@ -286,83 +290,52 @@ def run_nma_simulation(pdb_path: str,
     """
     timing = {}
     total_start = time.time()
-    
-    # 1. Load structure
-    if verbose:
-        print(f"\n{'='*60}")
-        print(f"🧬 NMA DYNAMICS ENGINE")
-        print(f"{'='*60}")
-        print(f"\n1️⃣ Loading structure: {pdb_path}")
-    
+    log = logger.info if verbose else logger.debug
+
+    log("[NMA] Dynamics engine starting for %s", pdb_path)
+
     start = time.time()
     coords, n_atoms = load_ca_atoms(pdb_path)
     timing['load'] = time.time() - start
-    
-    if verbose:
-        print(f"   ✅ Loaded {n_atoms} CA atoms ({timing['load']:.2f}s)")
-    
-    # 2. Build Hessian
-    if verbose:
-        print(f"\n2️⃣ Building Hessian matrix ({3*n_atoms}x{3*n_atoms})...")
-    
+    log("[NMA] Loaded %d CA atoms (%.2fs)", n_atoms, timing['load'])
+
+    log("[NMA] Building Hessian matrix (%dx%d)...", 3 * n_atoms, 3 * n_atoms)
     start = time.time()
     hessian = build_anm_hessian(coords, cutoff=cutoff, gamma=gamma)
     timing['hessian'] = time.time() - start
-    
-    if verbose:
-        print(f"   ✅ Hessian built ({timing['hessian']:.2f}s)")
-    
-    # 3. Calculate modes
-    if verbose:
-        print(f"\n3️⃣ Calculating {n_modes} normal modes...")
-    
+    log("[NMA] Hessian built (%.2fs)", timing['hessian'])
+
+    log("[NMA] Calculating %d normal modes...", n_modes)
     start = time.time()
     eigenvalues, eigenvectors = calculate_normal_modes(hessian, n_modes=n_modes)
     timing['modes'] = time.time() - start
-    
-    if verbose:
-        print(f"   ✅ Modes calculated ({timing['modes']:.2f}s)")
-        print(f"   📊 Frequency range: {eigenvalues[0]:.4f} - {eigenvalues[-1]:.4f}")
-    
-    # 4. Generate conformations
-    if verbose:
-        total_frames = n_modes * n_frames
-        print(f"\n4️⃣ Generating {total_frames} conformations ({n_modes} modes × {n_frames} frames)...")
-    
+    log("[NMA] Modes calculated (%.2fs) — frequency range: %.4f - %.4f",
+        timing['modes'], eigenvalues[0], eigenvalues[-1])
+
+    total_frames = n_modes * n_frames
+    log("[NMA] Generating %d conformations (%d modes x %d frames)...",
+        total_frames, n_modes, n_frames)
     start = time.time()
     conformations = generate_conformations(coords, eigenvectors, n_frames=n_frames, amplitude=amplitude)
     timing['conformations'] = time.time() - start
-    
-    if verbose:
-        print(f"   ✅ Generated {len(conformations)} frames ({timing['conformations']:.2f}s)")
-    
-    # 5. Save frames (optional)
+    log("[NMA] Generated %d frames (%.2fs)", len(conformations), timing['conformations'])
+
     saved_files = []
     if save_frames:
         if output_dir is None:
             pdb_id = Path(pdb_path).stem.replace('pdb', '')
             project_root = Path(__file__).parent.parent
             output_dir = project_root / "data" / "frames" / pdb_id
-        
-        if verbose:
-            print(f"\n5️⃣ Saving frames to {output_dir}...")
-        
+
+        log("[NMA] Saving frames to %s...", output_dir)
         start = time.time()
         saved_files = save_frames_as_pdb(conformations, pdb_path, output_dir)
         timing['save'] = time.time() - start
-        
-        if verbose:
-            print(f"   ✅ Saved {len(saved_files)} PDB files ({timing['save']:.2f}s)")
-    
-    # Total time
+        log("[NMA] Saved %d PDB files (%.2fs)", len(saved_files), timing['save'])
+
     timing['total'] = time.time() - total_start
-    
-    if verbose:
-        print(f"\n{'='*60}")
-        print(f"✅ NMA SIMULATION COMPLETE")
-        print(f"   Total time: {timing['total']:.2f}s")
-        print(f"   Atoms: {n_atoms} | Modes: {n_modes} | Frames: {len(conformations)}")
-        print(f"{'='*60}")
+    log("[NMA] Simulation complete — %.2fs | Atoms: %d | Modes: %d | Frames: %d",
+        timing['total'], n_atoms, n_modes, len(conformations))
     
     return {
         'coords': coords,
