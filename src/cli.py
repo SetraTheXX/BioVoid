@@ -22,6 +22,8 @@ from pathlib import Path
 
 from .config import PATHS, PIPELINE, API
 
+logger = logging.getLogger(__name__)
+
 
 def _setup_logging(verbose: bool = False):
     logging.basicConfig(
@@ -48,10 +50,9 @@ def cmd_analyze(args):
     )
     report = pipeline.run()
 
-    print(f"\nPDB: {report['pdb_id']} | "
-          f"Cavities: {report['total_cavities']} | "
-          f"Druggable: {report['druggable_cavities']} | "
-          f"Time: {report['runtime_seconds']:.1f}s")
+    logger.info("PDB: %s | Cavities: %d | Druggable: %d | Time: %.1fs",
+                report['pdb_id'], report['total_cavities'],
+                report['druggable_cavities'], report['runtime_seconds'])
 
 
 def cmd_batch(args):
@@ -83,7 +84,7 @@ def cmd_batch(args):
             logger.error("[FAIL] %s: %s", pdb_id, e)
 
     succeeded = sum(1 for r in results if r["status"] == "success")
-    print(f"\nBatch complete: {succeeded}/{len(results)} succeeded")
+    logger.info("Batch complete: %d/%d succeeded", succeeded, len(results))
 
 
 def cmd_serve(args):
@@ -93,7 +94,7 @@ def cmd_serve(args):
     try:
         import uvicorn
     except ImportError:
-        print("uvicorn is required: pip install uvicorn", file=sys.stderr)
+        logger.error("uvicorn is required: pip install uvicorn")
         sys.exit(1)
 
     uvicorn.run(
@@ -114,18 +115,18 @@ def cmd_cache(args):
     if args.action == "stats":
         stats = cache.stats()
         for k, v in stats.items():
-            print(f"  {k}: {v}")
+            logger.info("  %s: %s", k, v)
 
     elif args.action == "clear":
         count = cache.clear()
-        print(f"Cleared {count} cache entries")
+        logger.info("Cleared %d cache entries", count)
 
     elif args.action == "invalidate":
         if not args.pdb_id:
-            print("--pdb-id required for invalidate", file=sys.stderr)
+            logger.error("--pdb-id required for invalidate")
             sys.exit(1)
         cache.invalidate(args.pdb_id)
-        print(f"Invalidated cache for {args.pdb_id}")
+        logger.info("Invalidated cache for %s", args.pdb_id)
 
 
 def cmd_alphafold(args):
@@ -144,14 +145,15 @@ def cmd_alphafold(args):
 
     n_pockets = result["analysis"]["total_consensus_pockets"]
     n_frames = result["analysis"]["total_frames_analyzed"]
-    print(f"\nAlphaFold Ensemble: {args.uniprot_id}")
-    print(f"Frames analyzed: {n_frames}")
-    print(f"Consensus pockets: {n_pockets}")
+    logger.info("AlphaFold Ensemble: %s", args.uniprot_id)
+    logger.info("Frames analyzed: %d", n_frames)
+    logger.info("Consensus pockets: %d", n_pockets)
 
     for p in result["analysis"].get("consensus_pockets", [])[:5]:
         center = p.get("center", [0, 0, 0])
-        print(f"  Pocket #{p.get('id', 0)}: score={p.get('consensus_score', 0):.3f} "
-              f"center=[{center[0]:.1f}, {center[1]:.1f}, {center[2]:.1f}]")
+        logger.info("  Pocket #%d: score=%.3f center=[%.1f, %.1f, %.1f]",
+                     p.get('id', 0), p.get('consensus_score', 0),
+                     center[0], center[1], center[2])
 
 
 def cmd_benchmark(args):
@@ -182,7 +184,7 @@ def cmd_benchmark(args):
             results_by_protein[pdb_id] = []
 
     summary = run_benchmark(results_by_protein, tolerance=args.tolerance)
-    print("\n" + format_benchmark_table(summary))
+    logger.info("\n%s", format_benchmark_table(summary))
 
     if args.output:
         save_benchmark_report(summary, args.output)
@@ -191,13 +193,13 @@ def cmd_benchmark(args):
 def cmd_info(args):
     """Show project configuration and info."""
     import src
-    print(f"Bio-Void Hunter v{src.__version__}")
-    print(f"Data root: {PATHS.data_root}")
-    print(f"Results dir: {PATHS.results}")
-    print(f"Atlas DB: {PATHS.atlas_db}")
-    print(f"Default frames: {PIPELINE.n_frames}")
-    print(f"Default profile: {PIPELINE.profile}")
-    print(f"API: {API.host}:{API.port}")
+    logger.info("Bio-Void Hunter v%s", src.__version__)
+    logger.info("Data root: %s", PATHS.data_root)
+    logger.info("Results dir: %s", PATHS.results)
+    logger.info("Atlas DB: %s", PATHS.atlas_db)
+    logger.info("Default frames: %d", PIPELINE.n_frames)
+    logger.info("Default profile: %s", PIPELINE.profile)
+    logger.info("API: %s:%d", API.host, API.port)
 
 
 def main():

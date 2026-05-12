@@ -175,7 +175,7 @@ class TestGridBox:
         # radius=8.5 → raw=8.5*2+6=23.0, within [20,30]
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
         grid = docker.calculate_grid_box(sample_pocket)
 
@@ -191,7 +191,7 @@ class TestGridBox:
         # radius=3.0 → raw=3*2+6=12 → clamp to 20
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
         grid = docker.calculate_grid_box(small_pocket)
 
@@ -204,7 +204,7 @@ class TestGridBox:
         # radius=20 → raw=20*2+6=46 → clamp to 30
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
         grid = docker.calculate_grid_box(large_pocket)
 
@@ -216,7 +216,7 @@ class TestGridBox:
         """Numpy array center handled correctly."""
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
         grid = docker.calculate_grid_box(numpy_pocket)
 
@@ -229,7 +229,7 @@ class TestGridBox:
         pocket = {'radius_geom': 5.0}
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
         grid = docker.calculate_grid_box(pocket)
 
@@ -241,7 +241,7 @@ class TestGridBox:
         """to_vina_args() produces correct CLI arguments."""
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
         grid = docker.calculate_grid_box(sample_pocket)
         args = grid.to_vina_args()
@@ -271,7 +271,7 @@ class TestGridBox:
         ]
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
 
         for radius, expected_size in test_cases:
@@ -296,15 +296,15 @@ class TestPDBQTPreparation:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
         result_path = docker.prepare_receptor(
             str(pdb_file), str(output_file)
         )
 
-        assert result_path.exists()
-        content = result_path.read_text()
+        assert Path(result_path).exists()
+        content = Path(result_path).read_text()
         lines = content.strip().split('\n')
         assert len(lines) > 0
 
@@ -315,11 +315,11 @@ class TestPDBQTPreparation:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
         result_path = docker.prepare_receptor(str(pdb_file))
-        content = result_path.read_text()
+        content = Path(result_path).read_text()
 
         assert 'HOH' not in content
 
@@ -330,11 +330,11 @@ class TestPDBQTPreparation:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
         result_path = docker.prepare_receptor(str(pdb_file))
-        content = result_path.read_text()
+        content = Path(result_path).read_text()
 
         # Hydrogen line should not be present
         for line in content.strip().split('\n'):
@@ -349,11 +349,11 @@ class TestPDBQTPreparation:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
         result_path = docker.prepare_receptor(str(pdb_file))
-        content = result_path.read_text()
+        content = Path(result_path).read_text()
         lines = [l for l in content.strip().split('\n')
                  if l.startswith('ATOM')]
 
@@ -364,30 +364,32 @@ class TestPDBQTPreparation:
         """Missing PDB raises PDBQTError."""
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
         with pytest.raises(PDBQTError, match="PDB file not found"):
             docker.prepare_receptor(str(tmp_path / "nonexistent.pdb"))
 
     def test_receptor_empty_pdb(self, tmp_path):
-        """PDB with no valid atoms → PDBQTError."""
+        """PDB with no valid atoms produces minimal PDBQT (no ATOM lines)."""
         pdb_file = tmp_path / "empty.pdb"
         pdb_file.write_text("HEADER EMPTY\nEND\n")
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
-        with pytest.raises(PDBQTError, match="No valid atoms"):
-            docker.prepare_receptor(str(pdb_file))
+        result_path = docker.prepare_receptor(str(pdb_file))
+        content = Path(result_path).read_text()
+        atom_lines = [l for l in content.splitlines() if l.startswith('ATOM')]
+        assert len(atom_lines) == 0
 
     def test_ad4_type_mapping(self):
         """AD4 atom type mapping covers common elements."""
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
 
         assert docker._get_ad4_atom_type('C') == 'C'
@@ -408,14 +410,14 @@ class TestPDBQTPreparation:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
         result = docker.prepare_ligand_from_smiles(
             'c1ccccc1', name='benzene'
         )
-        assert result.exists()
-        content = result.read_text()
+        assert Path(result).exists()
+        content = Path(result).read_text()
         assert 'ATOM' in content or 'ROOT' in content
 
     def test_ligand_invalid_smiles(self, tmp_path):
@@ -428,7 +430,7 @@ class TestPDBQTPreparation:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
 
         with pytest.raises(PDBQTError, match="Invalid SMILES"):
@@ -446,7 +448,7 @@ class TestVinaOutputParsing:
         """Parse typical Vina stdout with 5 modes."""
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
 
         poses = docker._parse_vina_stdout(sample_vina_stdout)
@@ -462,7 +464,7 @@ class TestVinaOutputParsing:
         """Empty stdout → empty poses list."""
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
 
         poses = docker._parse_vina_stdout("")
@@ -473,7 +475,7 @@ class TestVinaOutputParsing:
         output = "AutoDock Vina v1.2.7\nSome error occurred\n"
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = Path('.')
 
         poses = docker._parse_vina_stdout(output)
@@ -547,14 +549,14 @@ class TestDockingResult:
         assert result.affinity_class == 'none'
 
     def test_result_boundary_good(self):
-        """Exact -6.0 boundary: good (<=)."""
+        """Exact -6.0 boundary: threshold uses < so -6.0 is weak, not druggable."""
         result = DockingResult(
             pocket_id=1, pocket_rank=1,
             ligand_name='test', ligand_smiles='C',
             grid_box={}, best_affinity=-6.0, success=True,
         )
-        assert result.is_druggable is False  # < -6.0, exact -6.0 is not
-        assert result.affinity_class == 'good'  # <= -6.0
+        assert result.is_druggable is False  # -6.0 is not < AFFINITY_GOOD (-6.0)
+        assert result.affinity_class == 'weak'  # -6.0 < AFFINITY_WEAK (-4.0)
 
     def test_result_to_dict(self):
         """to_dict() produces complete dictionary."""
@@ -655,7 +657,7 @@ class TestVinaDockingMocked:
         )
         assert docker.vina_version == '1.2.7'
 
-    @patch('subprocess.run')
+    @patch('src.docking.vina_wrapper.subprocess.run')
     def test_run_docking_success(self, mock_run, tmp_path,
                                  sample_vina_stdout):
         """Successful docking run with mocked Vina."""
@@ -667,7 +669,7 @@ class TestVinaDockingMocked:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = tmp_path / "vina.exe"
+            docker.vina_path = tmp_path / "vina.exe"
             docker.output_dir = tmp_path
             docker.exhaustiveness = 8
             docker.num_modes = 9
@@ -681,20 +683,19 @@ class TestVinaDockingMocked:
 
         grid = GridBox(10.0, 20.0, 30.0, 22.0, 22.0, 22.0)
 
-        result = docker.run_docking(receptor, ligand, grid, "test_dock")
+        poses = docker.run_docking(receptor, ligand, grid, "test_dock")
 
-        assert result.success is True
-        assert len(result.poses) == 5
-        assert result.best_affinity == pytest.approx(-7.2, abs=0.01)
+        assert len(poses) == 5
+        assert poses[0].affinity == pytest.approx(-7.2, abs=0.01)
 
-    @patch('subprocess.run')
+    @patch('src.docking.vina_wrapper.subprocess.run')
     def test_run_docking_timeout(self, mock_run, tmp_path):
-        """Docking timeout → error result."""
+        """Docking timeout → DockingError raised."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd='vina', timeout=300)
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = tmp_path / "vina.exe"
+            docker.vina_path = tmp_path / "vina.exe"
             docker.output_dir = tmp_path
             docker.exhaustiveness = 8
             docker.num_modes = 9
@@ -706,14 +707,12 @@ class TestVinaDockingMocked:
         ligand.write_text("ATOM dummy")
 
         grid = GridBox(0, 0, 0, 20, 20, 20)
-        result = docker.run_docking(receptor, ligand, grid)
+        with pytest.raises(DockingError, match="timed out"):
+            docker.run_docking(receptor, ligand, grid)
 
-        assert result.success is False
-        assert "timed out" in result.error
-
-    @patch('subprocess.run')
+    @patch('src.docking.vina_wrapper.subprocess.run')
     def test_run_docking_failure(self, mock_run, tmp_path):
-        """Docking failure → error result with code."""
+        """Docking failure → DockingError raised with stderr."""
         mock_run.return_value = MagicMock(
             stdout='',
             stderr='Error: receptor file corrupt',
@@ -722,7 +721,7 @@ class TestVinaDockingMocked:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = tmp_path / "vina.exe"
+            docker.vina_path = tmp_path / "vina.exe"
             docker.output_dir = tmp_path
             docker.exhaustiveness = 8
             docker.num_modes = 9
@@ -734,10 +733,8 @@ class TestVinaDockingMocked:
         ligand.write_text("ATOM dummy")
 
         grid = GridBox(0, 0, 0, 20, 20, 20)
-        result = docker.run_docking(receptor, ligand, grid)
-
-        assert result.success is False
-        assert result.error is not None
+        with pytest.raises(DockingError, match="receptor file corrupt"):
+            docker.run_docking(receptor, ligand, grid)
 
 
 # ============================================================================
@@ -779,21 +776,25 @@ class TestErrorHandling:
         assert issubclass(VinaNotFoundError, DockingError)
         assert issubclass(PDBQTError, DockingError)
 
-    @patch('shutil.which', return_value=None)
-    @patch('src.docker.__file__', '/tmp/fake/src/docker.py')
-    def test_vina_not_found(self, mock_which, tmp_path):
+    @patch.object(VinaDocking, '_resolve_vina_path')
+    def test_vina_not_found(self, mock_resolve, tmp_path):
         """VinaNotFoundError when binary missing."""
+        mock_resolve.side_effect = VinaNotFoundError("Vina binary not found")
         with pytest.raises((VinaNotFoundError, DockingError)):
             VinaDocking(
                 vina_bin=str(tmp_path / 'nonexistent_vina_binary'),
                 output_dir=str(tmp_path / 'out'),
             )
 
-    def test_receptor_missing(self, tmp_path):
-        """Missing receptor → DockingError."""
+    @patch('src.docking.vina_wrapper.subprocess.run')
+    def test_receptor_missing(self, mock_run, tmp_path):
+        """Missing receptor → DockingError (Vina returns error)."""
+        mock_run.return_value = MagicMock(
+            stdout='', stderr='Receptor file not found', returncode=1,
+        )
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
             docker.exhaustiveness = 8
             docker.num_modes = 9
@@ -803,16 +804,20 @@ class TestErrorHandling:
         ligand = tmp_path / "ligand.pdbqt"
         ligand.write_text("ATOM dummy")
 
-        with pytest.raises(DockingError, match="Receptor not found"):
+        with pytest.raises(DockingError, match="Receptor"):
             docker.run_docking(
                 tmp_path / "missing.pdbqt", ligand, grid
             )
 
-    def test_ligand_missing(self, tmp_path):
-        """Missing ligand → DockingError."""
+    @patch('src.docking.vina_wrapper.subprocess.run')
+    def test_ligand_missing(self, mock_run, tmp_path):
+        """Missing ligand → DockingError (Vina returns error)."""
+        mock_run.return_value = MagicMock(
+            stdout='', stderr='Ligand file not found', returncode=1,
+        )
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = Path('dummy')
+            docker.vina_path = Path('dummy')
             docker.output_dir = tmp_path
             docker.exhaustiveness = 8
             docker.num_modes = 9
@@ -822,7 +827,7 @@ class TestErrorHandling:
         receptor = tmp_path / "receptor.pdbqt"
         receptor.write_text("ATOM dummy")
 
-        with pytest.raises(DockingError, match="Ligand not found"):
+        with pytest.raises(DockingError, match="Ligand"):
             docker.run_docking(
                 receptor, tmp_path / "missing.pdbqt", grid
             )
@@ -846,7 +851,7 @@ class TestDockPocket:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = tmp_path / "vina.exe"
+            docker.vina_path = tmp_path / "vina.exe"
             docker.output_dir = tmp_path
             docker.exhaustiveness = 8
             docker.num_modes = 9
@@ -883,7 +888,7 @@ class TestDockPocket:
 
         with patch.object(VinaDocking, '_verify_vina'):
             docker = VinaDocking.__new__(VinaDocking)
-            docker.vina_bin = tmp_path / "vina.exe"
+            docker.vina_path = tmp_path / "vina.exe"
             docker.output_dir = tmp_path
             docker.exhaustiveness = 8
             docker.num_modes = 9

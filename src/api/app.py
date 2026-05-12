@@ -150,29 +150,42 @@ def create_app(
     app.state.rate_limiter = limiter
 
     @app.middleware("http")
+    async def security_headers_middleware(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+    @app.middleware("http")
     async def correlation_middleware(request: Request, call_next):
         incoming = request.headers.get("X-Correlation-ID", "").strip()
         correlation_id = incoming or uuid.uuid4().hex
         request.state.correlation_id = correlation_id
+        client_ip = request.client.host if request.client else "unknown"
         started = time.monotonic()
         try:
             response = await call_next(request)
         except Exception:
             LOGGER.exception(
-                "request_failed method=%s path=%s correlation_id=%s",
+                "request_failed method=%s path=%s correlation_id=%s client=%s",
                 request.method,
                 request.url.path,
                 correlation_id,
+                client_ip,
             )
             raise
         duration_ms = (time.monotonic() - started) * 1000.0
         response.headers["X-Correlation-ID"] = correlation_id
         LOGGER.info(
-            "request method=%s path=%s status=%s correlation_id=%s duration_ms=%.2f",
+            "request method=%s path=%s status=%s correlation_id=%s client=%s duration_ms=%.2f",
             request.method,
             request.url.path,
             response.status_code,
             correlation_id,
+            client_ip,
             duration_ms,
         )
         return response
@@ -341,8 +354,18 @@ def create_app(
                 "correlation_id": getattr(request.state, "correlation_id", None),
             }
 
-        items = [
-            {
+        items = []
+        for row in rows:
+            meta = row.get("metadata_json")
+            sphericity = 0.0
+            if meta:
+                try:
+                    m = json.loads(meta) if isinstance(meta, str) else meta
+                    sc = m.get("score_components", m) if isinstance(m, dict) else {}
+                    sphericity = float(sc.get("sphericity", 0) or 0)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            items.append({
                 "pdb_id": row.get("pdb_id", ""),
                 "pocket_id": row.get("pocket_id", 0),
                 "bio_score": float(row.get("bio_score", 0.0) or 0.0),
@@ -351,9 +374,9 @@ def create_app(
                 "druggability_class": row.get("druggability_class", "low"),
                 "druggable": bool(row.get("druggable", False)),
                 "profile_used": row.get("profile_used", ""),
-            }
-            for row in rows
-        ]
+                "merged_vertices": int(row.get("merged_vertices", 0) or 0),
+                "sphericity": sphericity,
+            })
         return {
             "available": True,
             "items": items,
@@ -690,8 +713,18 @@ def create_app(
             try:
                 with AtlasDB(str(ATLAS_DB_PATH), check_same_thread=False) as db:
                     rows = db.search_pockets(pdb_id=pdb_id_upper, limit=100)
-                    pockets = [
-                        {
+                    pockets = []
+                    for r in rows:
+                        meta = r.get("metadata_json")
+                        sc = {}
+                        if meta:
+                            try:
+                                sc = json.loads(meta) if isinstance(meta, str) else meta
+                                if isinstance(sc, dict) and "score_components" in sc:
+                                    sc = sc.get("score_components", {})
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+                        pockets.append({
                             "pocket_id": r.get("pocket_id", 0),
                             "rank": int(r.get("rank", 0) or 0),
                             "bio_score": float(r.get("bio_score", 0) or 0),
@@ -707,9 +740,10 @@ def create_app(
                             "enclosure_score": float(r.get("enclosure_score", 0) or 0),
                             "depth_score": float(r.get("depth_score", 0) or 0),
                             "profile_used": r.get("profile_used", ""),
-                        }
-                        for r in rows
-                    ]
+                            "merged_vertices": int(r.get("merged_vertices", 0) or 0),
+                            "sphericity": float(sc.get("sphericity", 0) or 0),
+                            "volume_score": float(sc.get("volume_score", r.get("volume_score", 0)) or 0),
+                        })
                     protein_info["available"] = bool(pockets)
             except Exception as exc:
                 protein_info["error"] = str(exc)

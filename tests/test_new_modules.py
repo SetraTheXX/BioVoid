@@ -22,7 +22,8 @@ class TestConfig:
         assert PATHS.atlas_db == Path("data/atlas.db")
 
     def test_pipeline_defaults(self):
-        assert PIPELINE.n_frames == 50
+        assert PIPELINE.n_frames == 80
+        assert PIPELINE.n_modes == 10
         assert PIPELINE.profile == "default"
         assert "enzyme" in PIPELINE.scoring_profiles
 

@@ -56,3 +56,6 @@ known-first-party = ["src"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q --tb=short"
+
+[tool.mypy]
+ignore_missing_imports = true
