@@ -1,6 +1,18 @@
-data/
-artifacts/
+.agent/
+.verdent/
+.vscode/
+.mdvenv/
+.mdvenv*/
+.venv/
+.venv*/
+venv/
 memory-bank/
+plans/
+artifacts/
+data/
+*.plan.md
+*.db
+*.db.backup*
 docs/IMPROVEMENT_ROADMAP.md
 docs/IMPROVEMENT_CHECKLIST.md
 
@@ -23,11 +35,7 @@ models/*.joblib
 
 .env
 .env.*
-*.db
 
-.venv/
-.mdvenv/
-venv/
 
 docker/fpocket/fpocket-src/
 docker/fpocket/*.zip

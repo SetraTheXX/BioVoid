@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# STATUS: Experimental — parallel NMA variant, not used in main pipeline.
+# See main.py for the production entry point.
 """
 Bio-Void Hunter: Parallel Pipeline Runner (Phase 5.1)
 ======================================================
