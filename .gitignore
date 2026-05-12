@@ -8,6 +8,7 @@
 venv/
 memory-bank/
 plans/
+docs/
 artifacts/
 data/
 *.plan.md
