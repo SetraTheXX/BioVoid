@@ -2,7 +2,7 @@
 # Bio-Void Hunter - Core Dependencies
 # =============================================================================
 # Direct dependencies only. Transitive deps are handled by pip automatically.
-# Categories: Core Science | Pipeline | Dashboard | Testing | Docking (optional)
+# Categories: Core Science | Pipeline | API | Dashboard | Testing | Docking (optional)
 
 # --- Core Science ---
 biopython>=1.80
@@ -28,6 +28,7 @@ streamlit>=1.30
 
 # --- Testing ---
 pytest>=7.0
+httpx>=0.27
 
 # --- Docking (Optional - Phase 4) ---
 # meeko>=0.5         # uncomment for docking: pip install meeko
