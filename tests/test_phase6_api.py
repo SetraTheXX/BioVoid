@@ -107,10 +107,7 @@ def test_canonical_lock_override_is_rejected() -> None:
             },
         )
         assert response.status_code == 400
-        assert (
-            response.json()["error"]["code"]
-            == "CANONICAL_LOCK_OVERRIDE_FORBIDDEN"
-        )
+        assert response.json()["error"]["code"] == "CANONICAL_LOCK_OVERRIDE_FORBIDDEN"
 
 
 def test_retry_policy_is_deterministic() -> None:
@@ -138,6 +135,7 @@ def test_retry_policy_is_deterministic() -> None:
 
 def test_timeout_and_retry_lead_to_failed_job() -> None:
     with _build_client() as client:
+
         def slow_runner(_: JobSubmitRequest) -> dict:
             time.sleep(0.1)
             return {"ok": True}
@@ -147,9 +145,7 @@ def test_timeout_and_retry_lead_to_failed_job() -> None:
         response = client.post(
             "/jobs",
             headers={"Idempotency-Key": "idem-timeout-1"},
-            json=_submit_payload(
-                "1CBS", options={"timeout_seconds": 1e-6, "max_retries": 1}
-            ),
+            json=_submit_payload("1CBS", options={"timeout_seconds": 1e-6, "max_retries": 1}),
         )
         assert response.status_code == 202
         final_state = _wait_for_terminal_status(client, response.json()["job_id"])
@@ -170,7 +166,9 @@ def test_fifty_jobs_smoke_no_crash() -> None:
             assert response.status_code == 202
             job_ids.append(response.json()["job_id"])
 
-        finals = [_wait_for_terminal_status(client, job_id, timeout_seconds=10) for job_id in job_ids]
+        finals = [
+            _wait_for_terminal_status(client, job_id, timeout_seconds=10) for job_id in job_ids
+        ]
         assert len(set(job_ids)) == 50
         assert all(item["status"] == JobStatus.SUCCEEDED.value for item in finals)
 

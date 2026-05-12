@@ -11,9 +11,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
+import time
+
 from src.cavities import find_cavities
 from src.geometry import find_voids
-import time
 
 # Test with 1CBS (small protein)
 PDB_FILE = str(ROOT / "data" / "raw_pdb" / "1cbs.pdb")
@@ -29,7 +30,7 @@ start = time.time()
 voids = find_voids(PDB_FILE)
 elapsed = time.time() - start
 
-print(f"✅ find_voids() still works")
+print("✅ find_voids() still works")
 print(f"   Voids found: {len(voids)}")
 print(f"   Time: {elapsed:.3f}s")
 
@@ -43,13 +44,13 @@ start = time.time()
 cavities = find_cavities(PDB_FILE, merge=True, hydrophobic=False)
 elapsed = time.time() - start
 
-print(f"✅ find_cavities() works")
+print("✅ find_cavities() works")
 print(f"   Cavities found: {len(cavities)}")
 print(f"   Time: {elapsed:.3f}s")
 
 if len(cavities) > 0:
     cav = cavities[0]
-    print(f"\n   Largest Cavity:")
+    print("\n   Largest Cavity:")
     print(f"   - Volume: {cav['volume']:.1f} Å³")
     print(f"   - Merged vertices: {cav['merged_vertices']}")
     print(f"   - Radius (geom): {cav['radius_geom']:.2f} Å")
@@ -63,20 +64,22 @@ start = time.time()
 cavities_full = find_cavities(PDB_FILE, merge=True, hydrophobic=True)
 elapsed = time.time() - start
 
-print(f"✅ Full pipeline works")
+print("✅ Full pipeline works")
 print(f"   Cavities found: {len(cavities_full)}")
 print(f"   Time: {elapsed:.3f}s")
 
 if len(cavities_full) > 0:
-    druggable_count = sum(1 for c in cavities_full if c.get('druggable', False))
+    druggable_count = sum(1 for c in cavities_full if c.get("druggable", False))
     print(f"   Druggable cavities: {druggable_count}")
-    
-    print(f"\n   Top 3 Cavities:")
+
+    print("\n   Top 3 Cavities:")
     for i, cav in enumerate(cavities_full[:3]):
-        print(f"   [{i+1}] Volume: {cav['volume']:.1f} Å³, "
-              f"Druggable: {cav.get('druggable', 'N/A')}, "
-              f"Hydrophobic: {cav.get('hydrophobic_ratio', 0.0):.2f}, "
-              f"Merged: {cav['merged_vertices']}")
+        print(
+            f"   [{i + 1}] Volume: {cav['volume']:.1f} Å³, "
+            f"Druggable: {cav.get('druggable', 'N/A')}, "
+            f"Hydrophobic: {cav.get('hydrophobic_ratio', 0.0):.2f}, "
+            f"Merged: {cav['merged_vertices']}"
+        )
 
 # Test 4: Performance Check
 print("\n[TEST 4] Performance Benchmark")
@@ -91,15 +94,15 @@ print("\n[TEST 5] Dual Radii Validation")
 print("-" * 70)
 if len(cavities) > 0:
     for i, cav in enumerate(cavities[:3]):
-        geom = cav['radius_geom']
-        clear = cav['radius_clear']
-        print(f"   Cavity {i+1}: radius_geom={geom:.2f} Å, radius_clear={clear:.2f} Å")
-        
+        geom = cav["radius_geom"]
+        clear = cav["radius_clear"]
+        print(f"   Cavity {i + 1}: radius_geom={geom:.2f} Å, radius_clear={clear:.2f} Å")
+
         # Sanity check: clear should be <= geom (usually)
         if clear > geom + 1.0:  # Allow small tolerance
-            print(f"   ⚠️  Warning: radius_clear > radius_geom")
-    
-    print(f"✅ Dual radii calculated")
+            print("   ⚠️  Warning: radius_clear > radius_geom")
+
+    print("✅ Dual radii calculated")
 
 print("\n" + "=" * 70)
 print("PHASE 2.4 INTEGRATION TEST: COMPLETE")

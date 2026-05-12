@@ -10,16 +10,15 @@ Extracted from docker.py during Faz 6 pre-refactoring.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-import numpy as np
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,21 +41,21 @@ AFFINITY_WEAK = -4.0
 RMSD_EXCELLENT = 1.0
 RMSD_ACCEPTABLE = 2.0
 
-FRAGMENT_LIBRARY: Dict[str, Dict[str, str]] = {
-    'hydrophobic': {
-        'name': 'Benzene',
-        'smiles': 'c1ccccc1',
-        'description': 'Aromatic hydrophobic probe',
+FRAGMENT_LIBRARY: dict[str, dict[str, str]] = {
+    "hydrophobic": {
+        "name": "Benzene",
+        "smiles": "c1ccccc1",
+        "description": "Aromatic hydrophobic probe",
     },
-    'polar': {
-        'name': 'Acetamide',
-        'smiles': 'CC(N)=O',
-        'description': 'Polar H-bond donor/acceptor probe',
+    "polar": {
+        "name": "Acetamide",
+        "smiles": "CC(N)=O",
+        "description": "Polar H-bond donor/acceptor probe",
     },
-    'mixed': {
-        'name': 'Phenol',
-        'smiles': 'Oc1ccccc1',
-        'description': 'Mixed aromatic + H-bond probe',
+    "mixed": {
+        "name": "Phenol",
+        "smiles": "Oc1ccccc1",
+        "description": "Mixed aromatic + H-bond probe",
     },
 }
 
@@ -65,9 +64,11 @@ FRAGMENT_LIBRARY: Dict[str, Dict[str, str]] = {
 # DATA CLASSES
 # ============================================================================
 
+
 @dataclass
 class GridBox:
     """Docking search space definition."""
+
     center_x: float
     center_y: float
     center_z: float
@@ -75,24 +76,31 @@ class GridBox:
     size_y: float
     size_z: float
 
-    def to_vina_args(self) -> List[str]:
+    def to_vina_args(self) -> list[str]:
         """Convert to Vina command-line arguments."""
         return [
-            '--center_x', str(round(self.center_x, 3)),
-            '--center_y', str(round(self.center_y, 3)),
-            '--center_z', str(round(self.center_z, 3)),
-            '--size_x', str(round(self.size_x, 3)),
-            '--size_y', str(round(self.size_y, 3)),
-            '--size_z', str(round(self.size_z, 3)),
+            "--center_x",
+            str(round(self.center_x, 3)),
+            "--center_y",
+            str(round(self.center_y, 3)),
+            "--center_z",
+            str(round(self.center_z, 3)),
+            "--size_x",
+            str(round(self.size_x, 3)),
+            "--size_y",
+            str(round(self.size_y, 3)),
+            "--size_z",
+            str(round(self.size_z, 3)),
         ]
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         return asdict(self)
 
 
 @dataclass
 class DockingPose:
     """Single docking pose result."""
+
     mode: int
     affinity: float
     rmsd_lb: float
@@ -102,16 +110,17 @@ class DockingPose:
 @dataclass
 class DockingResult:
     """Complete docking result for one ligand-pocket pair."""
+
     pocket_id: int
     pocket_rank: int
     ligand_name: str
     ligand_smiles: str
-    grid_box: Dict[str, float]
-    poses: List[DockingPose] = field(default_factory=list)
+    grid_box: dict[str, float]
+    poses: list[DockingPose] = field(default_factory=list)
     best_affinity: float = 0.0
     best_rmsd_lb: float = 0.0
     success: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
     @property
     def is_druggable(self) -> bool:
@@ -121,36 +130,37 @@ class DockingResult:
     @property
     def affinity_class(self) -> str:
         if not self.success:
-            return 'failed'
+            return "failed"
         if self.best_affinity < AFFINITY_STRONG:
-            return 'strong'
+            return "strong"
         if self.best_affinity < AFFINITY_GOOD:
-            return 'good'
+            return "good"
         if self.best_affinity < AFFINITY_WEAK:
-            return 'weak'
-        return 'none'
+            return "weak"
+        return "none"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
-            'pocket_id': self.pocket_id,
-            'pocket_rank': self.pocket_rank,
-            'ligand_name': self.ligand_name,
-            'ligand_smiles': self.ligand_smiles,
-            'grid_box': self.grid_box,
-            'best_affinity': self.best_affinity,
-            'best_rmsd_lb': self.best_rmsd_lb,
-            'is_druggable': self.is_druggable,
-            'affinity_class': self.affinity_class,
-            'success': self.success,
-            'error': self.error,
-            'n_poses': len(self.poses),
-            'poses': [asdict(p) for p in self.poses],
+            "pocket_id": self.pocket_id,
+            "pocket_rank": self.pocket_rank,
+            "ligand_name": self.ligand_name,
+            "ligand_smiles": self.ligand_smiles,
+            "grid_box": self.grid_box,
+            "best_affinity": self.best_affinity,
+            "best_rmsd_lb": self.best_rmsd_lb,
+            "is_druggable": self.is_druggable,
+            "affinity_class": self.affinity_class,
+            "success": self.success,
+            "error": self.error,
+            "n_poses": len(self.poses),
+            "poses": [asdict(p) for p in self.poses],
         }
 
 
 # ============================================================================
 # EXCEPTIONS
 # ============================================================================
+
 
 class DockingError(Exception):
     """Base exception for docking failures."""
@@ -168,6 +178,7 @@ class PDBQTError(DockingError):
 # VINA DOCKING ENGINE
 # ============================================================================
 
+
 class VinaDocking:
     """AutoDock Vina wrapper with Smart Grid alignment.
 
@@ -177,12 +188,14 @@ class VinaDocking:
         result = docker.dock_pocket(pocket, receptor_pdbqt, smiles)
     """
 
-    def __init__(self,
-                 vina_bin: str = 'tools/vina/vina.exe',
-                 output_dir: str = 'data/docking',
-                 exhaustiveness: int = DEFAULT_EXHAUSTIVENESS,
-                 num_modes: int = DEFAULT_NUM_MODES,
-                 energy_range: float = DEFAULT_ENERGY_RANGE):
+    def __init__(
+        self,
+        vina_bin: str = "tools/vina/vina.exe",
+        output_dir: str = "data/docking",
+        exhaustiveness: int = DEFAULT_EXHAUSTIVENESS,
+        num_modes: int = DEFAULT_NUM_MODES,
+        energy_range: float = DEFAULT_ENERGY_RANGE,
+    ):
         """
         Initialize Vina docking engine.
 
@@ -206,11 +219,11 @@ class VinaDocking:
         """Resolve Vina binary path, checking multiple locations."""
         candidates = [
             Path(vina_bin),
-            Path('tools/vina/vina.exe'),
-            Path('tools/vina/vina'),
+            Path("tools/vina/vina.exe"),
+            Path("tools/vina/vina"),
         ]
 
-        vina_in_path = shutil.which('vina')
+        vina_in_path = shutil.which("vina")
         if vina_in_path:
             candidates.insert(0, Path(vina_in_path))
 
@@ -218,35 +231,30 @@ class VinaDocking:
             if p.exists() and p.is_file():
                 return p.resolve()
 
-        raise VinaNotFoundError(
-            f"Vina binary not found. Tried: "
-            f"{[str(c) for c in candidates]}"
-        )
+        raise VinaNotFoundError(f"Vina binary not found. Tried: {[str(c) for c in candidates]}")
 
     def _verify_vina(self) -> str:
         """Verify Vina binary is functional and check version."""
         try:
             result = subprocess.run(
-                [str(self.vina_path), '--version'],
+                [str(self.vina_path), "--version"],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
             output = result.stdout + result.stderr
-            version_match = re.search(
-                r'(?:AutoDock Vina|vina)\s+v?(\d+\.\d+\.\d+)', output, re.I
-            )
-            version = version_match.group(1) if version_match else 'unknown'
+            version_match = re.search(r"(?:AutoDock Vina|vina)\s+v?(\d+\.\d+\.\d+)", output, re.I)
+            version = version_match.group(1) if version_match else "unknown"
             logger.info(f"Vina verified: v{version} at {self.vina_path}")
             return version
         except subprocess.TimeoutExpired:
             logger.warning("Vina version check timed out")
-            return 'timeout'
+            return "timeout"
         except Exception as e:
             logger.warning(f"Vina verification failed: {e}")
-            return 'unverified'
+            return "unverified"
 
-    def calculate_grid_box(self, pocket: Dict[str, Any]) -> GridBox:
+    def calculate_grid_box(self, pocket: dict[str, Any]) -> GridBox:
         """
         Calculate optimal docking grid box from pocket metadata.
 
@@ -261,8 +269,8 @@ class VinaDocking:
         Returns:
             GridBox with center and size coordinates
         """
-        center = pocket.get('center', [0, 0, 0])
-        radius = pocket.get('radius_geom', 5.0)
+        center = pocket.get("center", [0, 0, 0])
+        radius = pocket.get("radius_geom", 5.0)
 
         box_size = max(GRID_MIN_SIZE, min(GRID_MAX_SIZE, radius * 2 + GRID_BUFFER))
 
@@ -275,8 +283,7 @@ class VinaDocking:
             size_z=box_size,
         )
 
-    def prepare_receptor(self, pdb_path: str,
-                         output_path: Optional[str] = None) -> str:
+    def prepare_receptor(self, pdb_path: str, output_path: str | None = None) -> str:
         """
         Convert PDB to PDBQT format for Vina receptor.
 
@@ -294,27 +301,24 @@ class VinaDocking:
         if not pdb.exists():
             raise PDBQTError(f"PDB file not found: {pdb_path}")
 
-        if output_path:
-            out = Path(output_path)
-        else:
-            out = self.output_dir / f"{pdb.stem}_receptor.pdbqt"
+        out = Path(output_path) if output_path else self.output_dir / f"{pdb.stem}_receptor.pdbqt"
 
         out.parent.mkdir(parents=True, exist_ok=True)
 
         lines = []
         for line in pdb.read_text().splitlines():
-            if not (line.startswith('ATOM') or line.startswith('HETATM')):
+            if not (line.startswith("ATOM") or line.startswith("HETATM")):
                 continue
 
             res_name = line[17:20].strip()
-            if res_name in ('HOH', 'WAT', 'H2O', 'DOD', 'TIP'):
+            if res_name in ("HOH", "WAT", "H2O", "DOD", "TIP"):
                 continue
 
             atom_name = line[12:16].strip()
-            if atom_name.startswith('H'):
+            if atom_name.startswith("H"):
                 continue
 
-            element = ''
+            element = ""
             if len(line) >= 78:
                 element = line[76:78].strip().upper()
             if not element:
@@ -323,45 +327,46 @@ class VinaDocking:
             ad4_type = self._get_ad4_atom_type(element, res_name)
 
             pdbqt_line = line[:54]
-            pdbqt_line += '  1.00  0.00'
-            charge = '    +0.000'
+            pdbqt_line += "  1.00  0.00"
+            charge = "    +0.000"
             pdbqt_line += charge
             pdbqt_line = pdbqt_line.ljust(77)
             pdbqt_line += f" {ad4_type}"
             lines.append(pdbqt_line)
 
-        out.write_text('\n'.join(lines) + '\n')
+        out.write_text("\n".join(lines) + "\n")
         logger.info(f"Receptor PDBQT: {out} ({len(lines)} atoms)")
         return str(out)
 
-    def _get_ad4_atom_type(self, element: str,
-                           res_name: str = '') -> str:
+    def _get_ad4_atom_type(self, element: str, res_name: str = "") -> str:
         """Map element to AutoDock 4 atom type."""
         mapping = {
-            'C': 'C',
-            'N': 'NA',
-            'O': 'OA',
-            'S': 'SA',
-            'P': 'P',
-            'F': 'F',
-            'CL': 'Cl',
-            'BR': 'Br',
-            'I': 'I',
-            'ZN': 'Zn',
-            'FE': 'Fe',
-            'MG': 'Mg',
-            'CA': 'Ca',
-            'MN': 'Mn',
-            'CU': 'Cu',
-            'NA': 'Na',
-            'K': 'K',
+            "C": "C",
+            "N": "NA",
+            "O": "OA",
+            "S": "SA",
+            "P": "P",
+            "F": "F",
+            "CL": "Cl",
+            "BR": "Br",
+            "I": "I",
+            "ZN": "Zn",
+            "FE": "Fe",
+            "MG": "Mg",
+            "CA": "Ca",
+            "MN": "Mn",
+            "CU": "Cu",
+            "NA": "Na",
+            "K": "K",
         }
         return mapping.get(element.upper(), element[:2] if len(element) >= 2 else element)
 
-    def prepare_ligand_from_smiles(self, smiles: str,
-                                   name: str = 'ligand',
-                                   output_path: Optional[str] = None,
-                                   ) -> str:
+    def prepare_ligand_from_smiles(
+        self,
+        smiles: str,
+        name: str = "ligand",
+        output_path: str | None = None,
+    ) -> str:
         """
         Convert SMILES to PDBQT using Meeko + RDKit.
 
@@ -402,19 +407,14 @@ class VinaDocking:
         try:
             AllChem.MMFFOptimizeMolecule(mol, maxIters=500)
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 AllChem.UFFOptimizeMolecule(mol, maxIters=500)
-            except Exception:
-                pass
 
         preparator = MoleculePreparation()
         mol_setups = preparator.prepare(mol)
         setup = list(mol_setups)[0]
 
-        if output_path:
-            out = Path(output_path)
-        else:
-            out = self.output_dir / f"{name}.pdbqt"
+        out = Path(output_path) if output_path else self.output_dir / f"{name}.pdbqt"
         out.parent.mkdir(parents=True, exist_ok=True)
 
         pdbqt_string, is_ok, err_msg = PDBQTWriterLegacy.write_string(setup)
@@ -425,11 +425,13 @@ class VinaDocking:
         logger.info(f"Ligand PDBQT: {out}")
         return str(out)
 
-    def run_docking(self,
-                    receptor_pdbqt: str | Path,
-                    ligand_pdbqt: str | Path,
-                    grid_box: GridBox,
-                    output_name: str = 'docking_out') -> List[DockingPose]:
+    def run_docking(
+        self,
+        receptor_pdbqt: str | Path,
+        ligand_pdbqt: str | Path,
+        grid_box: GridBox,
+        output_name: str = "docking_out",
+    ) -> list[DockingPose]:
         """
         Run AutoDock Vina docking.
 
@@ -446,13 +448,19 @@ class VinaDocking:
 
         cmd = [
             str(self.vina_path),
-            '--receptor', str(receptor_pdbqt),
-            '--ligand', str(ligand_pdbqt),
+            "--receptor",
+            str(receptor_pdbqt),
+            "--ligand",
+            str(ligand_pdbqt),
             *grid_box.to_vina_args(),
-            '--out', str(out_path),
-            '--exhaustiveness', str(self.exhaustiveness),
-            '--num_modes', str(self.num_modes),
-            '--energy_range', str(self.energy_range),
+            "--out",
+            str(out_path),
+            "--exhaustiveness",
+            str(self.exhaustiveness),
+            "--num_modes",
+            str(self.num_modes),
+            "--energy_range",
+            str(self.energy_range),
         ]
 
         logger.info(f"Running Vina: {output_name}")
@@ -473,7 +481,7 @@ class VinaDocking:
         except subprocess.TimeoutExpired:
             raise DockingError(f"Vina timed out after 300s: {output_name}")
 
-    def _parse_vina_stdout(self, output: str) -> List[DockingPose]:
+    def _parse_vina_stdout(self, output: str) -> list[DockingPose]:
         """
         Parse Vina stdout for binding modes.
 
@@ -486,26 +494,27 @@ class VinaDocking:
            2       -6.8          1.234     2.345
         """
         poses = []
-        pattern = re.compile(
-            r'^\s*(\d+)\s+(-?\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)',
-            re.MULTILINE
-        )
+        pattern = re.compile(r"^\s*(\d+)\s+(-?\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)", re.MULTILINE)
 
         for match in pattern.finditer(output):
-            poses.append(DockingPose(
-                mode=int(match.group(1)),
-                affinity=float(match.group(2)),
-                rmsd_lb=float(match.group(3)),
-                rmsd_ub=float(match.group(4)),
-            ))
+            poses.append(
+                DockingPose(
+                    mode=int(match.group(1)),
+                    affinity=float(match.group(2)),
+                    rmsd_lb=float(match.group(3)),
+                    rmsd_ub=float(match.group(4)),
+                )
+            )
 
         return poses
 
-    def dock_pocket(self,
-                    pocket: Dict[str, Any],
-                    receptor_pdbqt: str | Path,
-                    ligand_smiles: str,
-                    ligand_name: str = 'probe') -> DockingResult:
+    def dock_pocket(
+        self,
+        pocket: dict[str, Any],
+        receptor_pdbqt: str | Path,
+        ligand_smiles: str,
+        ligand_name: str = "probe",
+    ) -> DockingResult:
         """
         Dock a single ligand into a single pocket.
 
@@ -518,8 +527,8 @@ class VinaDocking:
         Returns:
             DockingResult
         """
-        pocket_id = pocket.get('id', 0)
-        pocket_rank = pocket.get('rank', 0)
+        pocket_id = pocket.get("id", 0)
+        pocket_rank = pocket.get("rank", 0)
 
         grid = self.calculate_grid_box(pocket)
 
@@ -537,9 +546,7 @@ class VinaDocking:
             )
 
             output_name = f"pocket{pocket_id}_{ligand_name}"
-            poses = self.run_docking(
-                receptor_pdbqt, ligand_pdbqt, grid, output_name
-            )
+            poses = self.run_docking(receptor_pdbqt, ligand_pdbqt, grid, output_name)
 
             result.poses = poses
             if poses:
@@ -549,17 +556,16 @@ class VinaDocking:
 
         except Exception as e:
             result.error = str(e)
-            logger.warning(
-                f"Docking failed for pocket {pocket_id}: {e}"
-            )
+            logger.warning(f"Docking failed for pocket {pocket_id}: {e}")
 
         return result
 
-    def probe_pocket(self,
-                     pocket: Dict[str, Any],
-                     receptor_pdbqt: str | Path,
-                     fragments: Optional[Dict[str, Dict[str, str]]] = None,
-                     ) -> List[DockingResult]:
+    def probe_pocket(
+        self,
+        pocket: dict[str, Any],
+        receptor_pdbqt: str | Path,
+        fragments: dict[str, dict[str, str]] | None = None,
+    ) -> list[DockingResult]:
         """
         Chemical probing: dock multiple fragment types into a pocket.
 
@@ -582,7 +588,7 @@ class VinaDocking:
             result = self.dock_pocket(
                 pocket,
                 receptor_pdbqt,
-                ligand_smiles=frag_info['smiles'],
+                ligand_smiles=frag_info["smiles"],
                 ligand_name=f"{frag_type}_{frag_info['name']}",
             )
             results.append(result)
@@ -594,14 +600,16 @@ class VinaDocking:
 # HIGH-LEVEL PIPELINE API
 # ============================================================================
 
-def dock_elite_pockets(cavities: List[Dict[str, Any]],
-                       protein_pdb: str,
-                       profile: str = 'default',
-                       top_n: int = 5,
-                       vina_bin: str = 'tools/vina/vina.exe',
-                       output_dir: str = 'data/docking',
-                       exhaustiveness: int = DEFAULT_EXHAUSTIVENESS,
-                       ) -> Dict[str, Any]:
+
+def dock_elite_pockets(
+    cavities: list[dict[str, Any]],
+    protein_pdb: str,
+    profile: str = "default",
+    top_n: int = 5,
+    vina_bin: str = "tools/vina/vina.exe",
+    output_dir: str = "data/docking",
+    exhaustiveness: int = DEFAULT_EXHAUSTIVENESS,
+) -> dict[str, Any]:
     """
     Dock fragment probes into the top-ranked pockets.
 
@@ -628,25 +636,22 @@ def dock_elite_pockets(cavities: List[Dict[str, Any]],
     receptor_pdbqt = docker.prepare_receptor(protein_pdb)
     elite = cavities[:top_n]
 
-    all_results: List[Dict[str, Any]] = []
+    all_results: list[dict[str, Any]] = []
     best_overall = 0.0
     druggable_count = 0
 
     for pocket in elite:
-        pocket_id = pocket.get('id', 0)
-        pocket_rank = pocket.get('rank', 0)
-        bio_score = pocket.get('bio_score', 0.0)
+        pocket_id = pocket.get("id", 0)
+        pocket_rank = pocket.get("rank", 0)
+        bio_score = pocket.get("bio_score", 0.0)
 
-        logger.info(
-            f"Docking pocket #{pocket_rank} (id={pocket_id}, "
-            f"bio_score={bio_score:.4f})"
-        )
+        logger.info(f"Docking pocket #{pocket_rank} (id={pocket_id}, bio_score={bio_score:.4f})")
 
         probe_results = docker.probe_pocket(pocket, receptor_pdbqt)
 
         for r in probe_results:
             result_dict = r.to_dict()
-            result_dict['bio_score'] = bio_score
+            result_dict["bio_score"] = bio_score
             all_results.append(result_dict)
 
             if r.success and r.best_affinity < best_overall:
@@ -655,24 +660,24 @@ def dock_elite_pockets(cavities: List[Dict[str, Any]],
                 druggable_count += 1
 
     n_total = len(all_results)
-    n_success = sum(1 for r in all_results if r.get('success', False))
+    n_success = sum(1 for r in all_results if r.get("success", False))
 
     report = {
-        'protein': str(protein_pdb),
-        'profile': profile,
-        'vina_version': docker.vina_version,
-        'n_pockets_docked': len(elite),
-        'n_fragment_docks': n_total,
-        'n_successful': n_success,
-        'n_druggable': druggable_count,
-        'best_affinity': best_overall,
-        'exhaustiveness': exhaustiveness,
-        'results': all_results,
+        "protein": str(protein_pdb),
+        "profile": profile,
+        "vina_version": docker.vina_version,
+        "n_pockets_docked": len(elite),
+        "n_fragment_docks": n_total,
+        "n_successful": n_success,
+        "n_druggable": druggable_count,
+        "best_affinity": best_overall,
+        "exhaustiveness": exhaustiveness,
+        "results": all_results,
     }
 
-    report_path = Path(output_dir) / 'docking_report.json'
+    report_path = Path(output_dir) / "docking_report.json"
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(report_path, 'w') as f:
+    with open(report_path, "w") as f:
         json.dump(report, f, indent=2, default=str)
 
     logger.info(
@@ -683,7 +688,7 @@ def dock_elite_pockets(cavities: List[Dict[str, Any]],
     return report
 
 
-def parse_vina_output_file(pdbqt_path: str) -> List[DockingPose]:
+def parse_vina_output_file(pdbqt_path: str) -> list[DockingPose]:
     """
     Parse a Vina output PDBQT file for pose data.
 
@@ -696,18 +701,18 @@ def parse_vina_output_file(pdbqt_path: str) -> List[DockingPose]:
     content = path.read_text()
     poses = []
 
-    pattern = re.compile(
-        r'REMARK VINA RESULT:\s+([-.\d]+)\s+([-.\d]+)\s+([-.\d]+)'
-    )
+    pattern = re.compile(r"REMARK VINA RESULT:\s+([-.\d]+)\s+([-.\d]+)\s+([-.\d]+)")
 
     mode = 0
     for match in pattern.finditer(content):
         mode += 1
-        poses.append(DockingPose(
-            mode=mode,
-            affinity=float(match.group(1)),
-            rmsd_lb=float(match.group(2)),
-            rmsd_ub=float(match.group(3)),
-        ))
+        poses.append(
+            DockingPose(
+                mode=mode,
+                affinity=float(match.group(1)),
+                rmsd_lb=float(match.group(2)),
+                rmsd_ub=float(match.group(3)),
+            )
+        )
 
     return poses

@@ -1,12 +1,11 @@
 from pathlib import Path
 
+import biotite.structure.io.pdb as pdb
 import numpy as np
 import pytest
-import biotite.structure.io.pdb as pdb
 
 from src.frame_reconstruction import reconstruct_all_atom_frame_from_ca
 from src.multiframe import analyze_structure_file
-
 
 TEMPLATE_PDB = Path("data/raw_pdb/1cbs.pdb")
 FRAME_PDB = Path("data/frames/1cbs/frame_010.pdb")
@@ -57,19 +56,14 @@ def test_reconstruct_all_atom_frame_preserves_structure_and_moves_atoms(tmp_path
 
     non_ca = np.where(template.atom_name != "CA")[0]
     assert len(non_ca) > 0
-    displacement = np.linalg.norm(
-        reconstructed.coord[non_ca] - template.coord[non_ca], axis=1
-    )
+    displacement = np.linalg.norm(reconstructed.coord[non_ca] - template.coord[non_ca], axis=1)
     assert float(np.max(displacement)) > 0.0
 
     rec_ca = _ca_map(reconstructed)
     frame_ca = _ca_map(frame)
     shared = sorted(set(rec_ca) & set(frame_ca))
     assert len(shared) > 0
-    errors = [
-        float(np.linalg.norm(rec_ca[k] - frame_ca[k]))
-        for k in shared
-    ]
+    errors = [float(np.linalg.norm(rec_ca[k] - frame_ca[k])) for k in shared]
     assert float(np.mean(errors)) < 1e-4
 
 

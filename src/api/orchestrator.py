@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import queue
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable
-
-import logging
+from typing import Any
 
 from .errors import ApiError
 from .models import JobDetailResponse, JobErrorResponse, JobStatus, JobSubmitRequest
@@ -252,9 +253,7 @@ class JobOrchestrator:
             if record.attempts > 1:
                 self._retried_jobs += 1
             if record.started_at_utc and record.finished_at_utc:
-                latency = (
-                    record.finished_at_utc - record.started_at_utc
-                ).total_seconds()
+                latency = (record.finished_at_utc - record.started_at_utc).total_seconds()
                 self._latencies_seconds.append(latency)
 
     def ops_metrics(self) -> dict[str, Any]:
@@ -369,8 +368,9 @@ class JobOrchestrator:
         n_frames = int(options.get("n_frames", 20))
         profile = str(options.get("profile", "default"))
 
-        logger.info("Starting full analysis for %s (frames=%d, profile=%s)",
-                     pdb_id, n_frames, profile)
+        logger.info(
+            "Starting full analysis for %s (frames=%d, profile=%s)", pdb_id, n_frames, profile
+        )
 
         pipeline = BioVoidPipeline(
             pdb_id=pdb_id,
@@ -389,6 +389,7 @@ class JobOrchestrator:
 
         try:
             from src.database import AtlasDB
+
             db_path = project_root / "data" / "atlas.db"
             with AtlasDB(str(db_path)) as db:
                 saved = db.batch_insert_from_report(report)

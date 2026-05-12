@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.parallel_crawler import CheckpointManager, CrawlerState, ParallelCrawler
+from src.parallel_crawler import CrawlerState, ParallelCrawler
 
 
 def _success_result(pid: str) -> dict:
@@ -55,7 +55,9 @@ def test_resume_total_ids_normalized_to_current_list(tmp_path: Path) -> None:
     )
     crawler.checkpoint.save(stale)
 
-    with patch("src.parallel_crawler._analyze_single_protein", return_value=_success_result("1TUP")):
+    with patch(
+        "src.parallel_crawler._analyze_single_protein", return_value=_success_result("1TUP")
+    ):
         results = crawler.process_pdb_list(["1CBS", "1AKE", "1TUP"], resume=True)
 
     state = crawler.get_checkpoint_state()
@@ -80,9 +82,12 @@ def test_elapsed_not_double_counted_and_metrics_consistent(tmp_path: Path) -> No
     )
 
     fake_clock = itertools.chain([100.0, 105.0, 110.0], itertools.repeat(110.0))
-    with patch("src.parallel_crawler._analyze_single_protein", return_value=_success_result("TEST")), patch(
-        "src.parallel_crawler.time.time",
-        side_effect=lambda: next(fake_clock),
+    with (
+        patch("src.parallel_crawler._analyze_single_protein", return_value=_success_result("TEST")),
+        patch(
+            "src.parallel_crawler.time.time",
+            side_effect=lambda: next(fake_clock),
+        ),
     ):
         crawler.process_pdb_list(["TEST"], resume=False)
 

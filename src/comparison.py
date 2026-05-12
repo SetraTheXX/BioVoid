@@ -14,8 +14,9 @@ Features:
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -87,17 +88,13 @@ def compare_pockets(
     norm_a = np.linalg.norm(vec_a)
     norm_b = np.linalg.norm(vec_b)
 
-    if norm_a > 0 and norm_b > 0:
-        cosine = float(np.dot(vec_a, vec_b) / (norm_a * norm_b))
-    else:
-        cosine = 0.0
+    cosine = float(np.dot(vec_a, vec_b) / (norm_a * norm_b)) if norm_a > 0 and norm_b > 0 else 0.0
 
     euclidean = float(np.linalg.norm(vec_a - vec_b))
 
     max_dist = np.sqrt(len(SCORE_KEYS))
     composite = round(
-        0.6 * max(0.0, cosine)
-        + 0.4 * max(0.0, 1.0 - euclidean / max_dist),
+        0.6 * max(0.0, cosine) + 0.4 * max(0.0, 1.0 - euclidean / max_dist),
         4,
     )
 
@@ -150,21 +147,22 @@ def find_similar_pockets(
         euclidean = float(np.linalg.norm(query_vec - cand_vec))
         max_dist = np.sqrt(len(SCORE_KEYS))
         composite = round(
-            0.6 * max(0.0, cosine)
-            + 0.4 * max(0.0, 1.0 - euclidean / max_dist),
+            0.6 * max(0.0, cosine) + 0.4 * max(0.0, 1.0 - euclidean / max_dist),
             4,
         )
 
         if composite >= min_similarity:
-            results.append({
-                "pocket": candidate,
-                "pdb_id": candidate.get("pdb_id", "unknown"),
-                "pocket_id": candidate.get("id", 0),
-                "cosine_similarity": round(cosine, 4),
-                "euclidean_distance": round(euclidean, 4),
-                "composite_similarity": composite,
-                "bio_score": candidate.get("bio_score", 0.0),
-            })
+            results.append(
+                {
+                    "pocket": candidate,
+                    "pdb_id": candidate.get("pdb_id", "unknown"),
+                    "pocket_id": candidate.get("id", 0),
+                    "cosine_similarity": round(cosine, 4),
+                    "euclidean_distance": round(euclidean, 4),
+                    "composite_similarity": composite,
+                    "bio_score": candidate.get("bio_score", 0.0),
+                }
+            )
 
     results.sort(key=lambda r: r["composite_similarity"], reverse=True)
     return results[:top_n]
@@ -220,18 +218,10 @@ def ensemble_consensus_score(
     support = max(0.0, min(1.0, support))
 
     persistence = pocket.get("persistence_score")
-    if persistence is not None:
-        persist = float(persistence)
-    else:
-        persist = 0.0
+    persist = float(persistence) if persistence is not None else 0.0
     persist = max(0.0, min(1.0, persist))
 
-    score = (
-        w_bio * bio
-        + w_persistence * persist
-        + w_geometry * geometry
-        + w_support * support
-    )
+    score = w_bio * bio + w_persistence * persist + w_geometry * geometry + w_support * support
     return round(max(0.0, min(1.0, score)), 4)
 
 
@@ -251,18 +241,21 @@ def batch_compare(
     for i, pa in enumerate(pockets_a):
         for j, pb in enumerate(pockets_b):
             sim = compare_pockets(
-                pa, pb,
+                pa,
+                pb,
                 label_a=f"{label_a}_p{i}",
                 label_b=f"{label_b}_p{j}",
             )
-            pairs.append({
-                "a_index": i,
-                "b_index": j,
-                "cosine": sim.cosine_similarity,
-                "euclidean": sim.euclidean_distance,
-                "composite": sim.composite_similarity,
-                "deltas": sim.feature_deltas,
-            })
+            pairs.append(
+                {
+                    "a_index": i,
+                    "b_index": j,
+                    "cosine": sim.cosine_similarity,
+                    "euclidean": sim.euclidean_distance,
+                    "composite": sim.composite_similarity,
+                    "deltas": sim.feature_deltas,
+                }
+            )
 
     pairs.sort(key=lambda p: p["composite"], reverse=True)
 
@@ -274,7 +267,7 @@ def batch_compare(
         "n_pairs": len(pairs),
         "best_match": pairs[0] if pairs else None,
         "top_matches": pairs[:10],
-        "avg_similarity": round(
-            float(np.mean([p["composite"] for p in pairs])), 4
-        ) if pairs else 0.0,
+        "avg_similarity": round(float(np.mean([p["composite"] for p in pairs])), 4)
+        if pairs
+        else 0.0,
     }

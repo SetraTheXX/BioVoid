@@ -37,8 +37,9 @@ class JobInput(BaseModel):
     @classmethod
     def normalize_pdb_id(cls, value: str) -> str:
         import re
+
         normalized = value.strip().upper()
-        if not re.match(r'^[A-Z0-9]{4,12}$', normalized):
+        if not re.match(r"^[A-Z0-9]{4,12}$", normalized):
             raise ValueError("pdb_id must be 4-12 alphanumeric characters (e.g. 1CBS)")
         return normalized
 

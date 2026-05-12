@@ -78,9 +78,7 @@ def load_pocket_dataframe(
 
 
 def load_protein_list(db: AtlasDB) -> list[str]:
-    rows = db.conn.execute(
-        "SELECT pdb_id FROM proteins ORDER BY pdb_id"
-    ).fetchall()
+    rows = db.conn.execute("SELECT pdb_id FROM proteins ORDER BY pdb_id").fetchall()
     return [r["pdb_id"] for r in rows]
 
 
@@ -112,17 +110,22 @@ def build_kpi_cards(stats: dict[str, Any]) -> list[dict[str, Any]]:
 def build_score_histogram(*args, **kwargs):
     return None
 
+
 def build_volume_scatter(*args, **kwargs):
     return None
+
 
 def build_class_pie(*args, **kwargs):
     return None
 
+
 def build_3d_pocket_view(*args, **kwargs):
     return None
 
+
 def build_top_proteins_bar(*args, **kwargs):
     return None
+
 
 def dataframe_to_csv(df: pd.DataFrame) -> str:
     return df.to_csv(index=False) if not df.empty else ""

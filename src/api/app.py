@@ -2,28 +2,28 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+import asyncio
 import json
 import logging
-from pathlib import Path
 import time
-from typing import Any, Optional
 import uuid
-
-import asyncio
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Header, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.database import AtlasDB
+
 from .errors import ApiError
 from .models import (
     ALLOWED_OPTION_KEYS,
+    CANONICAL_LOCK_KEYS,
     BatchJobSubmissionResponse,
     BatchJobSubmitRequest,
-    CANONICAL_LOCK_KEYS,
     ErrorEnvelope,
     JobDetailResponse,
     JobInput,
@@ -109,13 +109,12 @@ def _validate_options_shape(payload: dict[str, Any]) -> None:
             )
 
     priority = options.get("priority")
-    if priority is not None:
-        if priority not in {"normal", "high"}:
-            raise ApiError(
-                status_code=400,
-                code="INVALID_PRIORITY",
-                message="'priority' must be one of ['normal', 'high'].",
-            )
+    if priority is not None and priority not in {"normal", "high"}:
+        raise ApiError(
+            status_code=400,
+            code="INVALID_PRIORITY",
+            message="'priority' must be one of ['normal', 'high'].",
+        )
 
 
 def create_app(
@@ -140,9 +139,7 @@ def create_app(
     app = FastAPI(
         title="BioVoid Phase 6 Job API",
         version="6.0.0-step4",
-        description=(
-            "Single-node job orchestration API for controlled Phase 6 productization."
-        ),
+        description=("Single-node job orchestration API for controlled Phase 6 productization."),
         lifespan=lifespan,
     )
     # Keep app.state available even when lifespan is not entered (e.g., ad-hoc TestClient use).
@@ -195,9 +192,7 @@ def create_app(
         return JSONResponse(status_code=exc.status_code, content=exc.to_payload())
 
     @app.exception_handler(RequestValidationError)
-    async def validation_error_handler(
-        _: Request, exc: RequestValidationError
-    ) -> JSONResponse:
+    async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
         payload = ErrorEnvelope(
             error={
                 "code": "VALIDATION_ERROR",
@@ -365,18 +360,20 @@ def create_app(
                     sphericity = float(sc.get("sphericity", 0) or 0)
                 except (json.JSONDecodeError, TypeError):
                     pass
-            items.append({
-                "pdb_id": row.get("pdb_id", ""),
-                "pocket_id": row.get("pocket_id", 0),
-                "bio_score": float(row.get("bio_score", 0.0) or 0.0),
-                "volume": float(row.get("volume", 0.0) or 0.0),
-                "rank": int(row.get("rank", 0) or 0),
-                "druggability_class": row.get("druggability_class", "low"),
-                "druggable": bool(row.get("druggable", False)),
-                "profile_used": row.get("profile_used", ""),
-                "merged_vertices": int(row.get("merged_vertices", 0) or 0),
-                "sphericity": sphericity,
-            })
+            items.append(
+                {
+                    "pdb_id": row.get("pdb_id", ""),
+                    "pocket_id": row.get("pocket_id", 0),
+                    "bio_score": float(row.get("bio_score", 0.0) or 0.0),
+                    "volume": float(row.get("volume", 0.0) or 0.0),
+                    "rank": int(row.get("rank", 0) or 0),
+                    "druggability_class": row.get("druggability_class", "low"),
+                    "druggable": bool(row.get("druggable", False)),
+                    "profile_used": row.get("profile_used", ""),
+                    "merged_vertices": int(row.get("merged_vertices", 0) or 0),
+                    "sphericity": sphericity,
+                }
+            )
         return {
             "available": True,
             "items": items,
@@ -429,9 +426,7 @@ def create_app(
             raise ApiError(
                 status_code=400,
                 code="CANONICAL_LOCK_OVERRIDE_FORBIDDEN",
-                message=(
-                    "Canonical scientific lock fields cannot be overridden by API requests."
-                ),
+                message=("Canonical scientific lock fields cannot be overridden by API requests."),
                 details={"forbidden_keys": forbidden_keys},
             )
 
@@ -506,14 +501,12 @@ def create_app(
     @app.get("/jobs")
     async def list_jobs(
         request: Request,
-        status: Optional[str] = Query(default=None),
+        status: str | None = Query(default=None),
         limit: int = Query(default=50, ge=1, le=200),
     ) -> dict[str, Any]:
         """List all jobs, optionally filtered by status."""
         await enforce_rate_limit(request)
-        records = app.state.orchestrator.list_jobs(
-            status_filter=status, limit=limit
-        )
+        records = app.state.orchestrator.list_jobs(status_filter=status, limit=limit)
         return {
             "jobs": [
                 {
@@ -598,10 +591,12 @@ def create_app(
                 try:
                     record = app.state.orchestrator.get(job_id)
                 except ApiError:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": f"Job {job_id} not found",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": f"Job {job_id} not found",
+                        }
+                    )
                     break
 
                 current_status = record.status
@@ -612,9 +607,9 @@ def create_app(
                         progress = 0
                     elif current_status == JobStatus.RUNNING:
                         progress = 50
-                    elif current_status == JobStatus.SUCCEEDED:
-                        progress = 100
-                    elif current_status == JobStatus.FAILED:
+                    elif (
+                        current_status == JobStatus.SUCCEEDED or current_status == JobStatus.FAILED
+                    ):
                         progress = 100
 
                     event = JobProgressEvent(
@@ -724,26 +719,30 @@ def create_app(
                                     sc = sc.get("score_components", {})
                             except (json.JSONDecodeError, TypeError):
                                 pass
-                        pockets.append({
-                            "pocket_id": r.get("pocket_id", 0),
-                            "rank": int(r.get("rank", 0) or 0),
-                            "bio_score": float(r.get("bio_score", 0) or 0),
-                            "volume": float(r.get("volume", 0) or 0),
-                            "center": [
-                                float(r.get("center_x", 0) or 0),
-                                float(r.get("center_y", 0) or 0),
-                                float(r.get("center_z", 0) or 0),
-                            ],
-                            "hydrophobic_ratio": float(r.get("hydrophobic_ratio", 0) or 0),
-                            "druggability_class": r.get("druggability_class", "low"),
-                            "druggable": bool(r.get("druggable", False)),
-                            "enclosure_score": float(r.get("enclosure_score", 0) or 0),
-                            "depth_score": float(r.get("depth_score", 0) or 0),
-                            "profile_used": r.get("profile_used", ""),
-                            "merged_vertices": int(r.get("merged_vertices", 0) or 0),
-                            "sphericity": float(sc.get("sphericity", 0) or 0),
-                            "volume_score": float(sc.get("volume_score", r.get("volume_score", 0)) or 0),
-                        })
+                        pockets.append(
+                            {
+                                "pocket_id": r.get("pocket_id", 0),
+                                "rank": int(r.get("rank", 0) or 0),
+                                "bio_score": float(r.get("bio_score", 0) or 0),
+                                "volume": float(r.get("volume", 0) or 0),
+                                "center": [
+                                    float(r.get("center_x", 0) or 0),
+                                    float(r.get("center_y", 0) or 0),
+                                    float(r.get("center_z", 0) or 0),
+                                ],
+                                "hydrophobic_ratio": float(r.get("hydrophobic_ratio", 0) or 0),
+                                "druggability_class": r.get("druggability_class", "low"),
+                                "druggable": bool(r.get("druggable", False)),
+                                "enclosure_score": float(r.get("enclosure_score", 0) or 0),
+                                "depth_score": float(r.get("depth_score", 0) or 0),
+                                "profile_used": r.get("profile_used", ""),
+                                "merged_vertices": int(r.get("merged_vertices", 0) or 0),
+                                "sphericity": float(sc.get("sphericity", 0) or 0),
+                                "volume_score": float(
+                                    sc.get("volume_score", r.get("volume_score", 0)) or 0
+                                ),
+                            }
+                        )
                     protein_info["available"] = bool(pockets)
             except Exception as exc:
                 protein_info["error"] = str(exc)
@@ -756,15 +755,17 @@ def create_app(
             c = p["druggability_class"]
             class_dist[c] = class_dist.get(c, 0) + 1
 
-        protein_info.update({
-            "pockets": pockets,
-            "total_pockets": len(pockets),
-            "druggable_pockets": druggable_count,
-            "avg_bio_score": round(sum(scores) / max(1, len(scores)), 4) if scores else 0,
-            "max_bio_score": round(max(scores), 4) if scores else 0,
-            "avg_volume": round(sum(volumes) / max(1, len(volumes)), 1) if volumes else 0,
-            "class_distribution": class_dist,
-        })
+        protein_info.update(
+            {
+                "pockets": pockets,
+                "total_pockets": len(pockets),
+                "druggable_pockets": druggable_count,
+                "avg_bio_score": round(sum(scores) / max(1, len(scores)), 4) if scores else 0,
+                "max_bio_score": round(max(scores), 4) if scores else 0,
+                "avg_volume": round(sum(volumes) / max(1, len(volumes)), 1) if volumes else 0,
+                "class_distribution": class_dist,
+            }
+        )
         return protein_info
 
     @app.get("/export/pockets.csv")
@@ -790,9 +791,19 @@ def create_app(
         if not rows:
             raise ApiError(status_code=404, code="NO_DATA", message="No pockets found")
 
-        headers = ["pdb_id", "pocket_id", "rank", "bio_score", "volume",
-                    "druggability_class", "druggable", "hydrophobic_ratio",
-                    "enclosure_score", "depth_score", "profile_used"]
+        headers = [
+            "pdb_id",
+            "pocket_id",
+            "rank",
+            "bio_score",
+            "volume",
+            "druggability_class",
+            "druggable",
+            "hydrophobic_ratio",
+            "enclosure_score",
+            "depth_score",
+            "profile_used",
+        ]
         lines = [",".join(headers)]
         for r in rows:
             line = ",".join(str(r.get(h, "")) for h in headers)
@@ -859,7 +870,9 @@ def create_app(
     async def fpocket_comparison(request: Request) -> dict[str, Any]:
         """Load fpocket vs BioVoid comparison data."""
         await enforce_rate_limit(request)
-        fp_path = Path(__file__).resolve().parents[2] / "data" / "benchmark" / "fpocket_benchmark_v3.json"
+        fp_path = (
+            Path(__file__).resolve().parents[2] / "data" / "benchmark" / "fpocket_benchmark_v3.json"
+        )
         if not fp_path.exists():
             return {"available": False, "message": "fpocket benchmark data not found"}
 
@@ -886,16 +899,19 @@ def create_app(
         await enforce_rate_limit(request)
         try:
             from src.benchmark import KNOWN_CRYPTIC_POCKETS
+
             pockets = []
             for pdb_id, info in KNOWN_CRYPTIC_POCKETS.items():
-                pockets.append({
-                    "pdb_id": pdb_id,
-                    "name": info.get("name", ""),
-                    "center": info.get("center", []),
-                    "pocket_type": info.get("pocket_type", ""),
-                    "known_ligand": info.get("known_ligand", ""),
-                    "reference": info.get("reference", ""),
-                })
+                pockets.append(
+                    {
+                        "pdb_id": pdb_id,
+                        "name": info.get("name", ""),
+                        "center": info.get("center", []),
+                        "pocket_type": info.get("pocket_type", ""),
+                        "known_ligand": info.get("known_ligand", ""),
+                        "reference": info.get("reference", ""),
+                    }
+                )
             return {"pockets": pockets, "count": len(pockets)}
         except Exception as e:
             return {"pockets": [], "count": 0, "error": str(e)}
@@ -911,13 +927,15 @@ def create_app(
         artifacts = []
         if results_dir.exists():
             for f in sorted(results_dir.iterdir()):
-                if f.suffix in ('.png', '.jpg', '.html', '.svg'):
-                    artifacts.append({
-                        "name": f.name,
-                        "type": f.suffix[1:],
-                        "size_kb": round(f.stat().st_size / 1024, 1),
-                        "url": f"/static/results/{f.name}",
-                    })
+                if f.suffix in (".png", ".jpg", ".html", ".svg"):
+                    artifacts.append(
+                        {
+                            "name": f.name,
+                            "type": f.suffix[1:],
+                            "size_kb": round(f.stat().st_size / 1024, 1),
+                            "url": f"/static/results/{f.name}",
+                        }
+                    )
         return {"artifacts": artifacts, "count": len(artifacts)}
 
     @app.get("/protein/{pdb_id}/structure")
@@ -953,19 +971,21 @@ def create_app(
 
         pockets = []
         for row in rows:
-            pockets.append({
-                "id": row.get("pocket_id", 0),
-                "center": [
-                    float(row.get("center_x", 0) or 0),
-                    float(row.get("center_y", 0) or 0),
-                    float(row.get("center_z", 0) or 0),
-                ],
-                "radius": float(row.get("radius_geom", 3.0) or 3.0),
-                "bio_score": float(row.get("bio_score", 0) or 0),
-                "volume": float(row.get("volume", 0) or 0),
-                "druggability_class": row.get("druggability_class", "low"),
-                "druggable": bool(row.get("druggable", False)),
-            })
+            pockets.append(
+                {
+                    "id": row.get("pocket_id", 0),
+                    "center": [
+                        float(row.get("center_x", 0) or 0),
+                        float(row.get("center_y", 0) or 0),
+                        float(row.get("center_z", 0) or 0),
+                    ],
+                    "radius": float(row.get("radius_geom", 3.0) or 3.0),
+                    "bio_score": float(row.get("bio_score", 0) or 0),
+                    "volume": float(row.get("volume", 0) or 0),
+                    "druggability_class": row.get("druggability_class", "low"),
+                    "druggable": bool(row.get("druggable", False)),
+                }
+            )
         return {"pdb_id": pdb_id_upper, "pockets": pockets}
 
     return app

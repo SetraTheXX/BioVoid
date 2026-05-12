@@ -13,11 +13,10 @@ Sources:
 import logging
 import time
 from pathlib import Path
-from typing import Optional
 
-import requests
 import biotite.database.rcsb as rcsb
 import biotite.structure.io.pdb as pdb
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -26,26 +25,26 @@ ALPHAFOLD_API = "https://alphafold.ebi.ac.uk/files"
 
 class FetchError(Exception):
     """Custom exception for fetch errors."""
+
     pass
 
 
-def fetch_pdb(pdb_id: str, cache_dir: Optional[Path] = None,
-              source: str = "rcsb") -> Path:
+def fetch_pdb(pdb_id: str, cache_dir: Path | None = None, source: str = "rcsb") -> Path:
     """
     Download PDB file with caching.
-    
+
     Args:
         pdb_id: PDB identifier (e.g., '1cbs') or UniProt ID for AlphaFold
         cache_dir: Directory to store downloaded files
         source: 'rcsb' (default) or 'alphafold'
-    
+
     Returns:
         Path to the downloaded PDB file
     """
     if cache_dir is None:
         project_root = Path(__file__).parent.parent
         cache_dir = project_root / "data" / "raw_pdb"
-    
+
     cache_dir.mkdir(parents=True, exist_ok=True)
     pdb_id = pdb_id.strip()
 
@@ -57,12 +56,10 @@ def fetch_pdb(pdb_id: str, cache_dir: Optional[Path] = None,
 def _fetch_rcsb(pdb_id: str, cache_dir: Path) -> Path:
     """Fetch from RCSB PDB."""
     if len(pdb_id) != 4 or not pdb_id.isalnum():
-        raise FetchError(
-            f"Invalid PDB ID: '{pdb_id}'. Must be 4 alphanumeric characters."
-        )
-    
+        raise FetchError(f"Invalid PDB ID: '{pdb_id}'. Must be 4 alphanumeric characters.")
+
     pdb_file = cache_dir / f"{pdb_id}.pdb"
-    
+
     if pdb_file.exists():
         try:
             pdb_file_obj = pdb.PDBFile.read(str(pdb_file))
@@ -74,29 +71,29 @@ def _fetch_rcsb(pdb_id: str, cache_dir: Path) -> Path:
         except Exception as e:
             logger.warning("Cached file corrupted, re-downloading: %s", e)
             pdb_file.unlink()
-    
+
     logger.info("Downloading %s from RCSB PDB...", pdb_id.upper())
     start_time = time.time()
-    
+
     try:
         rcsb.fetch(pdb_id, "pdb", target_path=str(cache_dir))
-        
+
         actual_file = None
         for candidate in cache_dir.glob(f"*{pdb_id}*"):
-            if candidate.suffix in ['.pdb', '.ent', '.cif']:
+            if candidate.suffix in [".pdb", ".ent", ".cif"]:
                 actual_file = candidate
                 break
-        
+
         if actual_file is None:
             raise FetchError(f"Downloaded file not found in {cache_dir}")
-        
+
         if actual_file != pdb_file:
             actual_file.rename(pdb_file)
-        
+
         elapsed = time.time() - start_time
         logger.info("Downloaded %s in %.2fs", pdb_id.upper(), elapsed)
         return pdb_file.absolute()
-    
+
     except Exception as e:
         raise FetchError(f"Failed to download {pdb_id.upper()}: {e}") from e
 
@@ -130,17 +127,17 @@ def _fetch_alphafold(uniprot_id: str, cache_dir: Path) -> Path:
 
 def batch_fetch(
     pdb_ids: list[str],
-    cache_dir: Optional[Path] = None,
+    cache_dir: Path | None = None,
     source: str = "rcsb",
     max_retries: int = 2,
 ) -> dict[str, Path | str]:
     """
     Download multiple structures with retry logic.
-    
+
     Returns dict mapping pdb_id -> Path (success) or error string (failure).
     """
     results: dict[str, Path | str] = {}
-    
+
     for pdb_id in pdb_ids:
         for attempt in range(1, max_retries + 2):
             try:
@@ -154,7 +151,7 @@ def batch_fetch(
                 else:
                     logger.warning("Retry %d/%d for %s", attempt, max_retries, pdb_id)
                     time.sleep(1.0 * attempt)
-    
+
     succeeded = sum(1 for v in results.values() if isinstance(v, Path))
     logger.info("Batch fetch complete: %d/%d succeeded", succeeded, len(pdb_ids))
     return results
@@ -163,10 +160,10 @@ def batch_fetch(
 def get_structure(pdb_file: Path):
     """
     Load PDB structure from file.
-    
+
     Args:
         pdb_file: Path to PDB file
-    
+
     Returns:
         biotite.structure.AtomArray: Protein structure
     """
@@ -178,10 +175,10 @@ def get_structure(pdb_file: Path):
 def get_ca_atoms(structure):
     """
     Extract CA (alpha carbon) atoms from structure.
-    
+
     Args:
         structure: biotite.structure.AtomArray
-    
+
     Returns:
         biotite.structure.AtomArray: CA atoms only
     """

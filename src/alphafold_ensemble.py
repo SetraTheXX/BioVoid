@@ -20,9 +20,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
-
-import numpy as np
+from typing import Any
 
 from .config import PIPELINE
 
@@ -52,6 +50,7 @@ class EnsembleConfig:
 def fetch_alphafold_structure(uniprot_id: str) -> Path:
     """Download AlphaFold predicted structure."""
     from .fetcher import fetch_pdb
+
     return fetch_pdb(uniprot_id, source="alphafold")
 
 
@@ -88,35 +87,36 @@ def generate_ensemble(
                 output_dir=str(amp_dir),
             )
             all_frame_dirs.append(result["output_dir"])
-            amplitude_metadata.append({
-                "amplitude_index": amp_idx,
-                "amplitude": amplitude,
-                "n_frames": config.n_frames_per_amplitude,
-                "output_dir": result["output_dir"],
-                "n_atoms": result.get("n_atoms", 0),
-            })
+            amplitude_metadata.append(
+                {
+                    "amplitude_index": amp_idx,
+                    "amplitude": amplitude,
+                    "n_frames": config.n_frames_per_amplitude,
+                    "output_dir": result["output_dir"],
+                    "n_atoms": result.get("n_atoms", 0),
+                }
+            )
             logger.info(
                 "Ensemble amplitude %.1f: %d frames generated",
-                amplitude, config.n_frames_per_amplitude,
+                amplitude,
+                config.n_frames_per_amplitude,
             )
         except Exception as e:
             logger.warning("Ensemble amplitude %.1f failed: %s", amplitude, e)
-            amplitude_metadata.append({
-                "amplitude_index": amp_idx,
-                "amplitude": amplitude,
-                "error": str(e),
-            })
+            amplitude_metadata.append(
+                {
+                    "amplitude_index": amp_idx,
+                    "amplitude": amplitude,
+                    "error": str(e),
+                }
+            )
 
     return {
         "source_pdb": pdb_path,
         "output_dir": str(output_dir),
         "total_amplitudes": len(config.amplitudes),
         "successful_amplitudes": len(all_frame_dirs),
-        "total_frames": sum(
-            m.get("n_frames", 0)
-            for m in amplitude_metadata
-            if "error" not in m
-        ),
+        "total_frames": sum(m.get("n_frames", 0) for m in amplitude_metadata if "error" not in m),
         "frame_dirs": all_frame_dirs,
         "amplitude_metadata": amplitude_metadata,
     }
@@ -136,10 +136,10 @@ def analyze_ensemble(
     """
     from .multiframe import (
         ConsensusConfig,
-        analyze_structure_file,
         aggregate_consensus_pockets,
-        list_frame_files,
         analyze_pocket_persistence,
+        analyze_structure_file,
+        list_frame_files,
     )
 
     all_pockets: list[list[dict[str, Any]]] = []
@@ -153,14 +153,14 @@ def analyze_ensemble(
                 pockets = analyze_structure_file(frame_file, profile=config.profile)
                 all_pockets.append(pockets)
                 all_labels.append(frame_file.name)
-                frame_stats.append({
-                    "frame": frame_file.name,
-                    "dir": frame_dir,
-                    "n_pockets": len(pockets),
-                    "n_druggable": sum(
-                        1 for p in pockets if p.get("druggable", False)
-                    ),
-                })
+                frame_stats.append(
+                    {
+                        "frame": frame_file.name,
+                        "dir": frame_dir,
+                        "n_pockets": len(pockets),
+                        "n_druggable": sum(1 for p in pockets if p.get("druggable", False)),
+                    }
+                )
             except Exception as e:
                 logger.warning("Frame analysis failed for %s: %s", frame_file, e)
 

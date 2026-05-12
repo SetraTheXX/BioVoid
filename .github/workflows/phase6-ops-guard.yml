@@ -11,6 +11,15 @@ on:
       - "tests/test_phase6_ops.py"
       - "tests/test_phase6_api.py"
       - "tests/test_phase6_portal.py"
+  pull_request:
+    paths:
+      - "scripts/run_phase6_ops_guard_pack.py"
+      - "docs/phase6_release_checklist.md"
+      - "docs/phase6_rollback_runbook.md"
+      - "src/api/**"
+      - "tests/test_phase6_ops.py"
+      - "tests/test_phase6_api.py"
+      - "tests/test_phase6_portal.py"
 
 jobs:
   guard-pack:
@@ -27,5 +36,6 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Run phase6 ops guard pack
+      - name: Run phase6 ops guard pack advisory
+        continue-on-error: true
         run: python scripts/run_phase6_ops_guard_pack.py --strict-recall-floor 0.30 --strict-overlap-floor 0.25

@@ -27,11 +27,11 @@ import json
 import logging
 import shutil
 import sqlite3
-import time
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Generator, Sequence
+from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
@@ -325,7 +325,7 @@ class AtlasDB:
             self._conn.close()
             self._conn = None
 
-    def __enter__(self) -> "AtlasDB":
+    def __enter__(self) -> AtlasDB:
         return self
 
     def __exit__(self, *args: Any) -> None:
@@ -647,9 +647,7 @@ class AtlasDB:
                 "druggable_cavities": report.get("druggable_cavities", 0),
                 "high_score_count": report.get("high_druggability", 0),
                 "medium_score_count": report.get("medium_druggability", 0),
-                "top_bio_score": report.get("cavities", [{}])[0].get(
-                    "bio_score", 0.0
-                )
+                "top_bio_score": report.get("cavities", [{}])[0].get("bio_score", 0.0)
                 if report.get("cavities")
                 else 0.0,
                 "analysis_runtime": report.get("runtime_seconds", 0.0),
@@ -675,14 +673,10 @@ class AtlasDB:
                         "radius_geom": cav.get("radius_geom", 0.0),
                         "radius_clear": cav.get("radius_clear", 0.0),
                         "merged_vertices": cav.get("merged_vertices", 0),
-                        "hydrophobic_ratio": cav.get(
-                            "hydrophobic_ratio", 0.0
-                        ),
+                        "hydrophobic_ratio": cav.get("hydrophobic_ratio", 0.0),
                         "polar_atoms": cav.get("polar_atoms", 0),
                         "druggable": cav.get("druggable", False),
-                        "druggability_class": cav.get(
-                            "druggability_class", "low"
-                        ),
+                        "druggability_class": cav.get("druggability_class", "low"),
                         "score_components": cav.get("score_components", {}),
                         "profile_used": cav.get("profile_used", "Default"),
                     }
@@ -703,9 +697,7 @@ class AtlasDB:
         ).fetchone()
         return dict(row) if row else None
 
-    def get_pocket(
-        self, pdb_id: str, pocket_id: int
-    ) -> dict[str, Any] | None:
+    def get_pocket(self, pdb_id: str, pocket_id: int) -> dict[str, Any] | None:
         """Get a specific pocket by PDB ID and pocket ID."""
         row = self.conn.execute(
             "SELECT * FROM pockets WHERE pdb_id = ? AND pocket_id = ?",
@@ -713,9 +705,7 @@ class AtlasDB:
         ).fetchone()
         return dict(row) if row else None
 
-    def get_pockets_for_protein(
-        self, pdb_id: str
-    ) -> list[dict[str, Any]]:
+    def get_pockets_for_protein(self, pdb_id: str) -> list[dict[str, Any]]:
         """Get all pockets for a given protein, ordered by rank."""
         rows = self.conn.execute(
             "SELECT * FROM pockets WHERE pdb_id = ? ORDER BY rank ASC",
@@ -904,9 +894,7 @@ class AtlasDB:
         pid = pdb_id.upper().strip()
         deleted = 0
         with self._transaction() as cur:
-            cur.execute(
-                "DELETE FROM docking_results WHERE pdb_id = ?", (pid,)
-            )
+            cur.execute("DELETE FROM docking_results WHERE pdb_id = ?", (pid,))
             deleted += cur.rowcount
             cur.execute("DELETE FROM pockets WHERE pdb_id = ?", (pid,))
             deleted += cur.rowcount
@@ -937,16 +925,12 @@ class AtlasDB:
 
     def count_proteins(self) -> int:
         """Total number of proteins in the atlas."""
-        row = self.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM proteins"
-        ).fetchone()
+        row = self.conn.execute("SELECT COUNT(*) AS cnt FROM proteins").fetchone()
         return row["cnt"] if row else 0
 
     def count_pockets(self) -> int:
         """Total number of pockets in the atlas."""
-        row = self.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM pockets"
-        ).fetchone()
+        row = self.conn.execute("SELECT COUNT(*) AS cnt FROM pockets").fetchone()
         return row["cnt"] if row else 0
 
     def count_druggable(self) -> int:
@@ -959,8 +943,7 @@ class AtlasDB:
     def count_elite(self, min_bio_score: float = 0.6) -> int:
         """Count elite pockets above score threshold."""
         row = self.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM pockets "
-            "WHERE druggable = 1 AND bio_score >= ?",
+            "SELECT COUNT(*) AS cnt FROM pockets WHERE druggable = 1 AND bio_score >= ?",
             (min_bio_score,),
         ).fetchone()
         return row["cnt"] if row else 0
@@ -1008,9 +991,7 @@ class AtlasDB:
             GROUP BY druggability_class
             """
         ).fetchall()
-        stats["class_distribution"] = {
-            r["druggability_class"]: r["cnt"] for r in rows
-        }
+        stats["class_distribution"] = {r["druggability_class"]: r["cnt"] for r in rows}
 
         return stats
 
@@ -1035,9 +1016,8 @@ class AtlasDB:
         # Ensure all changes are flushed
         self.conn.execute("PRAGMA wal_checkpoint(FULL)")
 
-        with open(str(self.db_path), "rb") as f_in:
-            with gzip.open(backup_path, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
+        with open(str(self.db_path), "rb") as f_in, gzip.open(backup_path, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
 
         return backup_path
 
@@ -1050,9 +1030,8 @@ class AtlasDB:
         """
         self.close()
 
-        with gzip.open(backup_path, "rb") as f_in:
-            with open(str(self.db_path), "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
+        with gzip.open(backup_path, "rb") as f_in, open(str(self.db_path), "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
 
         self._connect()
         self._init_schema()
@@ -1061,9 +1040,7 @@ class AtlasDB:
     # DATA LAKE HELPERS
     # ================================================================
 
-    def get_visual_archive_path(
-        self, pdb_id: str, file_type: str = "render"
-    ) -> Path:
+    def get_visual_archive_path(self, pdb_id: str, file_type: str = "render") -> Path:
         """
         Get the expected path for visual archive files.
 

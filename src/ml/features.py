@@ -15,7 +15,8 @@ Feature groups:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 
@@ -50,12 +51,7 @@ DYNAMICS_FEATURES = [
     "persistence_flicker_count",
 ]
 
-ALL_FEATURE_NAMES = (
-    GEOMETRIC_FEATURES
-    + CHEMICAL_FEATURES
-    + SCORE_FEATURES
-    + DYNAMICS_FEATURES
-)
+ALL_FEATURE_NAMES = GEOMETRIC_FEATURES + CHEMICAL_FEATURES + SCORE_FEATURES + DYNAMICS_FEATURES
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -97,9 +93,10 @@ def extract_batch(
     return np.stack(rows, axis=0)
 
 
-def feature_summary(X: np.ndarray,
-                    feature_names: Sequence[str] = ALL_FEATURE_NAMES,
-                    ) -> dict[str, dict[str, float]]:
+def feature_summary(
+    X: np.ndarray,
+    feature_names: Sequence[str] = ALL_FEATURE_NAMES,
+) -> dict[str, dict[str, float]]:
     """
     Compute per-feature statistics (mean, std, min, max) for a feature matrix.
     """
@@ -121,7 +118,7 @@ def feature_summary(X: np.ndarray,
 def normalize_features(
     X: np.ndarray,
     method: str = "standard",
-    stats: Optional[dict[str, np.ndarray]] = None,
+    stats: dict[str, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     """
     Normalize feature matrix.

@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import json
 import logging
-import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -38,7 +37,7 @@ class BenchmarkResult:
     n_predicted: int = 0
     best_bio_score: float = 0.0
     runtime_ms: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -77,11 +76,31 @@ def load_known_pockets(
     if not path.exists():
         logger.warning("Known pockets file not found: %s — using hardcoded fallback", path)
         KNOWN_CRYPTIC_POCKETS = {
-            "1CBS": {"center": [12.5, 22.0, 18.5], "name": "Retinoic acid binding", "pocket_type": "side-chain_flip"},
-            "3C79": {"center": [15.2, 35.8, 22.4], "name": "TEM-1 Beta-Lactamase", "pocket_type": "loop_rearrangement"},
-            "1F41": {"center": [28.5, 12.0, 45.2], "name": "Interleukin-2", "pocket_type": "side-chain_flip"},
-            "1YET": {"center": [41.2, -46.55, 65.6], "name": "Bcl-xL", "pocket_type": "helix_displacement"},
-            "1G4E": {"center": [32.5, 18.0, 42.5], "name": "p38 MAP Kinase", "pocket_type": "loop_rearrangement"},
+            "1CBS": {
+                "center": [12.5, 22.0, 18.5],
+                "name": "Retinoic acid binding",
+                "pocket_type": "side-chain_flip",
+            },
+            "3C79": {
+                "center": [15.2, 35.8, 22.4],
+                "name": "TEM-1 Beta-Lactamase",
+                "pocket_type": "loop_rearrangement",
+            },
+            "1F41": {
+                "center": [28.5, 12.0, 45.2],
+                "name": "Interleukin-2",
+                "pocket_type": "side-chain_flip",
+            },
+            "1YET": {
+                "center": [41.2, -46.55, 65.6],
+                "name": "Bcl-xL",
+                "pocket_type": "helix_displacement",
+            },
+            "1G4E": {
+                "center": [32.5, 18.0, 42.5],
+                "name": "p38 MAP Kinase",
+                "pocket_type": "loop_rearrangement",
+            },
         }
         return KNOWN_CRYPTIC_POCKETS
 
@@ -170,7 +189,7 @@ def benchmark_single(
 
 def run_benchmark(
     results_by_protein: dict[str, list[dict[str, Any]]],
-    known_pockets: Optional[dict[str, dict[str, Any]]] = None,
+    known_pockets: dict[str, dict[str, Any]] | None = None,
     tolerance: float = 8.0,
 ) -> BenchmarkSummary:
     """
@@ -211,9 +230,7 @@ def run_benchmark(
         n_errors=errors,
         recall=round(hits / max(1, len(results)), 4),
         avg_distance=round(float(np.mean(distances)), 2) if distances else 0.0,
-        avg_runtime_ms=round(
-            float(np.mean([r.runtime_ms for r in valid])), 1
-        ) if valid else 0.0,
+        avg_runtime_ms=round(float(np.mean([r.runtime_ms for r in valid])), 1) if valid else 0.0,
         tolerance=tolerance,
         results=results,
     )
@@ -239,7 +256,7 @@ def save_benchmark_report(
 def compare_with_fpocket(
     biovoid_results: dict[str, list[dict[str, Any]]],
     fpocket_results: dict[str, list[dict[str, Any]]],
-    known_pockets: Optional[dict[str, dict[str, Any]]] = None,
+    known_pockets: dict[str, dict[str, Any]] | None = None,
     tolerance: float = 8.0,
 ) -> dict[str, Any]:
     """
@@ -258,7 +275,7 @@ def compare_with_fpocket(
     both_hit = []
     neither = []
 
-    for bv_r, fp_r in zip(bv_summary.results, fp_summary.results):
+    for bv_r, fp_r in zip(bv_summary.results, fp_summary.results, strict=False):
         if bv_r.hit and fp_r.hit:
             both_hit.append(bv_r.pdb_id)
         elif bv_r.hit and not fp_r.hit:
@@ -286,9 +303,7 @@ def compare_with_fpocket(
         "found_by_both": both_hit,
         "missed_by_both": neither,
         "biovoid_unique_count": len(bv_only),
-        "complementarity": round(
-            len(bv_only) / max(1, bv_summary.n_proteins) * 100, 1
-        ),
+        "complementarity": round(len(bv_only) / max(1, bv_summary.n_proteins) * 100, 1),
     }
 
 
@@ -303,8 +318,8 @@ def run_fpocket_docker(
     Requires Docker and the biovoid-fpocket image built from docker/fpocket/Dockerfile.
     If Docker is not available, returns empty list.
     """
-    import subprocess
     import re
+    import subprocess
 
     pdb_path = Path(pdb_path).resolve()
     if output_dir is None:
@@ -315,10 +330,14 @@ def run_fpocket_docker(
     try:
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-v", f"{pdb_path.parent}:/data",
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{pdb_path.parent}:/data",
                 docker_image,
-                "-f", f"/data/{pdb_path.name}",
+                "-f",
+                f"/data/{pdb_path.name}",
             ],
             capture_output=True,
             text=True,
@@ -343,12 +362,14 @@ def run_fpocket_docker(
         re.DOTALL,
     )
     for match in pocket_pattern.finditer(output_text):
-        pockets.append({
-            "id": int(match.group(1)),
-            "fpocket_score": float(match.group(2)),
-            "volume": float(match.group(3)),
-            "source": "fpocket",
-        })
+        pockets.append(
+            {
+                "id": int(match.group(1)),
+                "fpocket_score": float(match.group(2)),
+                "volume": float(match.group(3)),
+                "source": "fpocket",
+            }
+        )
 
     logger.info("fpocket found %d pockets", len(pockets))
     return pockets
@@ -364,8 +385,7 @@ def format_benchmark_table(summary: BenchmarkSummary) -> str:
         hit = "YES" if r.hit else "NO"
         dist = f"{r.best_distance:.1f}" if r.best_distance < float("inf") else "N/A"
         lines.append(
-            f"{r.pdb_id:<8} {hit:>4} {dist:>10} "
-            f"{r.best_bio_score:>8.4f} {r.n_predicted:>10}"
+            f"{r.pdb_id:<8} {hit:>4} {dist:>10} {r.best_bio_score:>8.4f} {r.n_predicted:>10}"
         )
     lines.append("-" * 46)
     lines.append(
