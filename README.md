@@ -1,115 +1,135 @@
-# BioVoid — Cryptic Pocket Discovery
+# BioVoid
 
-BioVoid is a computational pipeline that discovers hidden drug-binding pockets (cryptic pockets) in proteins using NMA dynamics, Voronoi geometry, and AI-powered scoring.
+BioVoid is a local research prototype for analyzing protein structures with
+normal mode analysis, geometry-based cavity detection, scoring heuristics, and a
+small FastAPI/React interface.
 
-## Quick Start
+This repository contains source code only. It does not include local databases,
+trained model files, raw PDB downloads, generated reports, or benchmark
+artifacts.
+
+> BioVoid is not a clinical, diagnostic, or validated drug-development system.
+> Outputs should be treated as computational research signals that require
+> independent scientific review.
+
+## What Is Included
+
+- Python analysis pipeline for fetching structures, generating NMA frames,
+  finding candidate cavities, scoring results, and saving JSON reports.
+- FastAPI backend with job submission, status, result download, Atlas queries,
+  and health/readiness endpoints.
+- React/Vite frontend for local dashboard, analysis submission, Atlas browsing,
+  and system status.
+- SQLite Atlas schema and helper APIs. The actual local `data/atlas.db` file is
+  intentionally excluded from git.
+- Tests for the core pipeline, API, database layer, docking wrapper, and portal
+  flows.
+
+## Repository Hygiene
+
+The following are intentionally ignored and should not be committed:
+
+- `data/`
+- `artifacts/`
+- `memory-bank/`
+- SQLite databases such as `*.db`
+- model files such as `*.pkl` and `*.joblib`
+- raw PDB files and generated reports
+- `frontend/node_modules/`
+- `frontend/dist/`
+
+If you need to share generated data, use a separate release artifact or an
+external storage location rather than committing it to the repository.
+
+## Requirements
+
+- Python 3.10+ (tested locally with Python 3.13)
+- Node.js and npm for the React frontend
+- Optional: AutoDock Vina/fpocket tooling for docking or external comparisons
+
+Install Python dependencies:
 
 ```bash
-git clone https://github.com/SetraTheXX/BioVoid.git
-cd BioVoid
 pip install -r requirements.txt
 ```
 
-## Usage
+Install frontend dependencies:
 
-### Web Interface (Recommended)
+```bash
+cd frontend
+npm install
+```
+
+## Run Locally
+
+Start the API:
 
 ```bash
 python scripts/run_phase6_api.py --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000/portal — unified dashboard with analysis, 3D viewer, atlas, and reports.
+Open the backend-served portal:
 
-### CLI
+```text
+http://127.0.0.1:8000/portal
+```
+
+For the React frontend during development:
 
 ```bash
-# Analyze a single protein
-python -m src.cli analyze 1CBS --n-frames 50 --profile enzyme
+cd frontend
+npm run dev
+```
 
-# Batch analyze
-python -m src.cli batch 1CBS,1AKE,1TUP --n-frames 20
+The Vite dev server proxies API requests to `http://127.0.0.1:8000`.
 
-# Run benchmark
-python -m src.cli benchmark --tolerance 8.0
+## CLI Examples
 
-# Cache management
-python -m src.cli cache stats
+Analyze one structure:
 
-# Project info
+```bash
+python -m src.cli analyze 1CBS --n-frames 50 --profile default
+```
+
+Run the direct pipeline:
+
+```bash
+python main.py --pdb-id 1CBS --n-frames 50 --profile default
+```
+
+Show project info:
+
+```bash
 python -m src.cli info
 ```
 
-### Pipeline (Direct)
-
-```bash
-python main.py --pdb-id 1CBS --n-frames 50 --profile default --dock
-```
-
-## Architecture
-
-```
-src/
-├── api/              FastAPI backend + unified portal
-│   ├── app.py        API endpoints (jobs, atlas, protein, artifacts)
-│   ├── orchestrator.py  Job queue with real pipeline runner
-│   └── portal.py     Unified web dashboard
-├── ml/               Machine learning module
-│   ├── features.py   17-feature extraction
-│   ├── dataset.py    Labeled datasets with leakage guard
-│   ├── classifier.py RF/GB/Logistic + calibration
-│   └── evaluation.py PR-AUC, ECE, recall@k, ablation
-├── docking/          AutoDock Vina integration
-├── cavities.py       Cavity detection & merging
-├── dynamics.py       NMA simulation engine
-├── geometry.py       Voronoi void scanning
-├── scoring.py        Druggability scoring v2 (confidence, sphericity)
-├── multiframe.py     Consensus + persistence tracking
-├── comparison.py     Cross-protein pocket similarity
-├── benchmark.py      Structured benchmark suite
-├── cache.py          Analysis result caching
-├── profiling.py      Pipeline performance profiling
-├── config.py         Central configuration
-├── cli.py            Modern CLI interface
-├── database.py       SQLite atlas database
-├── fetcher.py        PDB + AlphaFold DB fetcher
-└── visualizer.py     3D visualization & PyMOL scripts
-```
-
-## Scientific Metrics
-
-| Metric | Value | Target | Status |
-|--------|-------|--------|--------|
-| Recall | 0.3500 (7/20) | >= 0.30 | PASS |
-| fpocket Overlap | 0.2597 | >= 0.25 | PASS |
-| Conservative FPR | 0.1311 | <= 0.60 | PASS |
-| MD Validated | 1 protein | >= 1 | PASS |
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /portal | Unified web interface |
-| GET | /health | Health check |
-| GET | /jobs | List all jobs |
-| POST | /jobs | Submit analysis |
-| POST | /jobs/batch | Batch submit |
-| POST | /jobs/{id}/cancel | Cancel job |
-| GET | /jobs/{id} | Job status |
-| GET | /jobs/{id}/result | Download result |
-| GET | /jobs/{id}/visualization | Plotly chart data |
-| WS | /ws/jobs/{id} | Real-time progress |
-| GET | /atlas/overview | Atlas statistics |
-| GET | /atlas/pockets | Search pockets |
-| GET | /protein/{id}/structure | PDB file content |
-| GET | /protein/{id}/pockets | Pocket positions |
-| GET | /artifacts | Visualization gallery |
-
 ## Tests
+
+Run the Python suite:
 
 ```bash
 python -m pytest tests/ -q
 ```
 
+Build the frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+The frontend currently bundles Plotly, so Vite may warn about a large JavaScript
+chunk. That warning is expected and is not a build failure.
+
+## Notes For Contributors
+
+- Keep generated data out of git.
+- Keep public documentation conservative: describe the tool as a research
+  prototype and avoid unsupported claims.
+- Prefer small, reviewable commits.
+- Do not push or force-push release branches without explicit maintainer
+  approval.
+
 ## License
 
-MIT (see `LICENSE`).
+MIT. See `LICENSE`.
