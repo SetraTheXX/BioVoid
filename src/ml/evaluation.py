@@ -15,7 +15,8 @@ Metrics:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 
@@ -42,7 +43,7 @@ except ImportError:
 def evaluate_model(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    y_proba: Optional[np.ndarray] = None,
+    y_proba: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """
     Comprehensive evaluation of a binary classifier.
@@ -71,15 +72,11 @@ def evaluate_model(
             results["roc_auc"] = None
 
         try:
-            results["pr_auc"] = round(
-                float(average_precision_score(y_true, pos_proba)), 4
-            )
+            results["pr_auc"] = round(float(average_precision_score(y_true, pos_proba)), 4)
         except ValueError:
             results["pr_auc"] = None
 
-        results["ece"] = round(
-            float(_expected_calibration_error(y_true, pos_proba)), 4
-        )
+        results["ece"] = round(float(_expected_calibration_error(y_true, pos_proba)), 4)
 
     return results
 
@@ -99,7 +96,7 @@ def _expected_calibration_error(
     ece = 0.0
     total = len(y_true)
 
-    for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
+    for lo, hi in zip(bin_edges[:-1], bin_edges[1:], strict=False):
         mask = (y_proba >= lo) & (y_proba < hi)
         n_bin = mask.sum()
         if n_bin == 0:
@@ -172,12 +169,14 @@ def ablation_study(
         full_proba = full_model.predict_proba(X_test)
     full_metrics = evaluate_model(y_test, full_pred, full_proba)
 
-    results = [{
-        "feature_removed": "none (full model)",
-        "metrics": full_metrics,
-        "delta_f1": 0.0,
-        "delta_pr_auc": 0.0,
-    }]
+    results = [
+        {
+            "feature_removed": "none (full model)",
+            "metrics": full_metrics,
+            "delta_f1": 0.0,
+            "delta_pr_auc": 0.0,
+        }
+    ]
 
     for i, feat_name in enumerate(feature_names):
         cols = list(range(X_train.shape[1]))
@@ -192,14 +191,16 @@ def ablation_study(
             proba = model.predict_proba(X_te_reduced)
         m = evaluate_model(y_test, pred, proba)
 
-        results.append({
-            "feature_removed": feat_name,
-            "metrics": m,
-            "delta_f1": round(full_metrics["f1"] - m["f1"], 4),
-            "delta_pr_auc": round(
-                (full_metrics.get("pr_auc") or 0) - (m.get("pr_auc") or 0), 4
-            ),
-        })
+        results.append(
+            {
+                "feature_removed": feat_name,
+                "metrics": m,
+                "delta_f1": round(full_metrics["f1"] - m["f1"], 4),
+                "delta_pr_auc": round(
+                    (full_metrics.get("pr_auc") or 0) - (m.get("pr_auc") or 0), 4
+                ),
+            }
+        )
 
     results.sort(key=lambda r: abs(r["delta_f1"]), reverse=True)
     return results

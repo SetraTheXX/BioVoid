@@ -1,19 +1,27 @@
 """Tests for new modules added in Sprint 1-5 + A/B/C groups."""
 
-import numpy as np
-import pytest
 from pathlib import Path
 
-from src.config import PATHS, PIPELINE, CRAWLER, API
-from src.profiling import PipelineProfiler, StepTimer
-from src.cache import AnalysisCache
-from src.comparison import compare_pockets, find_similar_pockets, batch_compare
+import numpy as np
+import pytest
+
 from src.benchmark import (
-    compute_distance, benchmark_single, run_benchmark, format_benchmark_table,
+    benchmark_single,
+    compute_distance,
 )
-from src.scoring import calculate_sphericity, calculate_confidence, calculate_novelty_score, CustomProfile, get_profile
-from src.ml.features import extract_features, extract_batch, normalize_features, ALL_FEATURE_NAMES
-from src.ml.dataset import assign_labels, LabelPolicy, SplitConfig, check_leakage
+from src.cache import AnalysisCache
+from src.comparison import compare_pockets, find_similar_pockets
+from src.config import API, PATHS, PIPELINE
+from src.ml.dataset import SplitConfig, assign_labels, check_leakage
+from src.ml.features import ALL_FEATURE_NAMES, extract_batch, extract_features, normalize_features
+from src.profiling import PipelineProfiler, StepTimer
+from src.scoring import (
+    CustomProfile,
+    calculate_confidence,
+    calculate_novelty_score,
+    calculate_sphericity,
+    get_profile,
+)
 
 
 class TestConfig:
@@ -87,10 +95,15 @@ class TestCache:
 
 class TestComparison:
     def _pocket(self, vol=0.8, hydro=0.6, encl=0.7, depth=0.5, spher=0.6):
-        return {"score_components": {
-            "volume_score": vol, "hydrophobicity_score": hydro,
-            "enclosure_score": encl, "depth_score": depth, "sphericity": spher,
-        }}
+        return {
+            "score_components": {
+                "volume_score": vol,
+                "hydrophobicity_score": hydro,
+                "enclosure_score": encl,
+                "depth_score": depth,
+                "sphericity": spher,
+            }
+        }
 
     def test_identical_pockets(self):
         p = self._pocket()
@@ -135,11 +148,18 @@ class TestScoringV2:
         assert 0 <= s <= 1
 
     def test_custom_profile(self):
-        p = get_profile("custom", custom_weights={"volume": 0.5, "hydrophobicity": 0.2, "enclosure": 0.2, "depth": 0.1})
+        p = get_profile(
+            "custom",
+            custom_weights={"volume": 0.5, "hydrophobicity": 0.2, "enclosure": 0.2, "depth": 0.1},
+        )
         assert isinstance(p, CustomProfile)
 
     def test_novelty_score(self):
-        cavity = {"center": [10, 10, 10], "bio_score": 0.7, "score_components": {"depth_score": 0.8, "enclosure_score": 0.7}}
+        cavity = {
+            "center": [10, 10, 10],
+            "bio_score": 0.7,
+            "score_components": {"depth_score": 0.8, "enclosure_score": 0.7},
+        }
         n = calculate_novelty_score(cavity)
         assert 0 <= n <= 1
 
@@ -153,7 +173,11 @@ class TestScoringV2:
 
 class TestMLFeatures:
     def test_extract_features(self):
-        pocket = {"volume": 500, "hydrophobic_ratio": 0.6, "score_components": {"volume_score": 0.8}}
+        pocket = {
+            "volume": 500,
+            "hydrophobic_ratio": 0.6,
+            "score_components": {"volume_score": 0.8},
+        }
         f = extract_features(pocket)
         assert len(f) == len(ALL_FEATURE_NAMES)
         assert f.dtype == np.float64

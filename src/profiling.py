@@ -21,9 +21,10 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import Any, Generator
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +54,7 @@ class StepTimer:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.timing.end_time = time.perf_counter()
-        self.timing.elapsed_ms = (
-            (self.timing.end_time - self.timing.start_time) * 1000.0
-        )
+        self.timing.elapsed_ms = (self.timing.end_time - self.timing.start_time) * 1000.0
         if exc_type is not None:
             self.timing.success = False
             self.timing.error = str(exc_val)
@@ -120,13 +119,15 @@ class PipelineProfiler:
         for name in self._order:
             t = self._timings[name]
             pct = (t.elapsed_ms / total_ms * 100.0) if total_ms > 0 else 0.0
-            steps.append({
-                "name": name,
-                "elapsed_ms": round(t.elapsed_ms, 1),
-                "pct_of_total": round(pct, 1),
-                "success": t.success,
-                "error": t.error,
-            })
+            steps.append(
+                {
+                    "name": name,
+                    "elapsed_ms": round(t.elapsed_ms, 1),
+                    "pct_of_total": round(pct, 1),
+                    "success": t.success,
+                    "error": t.error,
+                }
+            )
 
         bottleneck = max(steps, key=lambda s: s["elapsed_ms"]) if steps else None
 
@@ -151,9 +152,7 @@ class PipelineProfiler:
                 f"{step['pct_of_total']:>5.1f}% {status:>8}"
             )
         lines.append("-" * 55)
-        lines.append(
-            f"{'TOTAL':<25} {s['total_step_ms']:>10.1f}   100%"
-        )
+        lines.append(f"{'TOTAL':<25} {s['total_step_ms']:>10.1f}   100%")
         if s["bottleneck"]:
             lines.append(f"Bottleneck: {s['bottleneck']}")
         return "\n".join(lines)

@@ -19,9 +19,7 @@ Author: Bio-Void Hunter Team
 Version: 0.9.0 (Phase 5.3)
 """
 
-import json
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -32,13 +30,10 @@ import pytest
 # Ensure project root is on path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.database import AtlasDB
 from src.dashboard import (
     APP_TITLE,
     CLASS_COLORS,
     CLASS_LABELS,
-    COLOR_DRUGGABLE,
-    COLOR_NON_DRUGGABLE,
     DEFAULT_DB,
     PAGE_SIZE,
     build_3d_pocket_view,
@@ -53,7 +48,7 @@ from src.dashboard import (
     load_protein_list,
     load_statistics,
 )
-
+from src.database import AtlasDB
 
 # ============================================================================
 # FIXTURES
@@ -88,11 +83,7 @@ def tmp_db(tmp_path):
         for i in range(10):
             score = 0.3 + (i * 0.07)  # 0.3 to 0.93
             druggable = score > 0.55
-            drug_class = (
-                "high"
-                if score > 0.75
-                else "medium" if score > 0.55 else "low"
-            )
+            drug_class = "high" if score > 0.75 else "medium" if score > 0.55 else "low"
             db.insert_discovery(
                 {
                     "pdb_id": pdb_id,
@@ -322,9 +313,7 @@ class TestChartBuilders:
 
     @pytest.mark.skip(reason="Dashboard chart builders deprecated, replaced by portal")
     def test_build_class_pie(self):
-        stats = {
-            "class_distribution": {"high": 100, "medium": 200, "low": 500}
-        }
+        stats = {"class_distribution": {"high": 100, "medium": 200, "low": 500}}
         fig = build_class_pie(stats)
         assert fig is not None
         assert isinstance(fig, go.Figure)
@@ -443,9 +432,7 @@ class TestPerformance:
     def test_load_pocket_dataframe_speed(self, tmp_db):
         """Query should complete in <2s even with filters."""
         t0 = time.perf_counter()
-        df = load_pocket_dataframe(
-            tmp_db, min_score=0.3, druggable_only=True, limit=1000
-        )
+        load_pocket_dataframe(tmp_db, min_score=0.3, druggable_only=True, limit=1000)
         elapsed = time.perf_counter() - t0
         assert elapsed < 2.0, f"Query too slow: {elapsed:.3f}s"
 
@@ -461,7 +448,7 @@ class TestPerformance:
     def test_statistics_speed(self, tmp_db):
         """Statistics query should be fast."""
         t0 = time.perf_counter()
-        stats = load_statistics(tmp_db)
+        load_statistics(tmp_db)
         elapsed = time.perf_counter() - t0
         assert elapsed < 1.0, f"Stats too slow: {elapsed:.3f}s"
 

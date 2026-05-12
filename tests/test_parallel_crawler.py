@@ -25,22 +25,21 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.fetch_pdb_list import (
+    build_search_query,
+    save_pdb_list,
+)
 from src.parallel_crawler import (
+    BATCH_SIZE,
+    CHECKPOINT_INTERVAL,
+    DEFAULT_MAX_WORKERS,
+    DEFAULT_TIMEOUT,
     CheckpointManager,
     CrawlerLogger,
     CrawlerState,
     ParallelCrawler,
     _analyze_single_protein,
-    DEFAULT_MAX_WORKERS,
-    DEFAULT_TIMEOUT,
-    CHECKPOINT_INTERVAL,
-    BATCH_SIZE,
 )
-from scripts.fetch_pdb_list import (
-    build_search_query,
-    save_pdb_list,
-)
-
 
 # ============================================================================
 # FIXTURES
@@ -271,9 +270,7 @@ class TestParallelCrawler:
             "src.parallel_crawler._analyze_single_protein",
             return_value=mock_result,
         ):
-            results = crawler.process_pdb_list(
-                ["1CBS", "1AKE", "1TUP"], resume=True
-            )
+            results = crawler.process_pdb_list(["1CBS", "1AKE", "1TUP"], resume=True)
 
         # 2 from checkpoint + 1 new
         assert len(results) == 3
@@ -298,13 +295,13 @@ class TestAnalyzeSingleProtein:
     )
     def test_real_1cbs_analysis(self):
         """Full pipeline on real 1CBS protein."""
-        result = _analyze_single_protein(
-            "1CBS", n_frames=10, profile="enzyme"
-        )
+        result = _analyze_single_protein("1CBS", n_frames=10, profile="enzyme")
         assert result["status"] == "success"
         assert result["pdb_id"] == "1CBS"
         cavities = result["cavities"]
-        assert (isinstance(cavities, int) and cavities > 0) or (isinstance(cavities, list) and len(cavities) > 0)
+        assert (isinstance(cavities, int) and cavities > 0) or (
+            isinstance(cavities, list) and len(cavities) > 0
+        )
         assert result["top_bio_score"] > 0.0
         assert result["runtime"] > 0.0
 

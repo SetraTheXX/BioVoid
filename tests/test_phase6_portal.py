@@ -69,6 +69,7 @@ def test_portal_submit_poll_download_path() -> None:
 
 def test_result_endpoint_rejects_when_job_not_ready() -> None:
     with _build_client() as client:
+
         def slow_runner(_: JobSubmitRequest) -> dict:
             time.sleep(0.4)
             return {"ok": True}

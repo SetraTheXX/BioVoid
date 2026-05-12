@@ -16,13 +16,14 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from dataclasses import dataclass, field, asdict
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 import numpy as np
 
-from .features import extract_batch, ALL_FEATURE_NAMES
+from .features import ALL_FEATURE_NAMES, extract_batch
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +118,8 @@ def _protein_level_split(
     n_val = int(n * config.val_ratio)
 
     train_ids = set(unique_ids[:n_train])
-    val_ids = set(unique_ids[n_train:n_train + n_val])
-    test_ids = set(unique_ids[n_train + n_val:])
+    val_ids = set(unique_ids[n_train : n_train + n_val])
+    test_ids = set(unique_ids[n_train + n_val :])
 
     return train_ids, val_ids, test_ids
 
@@ -171,15 +172,13 @@ def build_dataset(
     if exclude_uncertain:
         mask = np.array([l != label_policy.uncertain_label for l in labels])
         X = X[mask]
-        labels = [l for l, m in zip(labels, mask) if m]
-        pdb_ids = [p for p, m in zip(pdb_ids, mask) if m]
-        pockets = [p for p, m in zip(pockets, mask) if m]
+        labels = [l for l, m in zip(labels, mask, strict=False) if m]
+        pdb_ids = [p for p, m in zip(pdb_ids, mask, strict=False) if m]
+        pockets = [p for p, m in zip(pockets, mask, strict=False) if m]
 
     y = np.array(labels, dtype=np.int32)
 
-    train_proteins, val_proteins, test_proteins = _protein_level_split(
-        pdb_ids, split_config
-    )
+    train_proteins, val_proteins, test_proteins = _protein_level_split(pdb_ids, split_config)
 
     leaks = check_leakage(train_proteins, val_proteins, test_proteins)
     if leaks:
@@ -200,9 +199,7 @@ def build_dataset(
         n_samples=len(y),
         n_positive=int((y == label_policy.positive_label).sum()),
         n_negative=int((y == label_policy.negative_label).sum()),
-        n_uncertain=0 if exclude_uncertain else int(
-            (y == label_policy.uncertain_label).sum()
-        ),
+        n_uncertain=0 if exclude_uncertain else int((y == label_policy.uncertain_label).sum()),
         n_features=X.shape[1] if X.size else 0,
         feature_names=list(feature_names),
         split_config=asdict(split_config),

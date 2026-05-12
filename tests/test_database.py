@@ -27,10 +27,8 @@ from pathlib import Path
 import pytest
 
 from src.database import (
-    AtlasDB,
     DB_VERSION,
-    DEFAULT_BATCH_SIZE,
-    DEFAULT_DB_PATH,
+    AtlasDB,
     DockingRecord,
     PocketRecord,
     ProteinRecord,
@@ -185,9 +183,7 @@ class TestAtlasDBInit:
 
     def test_tables_exist(self, db: AtlasDB):
         """All required tables should exist."""
-        tables = db.conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         table_names = {t["name"] for t in tables}
         assert "proteins" in table_names
         assert "pockets" in table_names
@@ -196,9 +192,7 @@ class TestAtlasDBInit:
 
     def test_indexes_exist(self, db: AtlasDB):
         """Key indexes should be created."""
-        indexes = db.conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='index'"
-        ).fetchall()
+        indexes = db.conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
         idx_names = {i["name"] for i in indexes}
         assert "idx_pockets_bio_score" in idx_names
         assert "idx_pockets_druggable" in idx_names
@@ -262,9 +256,7 @@ class TestInsertOperations:
         assert result["center_y"] == 19.84
         assert result["center_z"] == 19.98
 
-    def test_insert_discovery_with_score_components(
-        self, db: AtlasDB, sample_pocket: dict
-    ):
+    def test_insert_discovery_with_score_components(self, db: AtlasDB, sample_pocket: dict):
         """Score components should be extracted correctly."""
         db.insert_discovery(sample_pocket)
         result = db.get_pocket("1CBS", 26)
@@ -320,9 +312,7 @@ class TestBatchInsert:
         assert count == 100
         assert db.count_pockets() == 100
 
-    def test_batch_insert_from_report(
-        self, db: AtlasDB, sample_report: dict
-    ):
+    def test_batch_insert_from_report(self, db: AtlasDB, sample_report: dict):
         """Report ingestion should create protein + pockets."""
         count = db.batch_insert_from_report(sample_report)
         assert count == 3  # 3 cavities in sample_report
@@ -574,9 +564,7 @@ class TestBackupRestore:
         assert Path(backup_path).exists()
         assert backup_path.endswith(".bak.gz")
 
-    def test_restore_data_integrity(
-        self, db: AtlasDB, sample_pocket: dict
-    ):
+    def test_restore_data_integrity(self, db: AtlasDB, sample_pocket: dict):
         """Restored DB should contain same data."""
         db.insert_discovery(sample_pocket)
         backup_path = db.backup()

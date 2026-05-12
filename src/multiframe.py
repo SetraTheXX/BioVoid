@@ -128,9 +128,7 @@ def aggregate_consensus_pockets(
                     "frame_label": frame_label,
                     "center": center,
                     "volume": _safe_float(pocket.get("volume"), default=0.0),
-                    "bio_score": _safe_float(
-                        pocket.get("bio_score"), default=0.0
-                    ),
+                    "bio_score": _safe_float(pocket.get("bio_score"), default=0.0),
                     "pocket": pocket,
                 }
             )
@@ -168,9 +166,7 @@ def aggregate_consensus_pockets(
         cluster["observations"].append(obs)
         cluster["frame_labels"].add(obs["frame_label"])
         cluster["center_sum"] += obs["center"]
-        cluster["center_mean"] = cluster["center_sum"] / max(
-            1, len(cluster["observations"])
-        )
+        cluster["center_mean"] = cluster["center_sum"] / max(1, len(cluster["observations"]))
 
     total_frames = len(frame_labels)
     consensus_pockets: list[dict[str, Any]] = []
@@ -189,9 +185,7 @@ def aggregate_consensus_pockets(
         volumes = np.asarray([o["volume"] for o in obs], dtype=float)
         volume_mean = float(volumes.mean()) if len(volumes) else 0.0
         volume_std = float(volumes.std(ddof=0)) if len(volumes) else 0.0
-        volume_cv = (
-            volume_std / volume_mean if volume_mean > 1e-8 else float("inf")
-        )
+        volume_cv = volume_std / volume_mean if volume_mean > 1e-8 else float("inf")
 
         bio_scores = np.asarray([o["bio_score"] for o in obs], dtype=float)
         avg_bio_score = float(bio_scores.mean()) if len(bio_scores) else 0.0
@@ -199,11 +193,7 @@ def aggregate_consensus_pockets(
         support_ratio = support_frames / max(1, total_frames)
         center_score = max(
             0.0,
-            1.0
-            - (
-                center_stability
-                / max(config.center_stability_max, 1e-8)
-            ),
+            1.0 - (center_stability / max(config.center_stability_max, 1e-8)),
         )
         volume_score = max(
             0.0,
@@ -218,23 +208,15 @@ def aggregate_consensus_pockets(
         representative = max(obs, key=lambda x: x["bio_score"])["pocket"].copy()
         representative["center"] = center_mean
         representative["volume"] = volume_mean
-        representative["druggable"] = any(
-            bool(o["pocket"].get("druggable", False)) for o in obs
-        )
+        representative["druggable"] = any(bool(o["pocket"].get("druggable", False)) for o in obs)
         representative["consensus_support_frames"] = support_frames
         representative["consensus_support_ratio"] = round(support_ratio, 4)
-        representative["consensus_center_stability"] = round(
-            center_stability, 4
-        )
+        representative["consensus_center_stability"] = round(center_stability, 4)
         representative["consensus_volume_mean"] = round(volume_mean, 4)
         representative["consensus_volume_std"] = round(volume_std, 4)
         representative["consensus_volume_cv"] = round(volume_cv, 4)
-        representative["consensus_center_stable"] = (
-            center_stability <= config.center_stability_max
-        )
-        representative["consensus_volume_stable"] = (
-            volume_cv <= config.volume_cv_max
-        )
+        representative["consensus_center_stable"] = center_stability <= config.center_stability_max
+        representative["consensus_volume_stable"] = volume_cv <= config.volume_cv_max
         representative["consensus_score"] = consensus_score
         representative["frame_hits"] = sorted(cluster["frame_labels"])
         consensus_pockets.append(representative)
@@ -252,32 +234,21 @@ def aggregate_consensus_pockets(
         pocket["id"] = rank - 1
 
     support_values = [
-        _safe_float(p.get("consensus_support_frames"), 0.0)
-        for p in consensus_pockets
+        _safe_float(p.get("consensus_support_frames"), 0.0) for p in consensus_pockets
     ]
     center_values = [
-        _safe_float(p.get("consensus_center_stability"), 0.0)
-        for p in consensus_pockets
+        _safe_float(p.get("consensus_center_stability"), 0.0) for p in consensus_pockets
     ]
-    volume_values = [
-        _safe_float(p.get("consensus_volume_cv"), 0.0)
-        for p in consensus_pockets
-    ]
+    volume_values = [_safe_float(p.get("consensus_volume_cv"), 0.0) for p in consensus_pockets]
 
     stats = {
         "clusters_total": len(clusters),
         "consensus_clusters": len(consensus_pockets),
         "total_frames": total_frames,
         "min_support_frames": config.min_support_frames,
-        "avg_support_frames": round(float(np.mean(support_values)), 3)
-        if support_values
-        else 0.0,
-        "avg_center_stability": round(float(np.mean(center_values)), 3)
-        if center_values
-        else 0.0,
-        "avg_volume_cv": round(float(np.mean(volume_values)), 3)
-        if volume_values
-        else 0.0,
+        "avg_support_frames": round(float(np.mean(support_values)), 3) if support_values else 0.0,
+        "avg_center_stability": round(float(np.mean(center_values)), 3) if center_values else 0.0,
+        "avg_volume_cv": round(float(np.mean(volume_values)), 3) if volume_values else 0.0,
     }
     return consensus_pockets, stats
 
@@ -290,9 +261,7 @@ def run_multiframe_consensus(
 ) -> dict[str, Any]:
     """Analyze all frame files and build consensus pockets."""
     frame_files = (
-        frame_files_override
-        if frame_files_override is not None
-        else list_frame_files(frames_dir)
+        frame_files_override if frame_files_override is not None else list_frame_files(frames_dir)
     )
     per_frame_pockets: list[list[dict[str, Any]]] = []
     frame_labels: list[str] = []
@@ -313,13 +282,9 @@ def run_multiframe_consensus(
                 else:
                     analysis_file = Path(mapped)
 
-            pockets = analyze_structure_file(
-                analysis_file, profile=config.profile
-            )
+            pockets = analyze_structure_file(analysis_file, profile=config.profile)
         except Exception as exc:  # noqa: BLE001
-            frame_errors.append(
-                {"frame": frame_file.name, "error": str(exc)}
-            )
+            frame_errors.append({"frame": frame_file.name, "error": str(exc)})
             continue
 
         per_frame_pockets.append(pockets)
@@ -329,9 +294,7 @@ def run_multiframe_consensus(
                 "frame": frame_file.name,
                 "analysis_file": str(analysis_file),
                 "n_pockets": len(pockets),
-                "n_druggable": sum(
-                    1 for p in pockets if p.get("druggable", False)
-                ),
+                "n_druggable": sum(1 for p in pockets if p.get("druggable", False)),
                 **mapper_meta,
             }
         )
@@ -353,9 +316,7 @@ def run_multiframe_consensus(
     }
 
     if consensus_pockets and frame_labels:
-        persistence = analyze_pocket_persistence(
-            consensus_pockets, frame_labels
-        )
+        persistence = analyze_pocket_persistence(consensus_pockets, frame_labels)
         result["persistence"] = persistence
 
     return result
@@ -434,9 +395,7 @@ def compute_persistence(
     flicker_penalty = 1.0 - min(1.0, flicker / max(1, hit_count))
 
     persistence_score = round(
-        0.50 * support_ratio
-        + 0.30 * streak_ratio
-        + 0.20 * flicker_penalty,
+        0.50 * support_ratio + 0.30 * streak_ratio + 0.20 * flicker_penalty,
         4,
     )
 
@@ -474,17 +433,19 @@ def analyze_pocket_persistence(
         pocket["persistence_flicker_count"] = pm.flicker_count
         pocket["persistence_span"] = pm.span
 
-        results.append({
-            "pocket_id": pm.pocket_id,
-            "hit_count": pm.hit_count,
-            "support_ratio": pm.support_ratio,
-            "first_appearance": pm.first_appearance,
-            "last_appearance": pm.last_appearance,
-            "span": pm.span,
-            "consecutive_max": pm.consecutive_max,
-            "flicker_count": pm.flicker_count,
-            "persistence_score": pm.persistence_score,
-        })
+        results.append(
+            {
+                "pocket_id": pm.pocket_id,
+                "hit_count": pm.hit_count,
+                "support_ratio": pm.support_ratio,
+                "first_appearance": pm.first_appearance,
+                "last_appearance": pm.last_appearance,
+                "span": pm.span,
+                "consecutive_max": pm.consecutive_max,
+                "flicker_count": pm.flicker_count,
+                "persistence_score": pm.persistence_score,
+            }
+        )
 
     scores = [r["persistence_score"] for r in results]
     return {

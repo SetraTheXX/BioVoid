@@ -12,24 +12,23 @@ Supported models:
 
 from __future__ import annotations
 
-import json
 import logging
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 try:
+    from sklearn.calibration import CalibratedClassifierCV
     from sklearn.ensemble import (
         GradientBoostingClassifier,
         RandomForestClassifier,
     )
     from sklearn.linear_model import LogisticRegression
-    from sklearn.calibration import CalibratedClassifierCV
 
     SKLEARN_AVAILABLE = True
 except ImportError:
@@ -43,7 +42,7 @@ class ModelConfig:
 
     model_type: str = "random_forest"
     n_estimators: int = 100
-    max_depth: Optional[int] = 10
+    max_depth: int | None = 10
     random_state: int = 42
     calibrate: bool = True
     calibration_method: str = "isotonic"
@@ -84,8 +83,7 @@ def _create_base_model(config: ModelConfig):
         )
     else:
         raise ValueError(
-            f"Unknown model_type '{config.model_type}'. "
-            f"Available: {list(AVAILABLE_MODELS.keys())}"
+            f"Unknown model_type '{config.model_type}'. Available: {list(AVAILABLE_MODELS.keys())}"
         )
 
 
@@ -93,8 +91,8 @@ def train_model(
     X_train: np.ndarray,
     y_train: np.ndarray,
     config: ModelConfig = ModelConfig(),
-    X_val: Optional[np.ndarray] = None,
-    y_val: Optional[np.ndarray] = None,
+    X_val: np.ndarray | None = None,
+    y_val: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """
     Train a classifier and optionally calibrate probabilities.

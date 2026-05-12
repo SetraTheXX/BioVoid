@@ -16,7 +16,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class AnalysisCache:
         n_frames: int = 50,
         profile: str = "default",
         max_age_hours: float = 168.0,
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Retrieve cached result. Returns None on miss or expired entry.
         Default max_age: 7 days.
@@ -132,7 +132,5 @@ class AnalysisCache:
             "size_mb": round(total_bytes / (1024 * 1024), 2),
             "hits": self._hits,
             "misses": self._misses,
-            "hit_rate": round(
-                self._hits / max(1, self._hits + self._misses), 4
-            ),
+            "hit_rate": round(self._hits / max(1, self._hits + self._misses), 4),
         }

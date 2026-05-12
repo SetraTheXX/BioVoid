@@ -13,7 +13,8 @@ from types import SimpleNamespace
 import pytest
 
 import main_parallel
-from src.parallel_crawler import CheckpointManager, CrawlerState, ParallelCrawler as RealParallelCrawler
+from src.parallel_crawler import CheckpointManager, CrawlerState
+from src.parallel_crawler import ParallelCrawler as RealParallelCrawler
 
 
 def _resume_args(

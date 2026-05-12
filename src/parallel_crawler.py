@@ -35,10 +35,8 @@ from __future__ import annotations
 import json
 import logging
 import multiprocessing
-import os
 import pickle
 import time
-import traceback
 from concurrent.futures import (
     FIRST_COMPLETED,
     ProcessPoolExecutor,
@@ -49,8 +47,6 @@ from concurrent.futures import (
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-import numpy as np
 
 # ============================================================================
 # CONSTANTS
@@ -93,9 +89,7 @@ class CheckpointManager:
 
     def save(self, state: CrawlerState) -> None:
         """Save state to pickle file (atomic write)."""
-        state.last_checkpoint_time = time.strftime(
-            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-        )
+        state.last_checkpoint_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         tmp = self.checkpoint_file.with_suffix(".tmp")
         with open(tmp, "wb") as f:
             pickle.dump(state, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -121,9 +115,7 @@ class CheckpointManager:
 
     def append_log(self, entry: dict[str, Any]) -> None:
         """Append a single JSON log line."""
-        entry["timestamp"] = time.strftime(
-            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-        )
+        entry["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
 
@@ -193,10 +185,10 @@ def _analyze_single_protein(
     }
     try:
         # Lazy imports to keep child processes independent
-        from src.fetcher import fetch_pdb  # noqa: C0415
-        from src.dynamics import run_nma_simulation  # noqa: C0415
         from src.cavities import find_cavities  # noqa: C0415
-        from src.geometry import find_voids, extract_atom_coords  # noqa: C0415
+        from src.dynamics import run_nma_simulation  # noqa: C0415
+        from src.fetcher import fetch_pdb  # noqa: C0415
+        from src.geometry import extract_atom_coords  # noqa: C0415
         from src.scoring import rank_pockets  # noqa: C0415
 
         # Step 1 — Fetch
@@ -224,21 +216,15 @@ def _analyze_single_protein(
             frame_file = Path(str(pdb_file))
 
         # Step 3 — Cavities
-        cavities = find_cavities(
-            str(frame_file), merge=True, hydrophobic=True, atom_type="heavy"
-        )
+        cavities = find_cavities(str(frame_file), merge=True, hydrophobic=True, atom_type="heavy")
 
         # Step 4 — Scoring
         atom_coords = extract_atom_coords(str(frame_file), atom_type="heavy")
         ranked = rank_pockets(cavities, atom_coords, profile=profile)
 
         # Step 5 — Summary metrics
-        high = sum(
-            1 for c in ranked if c.get("druggability_class") == "high"
-        )
-        medium = sum(
-            1 for c in ranked if c.get("druggability_class") == "medium"
-        )
+        high = sum(1 for c in ranked if c.get("druggability_class") == "high")
+        medium = sum(1 for c in ranked if c.get("druggability_class") == "medium")
         druggable = sum(1 for c in ranked if c.get("druggable", False))
         top_score = ranked[0]["bio_score"] if ranked else 0.0
 
@@ -344,7 +330,7 @@ class ParallelCrawler:
 
         self.checkpoint = CheckpointManager(checkpoint_dir)
         self.log = CrawlerLogger()
-        
+
         self._db: Any = None
         if self.db_path:
             self._init_db()
@@ -354,6 +340,7 @@ class ParallelCrawler:
     def _init_db(self) -> None:
         """Initialize database connection."""
         from src.database import AtlasDB
+
         self._db = AtlasDB(db_path=self.db_path, check_same_thread=False)
         self.log.info(f"Database initialized: {self.db_path}")
 
@@ -361,43 +348,47 @@ class ParallelCrawler:
         """Write a single protein result to the database."""
         if not self._db or result.get("status") != "success":
             return
-        
+
         try:
             pdb_id = result["pdb_id"]
-            
-            self._db.insert_protein({
-                "pdb_id": pdb_id,
-                "total_cavities": result.get("total_cavities", 0),
-                "druggable_cavities": result.get("druggable_count", 0),
-                "high_score_count": result.get("high_score", 0),
-                "medium_score_count": result.get("medium_score", 0),
-                "top_bio_score": result.get("top_bio_score", 0.0),
-                "analysis_runtime": result.get("runtime", 0.0),
-                "n_frames": self.n_frames,
-                "scoring_profile": self.profile,
-                "status": "success",
-            })
-            
+
+            self._db.insert_protein(
+                {
+                    "pdb_id": pdb_id,
+                    "total_cavities": result.get("total_cavities", 0),
+                    "druggable_cavities": result.get("druggable_count", 0),
+                    "high_score_count": result.get("high_score", 0),
+                    "medium_score_count": result.get("medium_score", 0),
+                    "top_bio_score": result.get("top_bio_score", 0.0),
+                    "analysis_runtime": result.get("runtime", 0.0),
+                    "n_frames": self.n_frames,
+                    "scoring_profile": self.profile,
+                    "status": "success",
+                }
+            )
+
             cavities = result.get("cavities", [])
             for cav in cavities:
-                self._db.insert_discovery({
-                    "pdb_id": pdb_id,
-                    "pocket_id": cav.get("id", 0),
-                    "rank": cav.get("rank", 0),
-                    "bio_score": cav.get("bio_score", 0.0),
-                    "volume": cav.get("volume", 0.0),
-                    "center": cav.get("center", [0.0, 0.0, 0.0]),
-                    "radius_geom": cav.get("radius_geom", 0.0),
-                    "radius_clear": cav.get("radius_clear", 0.0),
-                    "merged_vertices": cav.get("merged_vertices", 0),
-                    "hydrophobic_ratio": cav.get("hydrophobic_ratio", 0.0),
-                    "polar_atoms": cav.get("polar_atoms", 0),
-                    "druggable": cav.get("druggable", False),
-                    "druggability_class": cav.get("druggability_class", "low"),
-                    "score_components": cav.get("score_components", {}),
-                    "profile_used": cav.get("profile_used", "Default"),
-                })
-            
+                self._db.insert_discovery(
+                    {
+                        "pdb_id": pdb_id,
+                        "pocket_id": cav.get("id", 0),
+                        "rank": cav.get("rank", 0),
+                        "bio_score": cav.get("bio_score", 0.0),
+                        "volume": cav.get("volume", 0.0),
+                        "center": cav.get("center", [0.0, 0.0, 0.0]),
+                        "radius_geom": cav.get("radius_geom", 0.0),
+                        "radius_clear": cav.get("radius_clear", 0.0),
+                        "merged_vertices": cav.get("merged_vertices", 0),
+                        "hydrophobic_ratio": cav.get("hydrophobic_ratio", 0.0),
+                        "polar_atoms": cav.get("polar_atoms", 0),
+                        "druggable": cav.get("druggable", False),
+                        "druggability_class": cav.get("druggability_class", "low"),
+                        "score_components": cav.get("score_components", {}),
+                        "profile_used": cav.get("profile_used", "Default"),
+                    }
+                )
+
             self.log.info(f"DB: Inserted {pdb_id} with {len(cavities)} pockets")
         except Exception as e:
             self.log.warning(f"DB write failed for {result.get('pdb_id')}: {e}")
@@ -438,9 +429,7 @@ class ParallelCrawler:
         if state.processed_ids:
             already = set(state.processed_ids)
             remaining = [pid for pid in pdb_ids if pid not in already]
-            self.log.info(
-                f"Resuming: {len(already)} done, {len(remaining)} remaining"
-            )
+            self.log.info(f"Resuming: {len(already)} done, {len(remaining)} remaining")
         else:
             remaining = list(pdb_ids)
 
@@ -488,10 +477,7 @@ class ParallelCrawler:
             ok = len(state.successful_ids)
             fail = len(state.failed_ids)
             skip = len(state.skipped_ids)
-            self.log.info(
-                f"Progress: {done}/{total} | "
-                f"OK={ok} FAIL={fail} SKIP={skip}"
-            )
+            self.log.info(f"Progress: {done}/{total} | OK={ok} FAIL={fail} SKIP={skip}")
 
         elapsed = time.time() - t_start
         # Elapsed must be accumulated once (checkpointed value + this run).
@@ -510,9 +496,7 @@ class ParallelCrawler:
 
     # ---- batch processing ----
 
-    def _process_batch(
-        self, pdb_ids: list[str]
-    ) -> list[dict[str, Any]]:
+    def _process_batch(self, pdb_ids: list[str]) -> list[dict[str, Any]]:
         """Process a batch with wall-clock timeout enforcement."""
         results: list[dict[str, Any]] = []
         executor = self._executor_class(max_workers=self.max_workers)
@@ -538,8 +522,7 @@ class ParallelCrawler:
             while pending:
                 now = time.time()
                 nearest_deadline = min(
-                    max(0.0, (start_time[fut] + self.timeout) - now)
-                    for fut in pending
+                    max(0.0, (start_time[fut] + self.timeout) - now) for fut in pending
                 )
                 done, _ = wait(
                     pending,
@@ -578,9 +561,7 @@ class ParallelCrawler:
                     pid = future_to_pid[fut]
                     fut.cancel()
                     timed_out_count += 1
-                    self.log.warning(
-                        f"Timeout: {pid} (wall-clock >{self.timeout}s)"
-                    )
+                    self.log.warning(f"Timeout: {pid} (wall-clock >{self.timeout}s)")
                     results.append(
                         {
                             "pdb_id": pid,
@@ -602,9 +583,7 @@ class ParallelCrawler:
 
     # ---- download batch (ThreadPool for I/O) ----
 
-    def download_batch(
-        self, pdb_ids: list[str], cache_dir: str = "data/raw_pdb"
-    ) -> dict[str, str]:
+    def download_batch(self, pdb_ids: list[str], cache_dir: str = "data/raw_pdb") -> dict[str, str]:
         """
         Download PDB files in parallel using threads.
 
@@ -647,15 +626,11 @@ class ParallelCrawler:
             "skipped": len(state.skipped_ids),
             "elapsed_seconds": round(state.elapsed_seconds, 1),
             "throughput_per_second": (
-                round(
-                    len(state.processed_ids) / max(1, state.elapsed_seconds), 2
-                )
+                round(len(state.processed_ids) / max(1, state.elapsed_seconds), 2)
             ),
             "success_rate": (
                 round(
-                    len(state.successful_ids)
-                    / max(1, len(state.processed_ids))
-                    * 100,
+                    len(state.successful_ids) / max(1, len(state.processed_ids)) * 100,
                     1,
                 )
             ),

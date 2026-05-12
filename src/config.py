@@ -82,6 +82,7 @@ class LoggingDefaults:
 
 def _env_override(env_key: str, default: str) -> str:
     import os
+
     return os.environ.get(env_key, default)
 
 

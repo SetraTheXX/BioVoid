@@ -15,12 +15,11 @@ Commands:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from pathlib import Path
 
-from .config import PATHS, PIPELINE, API
+from .config import API, PATHS, PIPELINE
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +49,13 @@ def cmd_analyze(args):
     )
     report = pipeline.run()
 
-    logger.info("PDB: %s | Cavities: %d | Druggable: %d | Time: %.1fs",
-                report['pdb_id'], report['total_cavities'],
-                report['druggable_cavities'], report['runtime_seconds'])
+    logger.info(
+        "PDB: %s | Cavities: %d | Druggable: %d | Time: %.1fs",
+        report["pdb_id"],
+        report["total_cavities"],
+        report["druggable_cavities"],
+        report["runtime_seconds"],
+    )
 
 
 def cmd_batch(args):
@@ -132,7 +135,7 @@ def cmd_cache(args):
 def cmd_alphafold(args):
     """Run AlphaFold ensemble analysis."""
     _setup_logging(args.verbose)
-    from .alphafold_ensemble import run_alphafold_ensemble_pipeline, EnsembleConfig
+    from .alphafold_ensemble import EnsembleConfig, run_alphafold_ensemble_pipeline
 
     config = EnsembleConfig(
         n_frames_per_amplitude=args.frames_per_amp,
@@ -151,17 +154,24 @@ def cmd_alphafold(args):
 
     for p in result["analysis"].get("consensus_pockets", [])[:5]:
         center = p.get("center", [0, 0, 0])
-        logger.info("  Pocket #%d: score=%.3f center=[%.1f, %.1f, %.1f]",
-                     p.get('id', 0), p.get('consensus_score', 0),
-                     center[0], center[1], center[2])
+        logger.info(
+            "  Pocket #%d: score=%.3f center=[%.1f, %.1f, %.1f]",
+            p.get("id", 0),
+            p.get("consensus_score", 0),
+            center[0],
+            center[1],
+            center[2],
+        )
 
 
 def cmd_benchmark(args):
     """Run benchmark against known cryptic pockets."""
     _setup_logging(args.verbose)
     from .benchmark import (
-        run_benchmark, format_benchmark_table, save_benchmark_report,
         KNOWN_CRYPTIC_POCKETS,
+        format_benchmark_table,
+        run_benchmark,
+        save_benchmark_report,
     )
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -193,6 +203,7 @@ def cmd_benchmark(args):
 def cmd_info(args):
     """Show project configuration and info."""
     import src
+
     logger.info("Bio-Void Hunter v%s", src.__version__)
     logger.info("Data root: %s", PATHS.data_root)
     logger.info("Results dir: %s", PATHS.results)
@@ -213,8 +224,9 @@ def main():
     p_analyze = sub.add_parser("analyze", help="Analyze a single protein")
     p_analyze.add_argument("pdb_id", help="PDB ID (e.g. 1CBS)")
     p_analyze.add_argument("--n-frames", type=int, default=PIPELINE.n_frames)
-    p_analyze.add_argument("--profile", default=PIPELINE.profile,
-                           choices=list(PIPELINE.scoring_profiles))
+    p_analyze.add_argument(
+        "--profile", default=PIPELINE.profile, choices=list(PIPELINE.scoring_profiles)
+    )
     p_analyze.add_argument("--output", default=str(PATHS.results))
     p_analyze.add_argument("--dock", action="store_true")
     p_analyze.add_argument("-v", "--verbose", action="store_true")

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -31,10 +31,26 @@ HYDROPHOBIC_RESIDUES = {"ALA", "VAL", "LEU", "ILE", "MET", "PHE", "TRP", "PRO"}
 POLAR_RESIDUES = {"SER", "THR", "ASN", "GLN", "TYR", "CYS"}
 CHARGED_RESIDUES = {"ASP", "GLU", "LYS", "ARG", "HIS"}
 KYTE_DOOLITTLE = {
-    "ILE": 4.5, "VAL": 4.2, "LEU": 3.8, "PHE": 2.8, "CYS": 2.5,
-    "MET": 1.9, "ALA": 1.8, "GLY": -0.4, "THR": -0.7, "SER": -0.8,
-    "TRP": -0.9, "TYR": -1.3, "PRO": -1.6, "HIS": -3.2, "GLU": -3.5,
-    "GLN": -3.5, "ASP": -3.5, "ASN": -3.5, "LYS": -3.9, "ARG": -4.5,
+    "ILE": 4.5,
+    "VAL": 4.2,
+    "LEU": 3.8,
+    "PHE": 2.8,
+    "CYS": 2.5,
+    "MET": 1.9,
+    "ALA": 1.8,
+    "GLY": -0.4,
+    "THR": -0.7,
+    "SER": -0.8,
+    "TRP": -0.9,
+    "TYR": -1.3,
+    "PRO": -1.6,
+    "HIS": -3.2,
+    "GLU": -3.5,
+    "GLN": -3.5,
+    "ASP": -3.5,
+    "ASN": -3.5,
+    "LYS": -3.9,
+    "ARG": -4.5,
 }
 
 N_MESSAGE_PASSES = 3
@@ -86,9 +102,15 @@ def build_protein_graph(
     node_feats = _extract_node_features(ca_atoms, residue_names, dist_matrix)
 
     feature_names = [
-        "hydrophobicity", "is_hydrophobic", "is_polar", "is_charged",
-        "relative_position", "contact_count", "avg_contact_dist",
-        "local_density", "exposure",
+        "hydrophobicity",
+        "is_hydrophobic",
+        "is_polar",
+        "is_charged",
+        "relative_position",
+        "contact_count",
+        "avg_contact_dist",
+        "local_density",
+        "exposure",
     ]
 
     return ProteinGraph(
@@ -103,7 +125,9 @@ def build_protein_graph(
 
 
 def _extract_node_features(
-    ca_atoms, residue_names: list[str], dist_matrix: np.ndarray,
+    ca_atoms,
+    residue_names: list[str],
+    dist_matrix: np.ndarray,
 ) -> np.ndarray:
     """Extract per-residue feature vectors."""
     n = len(residue_names)
@@ -193,16 +217,18 @@ def predict_pocket_residues(
 
     predictions = []
     for idx in top_indices:
-        predictions.append({
-            "residue_index": int(idx),
-            "residue_name": graph.residue_names[idx],
-            "pocket_score": round(float(scores[idx]), 4),
-            "position": graph.ca_coords[idx].tolist(),
-            "features": {
-                name: round(float(features[idx, j]), 4)
-                for j, name in enumerate(graph.feature_names)
-            },
-        })
+        predictions.append(
+            {
+                "residue_index": int(idx),
+                "residue_name": graph.residue_names[idx],
+                "pocket_score": round(float(scores[idx]), 4),
+                "position": graph.ca_coords[idx].tolist(),
+                "features": {
+                    name: round(float(features[idx, j]), 4)
+                    for j, name in enumerate(graph.feature_names)
+                },
+            }
+        )
 
     return predictions
 
@@ -223,6 +249,7 @@ def identify_pocket_clusters(
     scores = np.array([p["pocket_score"] for p in predictions])
 
     from sklearn.cluster import DBSCAN
+
     clustering = DBSCAN(eps=cluster_distance, min_samples=3).fit(positions)
     labels = clustering.labels_
 
@@ -238,16 +265,18 @@ def identify_pocket_clusters(
         center = cluster_positions.mean(axis=0)
         radius = float(np.max(np.linalg.norm(cluster_positions - center, axis=1)))
 
-        clusters.append({
-            "cluster_id": int(label),
-            "center": center.tolist(),
-            "radius": round(radius, 2),
-            "n_residues": int(mask.sum()),
-            "avg_score": round(float(cluster_scores.mean()), 4),
-            "max_score": round(float(cluster_scores.max()), 4),
-            "residues": [r["residue_name"] for r in cluster_residues],
-            "residue_indices": [r["residue_index"] for r in cluster_residues],
-        })
+        clusters.append(
+            {
+                "cluster_id": int(label),
+                "center": center.tolist(),
+                "radius": round(radius, 2),
+                "n_residues": int(mask.sum()),
+                "avg_score": round(float(cluster_scores.mean()), 4),
+                "max_score": round(float(cluster_scores.max()), 4),
+                "residues": [r["residue_name"] for r in cluster_residues],
+                "residue_indices": [r["residue_index"] for r in cluster_residues],
+            }
+        )
 
     clusters.sort(key=lambda c: c["avg_score"], reverse=True)
     return clusters

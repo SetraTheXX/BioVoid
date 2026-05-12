@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import biotite.structure.io.pdb as pdb
+import numpy as np
 
 
 @dataclass(frozen=True)
@@ -99,9 +99,7 @@ def reconstruct_all_atom_frame_from_ca(
     for idx in range(len(reconstructed)):
         key = _residue_key(reconstructed, int(idx))
         if key in displacement_map:
-            reconstructed.coord[int(idx)] = (
-                reconstructed.coord[int(idx)] + displacement_map[key]
-            )
+            reconstructed.coord[int(idx)] = reconstructed.coord[int(idx)] + displacement_map[key]
 
     output_path = Path(output_pdb)
     output_path.parent.mkdir(parents=True, exist_ok=True)
