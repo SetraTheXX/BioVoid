@@ -1,0 +1,15 @@
+{
+    "pythonVersion": "3.13",
+    "pythonPlatform": "All",
+    "reportMissingImports": "warning",
+    "reportUnknownMemberType": "none",
+    "reportUnknownVariableType": "none",
+    "reportUnknownArgumentType": "none",
+    "reportUnknownParameterType": "none",
+    "reportUnknownLambdaType": "none",
+    "reportMissingParameterType": "none",
+    "reportMissingTypeArgument": "none",
+    "reportUntypedFunctionDecorator": "none",
+    "reportUnusedImport": "warning",
+    "typeCheckingMode": "standard"
+}

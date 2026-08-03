@@ -1,0 +1,1014 @@
+"""Versioned heuristic ranking for BioVoid pocket measurements.
+
+The score produced here is a configurable ranking aid. It is not a binding
+probability, confidence interval, ligand property, or validated druggability
+prediction. Raw detector measurements remain stored independently so profile
+changes can rerank pockets without repeating geometry extraction.
+
+Key Features:
+- Target-specific heuristic profiles (Enzyme, PPI, GPCR)
+- Bio-Score: weighted ranking function [0, 1]
+- Enclosure and depth measurement normalization
+- Measurement-preserving reranking
+
+References:
+- Schmidtke & Barril (2010) "Understanding and predicting druggability"
+- Halgren (2009) "Identifying and characterizing binding sites and assessing druggability"
+- Volkamer et al. (2012) "DoGSiteScorer"
+- Liang et al. (1998) "Anatomy of protein pockets and cavities"
+
+Phase 3.1: ScoringProfile base class + Enzyme/PPI/GPCR profiles
+Phase 3.2: Bio-Score formula + Enclosure Metric + Energy Filter
+Phase 3.3: Benchmarking & rank_pockets() API
+
+Author: Bio-Void Hunter Team
+Version: 1.0.0 (Scoring v2)
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+import hashlib
+import json
+from typing import Any
+
+import numpy as np
+from scipy.spatial import ConvexHull
+
+# ============================================================================
+# CONSTANTS
+# ============================================================================
+
+SCORING_CONTRACT_VERSION = "heuristic-pocket-ranking-v1"
+SCORING_MEASUREMENT_SCHEMA_VERSION = "pocket-scoring-measurements-v1"
+SCORING_PROFILE_VERSION = "scoring-profiles-v1"
+SCORE_SEMANTICS = "heuristic_ranking_not_probability"
+PRODUCT_RANKING_CONTRACT_VERSION = "product-heuristic-ranking-v1"
+
+# Volume normalization range (Å³) used by the current ranking heuristic.
+VOLUME_MIN = 80.0  # Lowered to score smaller cryptic pockets
+VOLUME_MAX = 2500.0  # Increased for larger binding sites
+
+# Hydrophobicity normalization
+HYDRO_MIN = 0.0
+HYDRO_MAX = 1.0
+
+# Enclosure metric
+ENCLOSURE_MIN_VERTICES = 4  # Minimum vertices for ConvexHull
+
+# Depth scoring — distance from protein centroid
+DEPTH_SURFACE_THRESHOLD = 5.0  # Å — closer = surface noise
+DEPTH_CORE_THRESHOLD = 15.0  # Å — deeper = more buried
+
+# Druggability class thresholds (lowered for better cryptic pocket sensitivity)
+DRUGGABILITY_HIGH = 0.55
+DRUGGABILITY_MEDIUM = 0.30
+
+# Sphericity ideal range — drug-like pockets are moderately spherical
+SPHERICITY_IDEAL = 0.6
+
+
+# ============================================================================
+# SCORING PROFILES
+# ============================================================================
+
+
+class ScoringProfile(ABC):
+    """
+    Abstract base class for target-specific scoring profiles.
+
+    Each profile defines weights for Bio-Score components:
+    - volume_w:       Pocket volume contribution
+    - hydrophobicity_w: Hydrophobic ratio contribution
+    - enclosure_w:    Enclosure (cave vs bowl) contribution
+    - depth_w:        Burial depth contribution
+
+    Weights MUST sum to 1.0 (enforced by validation).
+
+    Usage:
+        profile = EnzymeProfile()
+        score = profile.calculate_score(metrics)
+    """
+
+    def __init__(self):
+        self._weights = self._define_weights()
+        self._validate_weights()
+
+    @abstractmethod
+    def _define_weights(self) -> dict[str, float]:
+        """Define scoring weights for this profile. Must sum to 1.0."""
+        pass
+
+    @property
+    def name(self) -> str:
+        """Profile display name."""
+        return self.__class__.__name__.replace("Profile", "")
+
+    @property
+    def weights(self) -> dict[str, float]:
+        """Weight vector (read-only)."""
+        return self._weights.copy()
+
+    def _validate_weights(self):
+        """Enforce weight constraints."""
+        total = sum(self._weights.values())
+        if not np.isclose(total, 1.0, atol=1e-6):
+            raise ValueError(f"{self.name} profile weights sum to {total:.4f}, must be 1.0")
+        for key, val in self._weights.items():
+            if val < 0:
+                raise ValueError(f"{self.name} profile weight '{key}' is negative: {val}")
+
+    def calculate_score(self, metrics: dict[str, float | None]) -> float:
+        """
+        Calculate weighted Bio-Score from normalized metrics.
+
+        Args:
+            metrics: Dict with keys matching weight keys, values in [0, 1].
+
+        Returns:
+            score: Weighted sum in [0, 1].
+        """
+        score = 0.0
+        for key, weight in self._weights.items():
+            value = metrics.get(key, 0.0)
+            if value is None:
+                value = 0.0
+            # Clamp to [0, 1] for safety
+            value = max(0.0, min(1.0, float(value)))
+            score += weight * value
+        return round(score, 4)
+
+    def __repr__(self):
+        return f"{self.name}Profile(weights={self._weights})"
+
+
+class EnzymeProfile(ScoringProfile):
+    """
+    Scoring profile for enzyme active sites.
+
+    Enzymes prefer:
+    - Deep, enclosed pockets (high enclosure)
+    - Moderate volume (400-800 Å³)
+    - Mixed hydrophobic/polar (catalytic residues)
+    - Buried in core (high depth)
+    """
+
+    def _define_weights(self) -> dict[str, float]:
+        return {
+            "volume": 0.15,
+            "hydrophobicity": 0.20,
+            "enclosure": 0.35,
+            "depth": 0.30,
+        }
+
+
+class PPIProfile(ScoringProfile):
+    """
+    Scoring profile for Protein-Protein Interaction (PPI) interfaces.
+
+    PPI pockets prefer:
+    - Large, shallow surfaces (lower enclosure)
+    - High hydrophobicity (hot-spot residues)
+    - Moderate depth
+    - Larger volumes (> 600 Å³)
+    """
+
+    def _define_weights(self) -> dict[str, float]:
+        return {
+            "volume": 0.35,
+            "hydrophobicity": 0.35,
+            "enclosure": 0.10,
+            "depth": 0.20,
+        }
+
+
+class GPCRProfile(ScoringProfile):
+    """
+    Scoring profile for GPCR/Channel binding sites.
+
+    GPCR channels prefer:
+    - Narrow, deep channels (high enclosure)
+    - Moderate hydrophobicity
+    - Very deep burial
+    - Specific volume range (300-600 Å³)
+    """
+
+    def _define_weights(self) -> dict[str, float]:
+        return {
+            "volume": 0.20,
+            "hydrophobicity": 0.15,
+            "enclosure": 0.30,
+            "depth": 0.35,
+        }
+
+
+class DefaultProfile(ScoringProfile):
+    """
+    Balanced default profile when target type is unknown.
+    Equal emphasis on all four metrics.
+    """
+
+    def _define_weights(self) -> dict[str, float]:
+        return {
+            "volume": 0.25,
+            "hydrophobicity": 0.25,
+            "enclosure": 0.25,
+            "depth": 0.25,
+        }
+
+
+class CustomProfile(ScoringProfile):
+    """Runtime-configurable profile with arbitrary weights."""
+
+    def __init__(self, weights: dict[str, float]):
+        self._custom_weights = weights
+        super().__init__()
+
+    def _define_weights(self) -> dict[str, float]:
+        return dict(self._custom_weights)
+
+
+# Profile registry for CLI/API access
+PROFILES: dict[str, type[ScoringProfile]] = {
+    "enzyme": EnzymeProfile,
+    "ppi": PPIProfile,
+    "gpcr": GPCRProfile,
+    "default": DefaultProfile,
+}
+
+
+def get_profile(
+    name: str = "default", custom_weights: dict[str, float] | None = None
+) -> ScoringProfile:
+    """
+    Get a scoring profile by name, or create a custom one from weights.
+
+    Args:
+        name: Profile name ('enzyme', 'ppi', 'gpcr', 'default')
+        custom_weights: Optional dict of weights (overrides name if provided).
+                        Keys must match profile metric keys, values must sum to 1.0.
+
+    Returns:
+        ScoringProfile instance
+
+    Raises:
+        ValueError: If profile name is unknown
+    """
+    if custom_weights is not None:
+        return CustomProfile(custom_weights)
+
+    name_lower = name.lower().strip()
+    if name_lower not in PROFILES:
+        available = ", ".join(PROFILES.keys())
+        raise ValueError(f"Unknown profile '{name}'. Available: {available}")
+    return PROFILES[name_lower]()
+
+
+def get_profile_manifest(
+    name: str = "default",
+    custom_weights: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Return the immutable, content-addressed configuration for a score profile."""
+    profile = get_profile(name, custom_weights=custom_weights)
+    profile_id = "custom" if custom_weights is not None else name.lower().strip()
+    payload: dict[str, Any] = {
+        "schema_version": SCORING_PROFILE_VERSION,
+        "profile_id": profile_id,
+        "display_name": profile.name,
+        "weights": dict(sorted(profile.weights.items())),
+        "tier_thresholds": {
+            "high": DRUGGABILITY_HIGH,
+            "medium": DRUGGABILITY_MEDIUM,
+        },
+    }
+    payload["config_sha256"] = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("ascii")
+    ).hexdigest()
+    return payload
+
+
+# ============================================================================
+# PHASE 3.2: METRIC CALCULATORS
+# ============================================================================
+
+
+def normalize_volume(volume: float, v_min: float = VOLUME_MIN, v_max: float = VOLUME_MAX) -> float:
+    """
+    Normalize cavity volume to [0, 1].
+
+    Uses sigmoid-like clamped linear mapping:
+    - Below v_min → 0.0 (too small for drug)
+    - Between v_min and v_max → linear 0→1
+    - Above v_max → 1.0 (capped, larger ≠ always better)
+
+    Args:
+        volume: Raw volume (ų)
+        v_min: Lower bound
+        v_max: Upper bound
+
+    Returns:
+        Normalized volume score [0, 1]
+    """
+    if np.isnan(volume) or np.isinf(volume) or volume <= 0:
+        return 0.0
+    if volume <= v_min:
+        return 0.0
+    if volume >= v_max:
+        return 1.0
+    return (volume - v_min) / (v_max - v_min)
+
+
+def normalize_hydrophobicity(ratio: float | None) -> float:
+    """
+    Normalize hydrophobic ratio to [0, 1].
+
+    Direct mapping — ratio is already in [0, 1] from cavities module.
+    Applies NaN/None safety.
+
+    Args:
+        ratio: Hydrophobic residue ratio from filter_hydrophobic()
+
+    Returns:
+        Normalized hydrophobicity score [0, 1]
+    """
+    if ratio is None or np.isnan(ratio) or np.isinf(ratio):
+        return 0.0
+    return max(0.0, min(1.0, float(ratio)))
+
+
+def _calculate_enclosure_with_status(
+    cavity: dict[str, Any], atom_coords: np.ndarray | None = None
+) -> tuple[float, str | None]:
+    """
+    Calculate enclosure metric: how "cave-like" vs "bowl-like" a cavity is.
+
+    Method: Convex Hull Defect
+    --------------------------
+    enclosure = 1.0 - (sum_vertex_radii / hull_volume)
+
+    Intuition:
+    - A deeply buried cavity's vertices are tightly clustered →
+      hull_volume ≈ sum of spheres → low defect → HIGH enclosure
+    - A surface groove's vertices are spread out →
+      hull_volume >> sum of spheres → high defect → LOW enclosure
+
+    Simplified approach when few vertices:
+    - Uses radius_clear / radius_geom ratio as proxy
+    - High ratio = tight/enclosed, low ratio = spread/open
+
+    Args:
+        cavity: Cavity dict with 'vertices', 'radius_clear', 'radius_geom'
+        atom_coords: Optional protein atom coordinates for depth calculation
+
+    Returns:
+        enclosure: Score in [0, 1] (1.0 = fully enclosed cave)
+    """
+    if cavity.get("surface_model") == "vdw_directional_ray_enclosure":
+        raw_enclosure = float(cavity.get("enclosure", 0.0))
+        return max(0.0, min(1.0, raw_enclosure)), None
+
+    vertices = cavity.get("vertices", [])
+    radius_clear = cavity.get("radius_clear", 0.0)
+    radius_geom = cavity.get("radius_geom", 0.0)
+
+    # Case 1: Single vertex — use radius ratio
+    if len(vertices) < ENCLOSURE_MIN_VERTICES:
+        if radius_geom > 0:
+            # Clear/Geom ratio: higher = tighter enclosure
+            ratio = radius_clear / radius_geom
+            return min(1.0, ratio), "enclosure_radius_ratio_proxy"
+        # Fallback: moderate enclosure assumed
+        return 0.5, "enclosure_unavailable_fallback"
+
+    # Case 2: Multiple vertices — Convex Hull Defect method
+    try:
+        vert_array = np.array([v if isinstance(v, np.ndarray) else np.array(v) for v in vertices])
+
+        hull = ConvexHull(vert_array)
+        hull_volume = hull.volume
+
+        if hull_volume <= 0:
+            return 0.5, "enclosure_degenerate_hull_fallback"
+
+        # Spherical approximation volume of merged vertices
+        sphere_volume = cavity.get("volume", 0.0)
+
+        if sphere_volume <= 0:
+            return 0.5, "enclosure_missing_volume_fallback"
+
+        # Defect: how much "empty space" the hull has beyond the spheres
+        # Low defect = tightly packed = enclosed
+        # High defect = spread out = open
+        if hull_volume > sphere_volume:
+            defect = 1.0 - (sphere_volume / hull_volume)
+            # Invert: high enclosure = low defect
+            enclosure = 1.0 - defect
+        else:
+            # Spheres fill or exceed hull — very enclosed
+            enclosure = 1.0
+
+        return max(0.0, min(1.0, enclosure)), None
+
+    except Exception:
+        # ConvexHull failed (degenerate geometry)
+        if radius_geom > 0:
+            return min(1.0, radius_clear / radius_geom), "enclosure_convex_hull_fallback"
+        return 0.5, "enclosure_unavailable_fallback"
+
+
+def calculate_enclosure(cavity: dict[str, Any], atom_coords: np.ndarray | None = None) -> float:
+    """Return enclosure while keeping fallback provenance in extraction."""
+    return _calculate_enclosure_with_status(cavity, atom_coords)[0]
+
+
+def _calculate_depth_with_status(
+    cavity: dict[str, Any], atom_coords: np.ndarray
+) -> tuple[float, str | None]:
+    """
+    Calculate depth score: how deeply buried a cavity is in the protein.
+
+    Method:
+    - Compute protein centroid (center of mass of all atoms)
+    - Measure distance from cavity center to protein centroid
+    - Closer to centroid = deeper = higher score
+
+    Also applies surface penalty:
+    - Cavities very close to convex hull surface get reduced score
+
+    Args:
+        cavity: Cavity dict with 'center'
+        atom_coords: All protein atom coordinates
+
+    Returns:
+        depth: Score in [0, 1] (1.0 = deeply buried in core)
+    """
+    if cavity.get("depth_method") == "enclosure_fraction_times_ray_length_proxy_v1":
+        ray_length = float(cavity.get("enclosure_ray_length", 0.0))
+        if ray_length <= 0:
+            return 0.0, "depth_missing_ray_length_fallback"
+        return max(0.0, min(1.0, float(cavity.get("depth", 0.0)) / ray_length)), None
+
+    center = cavity.get("center")
+    if center is None:
+        return 0.0, "depth_missing_center_fallback"
+
+    center = np.array(center) if not isinstance(center, np.ndarray) else center
+
+    # Protein centroid
+    if atom_coords.size == 0 or atom_coords.ndim != 2 or atom_coords.shape[1] != 3:
+        return 0.0, "depth_invalid_atom_coordinates_fallback"
+
+    protein_centroid = np.mean(atom_coords, axis=0)
+
+    # Distance from cavity to protein center
+    dist_to_center: float = float(np.linalg.norm(center - protein_centroid))
+
+    # Max possible distance (protein radius)
+    max_dist: float = float(np.max(np.linalg.norm(atom_coords - protein_centroid, axis=1)))
+
+    if max_dist <= 0:
+        return 0.5, "depth_degenerate_coordinates_fallback"
+
+    # Normalized depth: 0 = surface, 1 = core
+    # Inverse of relative distance
+    relative_dist: float = dist_to_center / max_dist
+    depth_raw: float = 1.0 - relative_dist
+
+    # Surface penalty: cavities within DEPTH_SURFACE_THRESHOLD of hull
+    try:
+        hull = ConvexHull(atom_coords)
+        # Check if center is near the hull surface
+        equations = hull.equations  # (normal_x, normal_y, normal_z, offset)
+        # Signed distance to each facet
+        signed_dists = equations[:, :3] @ center + equations[:, 3]
+        min_surface_dist: float = float(np.min(np.abs(signed_dists)))
+
+        if min_surface_dist < DEPTH_SURFACE_THRESHOLD:
+            # Apply penalty: closer to surface = lower score
+            surface_penalty: float = min_surface_dist / DEPTH_SURFACE_THRESHOLD
+            depth_raw *= surface_penalty
+    except Exception:
+        return max(0.0, min(1.0, depth_raw)), "depth_surface_penalty_unavailable"
+
+    return max(0.0, min(1.0, depth_raw)), None
+
+
+def calculate_depth(cavity: dict[str, Any], atom_coords: np.ndarray) -> float:
+    """Return depth while keeping fallback provenance in extraction."""
+    return _calculate_depth_with_status(cavity, atom_coords)[0]
+
+
+def _calculate_sphericity_with_status(cavity: dict[str, Any]) -> tuple[float, str | None]:
+    """
+    Estimate pocket sphericity from vertex spread.
+
+    Sphericity measures how compact/globular the pocket shape is.
+    Drug-like pockets tend to be moderately spherical (~0.5-0.8).
+
+    Uses principal axis ratio: eigenvalue spread of vertex positions.
+    Perfectly spherical = 1.0, highly elongated = 0.0.
+    """
+    vertices = cavity.get("vertices", [])
+    if len(vertices) < 4:
+        return SPHERICITY_IDEAL, "sphericity_unavailable_fallback"
+
+    vert_array = np.array([v if isinstance(v, np.ndarray) else np.array(v) for v in vertices])
+
+    try:
+        centered = vert_array - vert_array.mean(axis=0)
+        cov = np.cov(centered.T)
+        eigenvalues = np.sort(np.linalg.eigvalsh(cov))[::-1]
+
+        if eigenvalues[0] <= 0:
+            return SPHERICITY_IDEAL, "sphericity_degenerate_fallback"
+
+        ratios = eigenvalues[1:] / eigenvalues[0]
+        return float(np.mean(ratios)), None
+    except Exception:
+        return SPHERICITY_IDEAL, "sphericity_unavailable_fallback"
+
+
+def calculate_sphericity(cavity: dict[str, Any]) -> float:
+    """Return sphericity while keeping fallback provenance in extraction."""
+    return _calculate_sphericity_with_status(cavity)[0]
+
+
+def extract_scoring_measurements(
+    cavity: dict[str, Any],
+    atom_coords: np.ndarray,
+) -> dict[str, Any]:
+    """Extract score inputs once while preserving detector measurements unchanged."""
+    volume = float(cavity.get("volume", 0.0) or 0.0)
+    hydrophobic_ratio = float(cavity.get("hydrophobic_ratio", 0.0) or 0.0)
+    detector_enclosure = cavity.get("enclosure")
+    if detector_enclosure is not None:
+        enclosure_score = float(detector_enclosure)
+        enclosure_status = None
+    else:
+        enclosure_score, enclosure_status = _calculate_enclosure_with_status(cavity, atom_coords)
+    depth_score, depth_status = _calculate_depth_with_status(cavity, atom_coords)
+    sphericity, sphericity_status = _calculate_sphericity_with_status(cavity)
+    measurement_statuses = [
+        status
+        for status in (enclosure_status, depth_status, sphericity_status)
+        if status is not None
+    ]
+    detector_warnings = list(cavity.get("warnings", ()))
+    detector_warnings.extend(status for status in measurement_statuses if "fallback" not in status)
+    fallback_metrics = [status for status in measurement_statuses if "fallback" in status]
+    return {
+        "schema_version": SCORING_MEASUREMENT_SCHEMA_VERSION,
+        "raw_measurements": {
+            "volume": volume,
+            "hydrophobic_ratio": hydrophobic_ratio,
+            "detector_enclosure": (
+                float(detector_enclosure) if detector_enclosure is not None else None
+            ),
+            "detector_depth": (float(cavity["depth"]) if cavity.get("depth") is not None else None),
+            "volume_convergence_delta": (
+                float(cavity["volume_convergence_delta"])
+                if cavity.get("volume_convergence_delta") is not None
+                else None
+            ),
+            "merged_vertices": int(cavity.get("merged_vertices", 0) or 0),
+            "warnings": detector_warnings,
+            "fallbacks": fallback_metrics,
+            "measurement_statuses": measurement_statuses,
+        },
+        "normalized_metrics": {
+            "volume": round(normalize_volume(volume), 8),
+            "hydrophobicity": round(normalize_hydrophobicity(hydrophobic_ratio), 8),
+            "enclosure": round(max(0.0, min(1.0, enclosure_score)), 8),
+            "depth": round(max(0.0, min(1.0, depth_score)), 8),
+        },
+        "shape_metrics": {
+            "sphericity": round(float(sphericity), 8),
+        },
+    }
+
+
+def assess_measurement_quality(measurements: dict[str, Any]) -> dict[str, Any]:
+    """Assign a transparent engineering-quality tier, never a probability."""
+    normalized = measurements.get("normalized_metrics", {})
+    raw = measurements.get("raw_measurements", {})
+    required = ("volume", "hydrophobicity", "enclosure", "depth")
+    missing = [
+        key
+        for key in required
+        if key not in normalized
+        or normalized.get(key) is None
+        or not np.isfinite(float(normalized.get(key, np.nan)))
+    ]
+    warnings = list(raw.get("warnings", ()))
+    fallbacks = list(raw.get("fallbacks", ()))
+    convergence = raw.get("volume_convergence_delta")
+    merged_vertices = int(raw.get("merged_vertices", 0) or 0)
+
+    quality_score = 1.0
+    quality_score -= 0.25 * len(missing)
+    quality_score -= min(0.30, 0.10 * len(warnings))
+    quality_score -= min(0.60, 0.30 * len(fallbacks))
+    if convergence is None:
+        quality_score -= 0.10
+    elif float(convergence) > 0.20:
+        quality_score -= 0.25
+    if merged_vertices < 2:
+        quality_score -= 0.20
+    quality_score = max(0.0, min(1.0, quality_score))
+
+    if missing or fallbacks:
+        tier = "insufficient"
+    elif quality_score >= 0.85:
+        tier = "high"
+    elif quality_score >= 0.60:
+        tier = "medium"
+    else:
+        tier = "low"
+    return {
+        "tier": tier,
+        "quality_score": round(quality_score, 4),
+        "missing_metrics": missing,
+        "fallback_metrics": fallbacks,
+        "detector_warnings": warnings,
+        "semantics": "engineering_data_quality_only",
+    }
+
+
+def score_from_measurements(
+    measurements: dict[str, Any],
+    *,
+    profile: str = "default",
+    custom_weights: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Score stored measurements without accessing protein coordinates."""
+    if measurements.get("schema_version") != SCORING_MEASUREMENT_SCHEMA_VERSION:
+        raise ValueError("Unsupported scoring measurement schema")
+    normalized: dict[str, float | None] = {}
+    for key, value in measurements.get("normalized_metrics", {}).items():
+        if value is None:
+            normalized[key] = None
+        else:
+            numeric = float(value)
+            normalized[key] = numeric if np.isfinite(numeric) else None
+    scoring_profile = get_profile(profile, custom_weights=custom_weights)
+    profile_manifest = get_profile_manifest(profile, custom_weights=custom_weights)
+    measurement_quality = assess_measurement_quality(measurements)
+    measurements_usable = measurement_quality["tier"] != "insufficient"
+    bio_score = scoring_profile.calculate_score(normalized)
+    if not measurements_usable:
+        bio_score = 0.0
+    if bio_score >= DRUGGABILITY_HIGH:
+        tier = "high"
+    elif bio_score >= DRUGGABILITY_MEDIUM:
+        tier = "medium"
+    else:
+        tier = "low"
+    weighted_components = {
+        key: round(
+            float(normalized.get(key) or 0.0) * float(weight),
+            8,
+        )
+        for key, weight in scoring_profile.weights.items()
+    }
+    score_components = {
+        "volume_score": round(normalized.get("volume") or 0.0, 4),
+        "hydrophobicity_score": round(normalized.get("hydrophobicity") or 0.0, 4),
+        "enclosure_score": round(normalized.get("enclosure") or 0.0, 4),
+        "depth_score": round(normalized.get("depth") or 0.0, 4),
+        "sphericity": round(
+            float(measurements.get("shape_metrics", {}).get("sphericity", 0.0)),
+            4,
+        ),
+    }
+    return {
+        "bio_score": bio_score,
+        "heuristic_quality_tier": tier,
+        "druggability_class": tier,
+        "heuristic_shortlist": tier == "high" and measurements_usable,
+        "score_components": score_components,
+        "profile_used": scoring_profile.name,
+        "profile_manifest": profile_manifest,
+        "scoring_contract_version": SCORING_CONTRACT_VERSION,
+        "score_semantics": SCORE_SEMANTICS,
+        "measurement_quality": measurement_quality,
+        "score_status": (
+            "available" if measurements_usable else "unavailable_due_to_measurement_quality"
+        ),
+        "static_score_contribution": {
+            "components": weighted_components,
+            "total": bio_score,
+        },
+        "motion_score_contribution": None,
+    }
+
+
+# ============================================================================
+# BIO-SCORE CALCULATOR (v2)
+# ============================================================================
+
+
+def calculate_bio_score(
+    cavity: dict[str, Any],
+    atom_coords: np.ndarray,
+    profile: str = "default",
+    custom_weights: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """
+    Calculate composite Bio-Score for a single cavity.
+
+    Computes frozen measurements and applies a profile-weighted ranking.
+
+    Args:
+        cavity: Cavity dict from find_cavities()
+        atom_coords: Protein atom coordinates (heavy atoms)
+        profile: Scoring profile name ('enzyme', 'ppi', 'gpcr', 'default')
+        custom_weights: Optional custom weight dict (overrides profile)
+
+    Returns:
+        Dict with measurements, ranking components, quality tier, and profile.
+    """
+    measurements = extract_scoring_measurements(cavity, atom_coords)
+    result = score_from_measurements(
+        measurements,
+        profile=profile,
+        custom_weights=custom_weights,
+    )
+    result["scoring_measurements"] = measurements
+    return result
+
+
+# ============================================================================
+# PHASE 3.3: RANKING & BENCHMARKING
+# ============================================================================
+
+
+def score_all_cavities(
+    cavities: list[dict[str, Any]], atom_coords: np.ndarray, profile: str = "default"
+) -> list[dict[str, Any]]:
+    """
+    Score all cavities and attach results to each cavity dict.
+
+    Mutates cavity dicts in-place by adding scoring fields.
+
+    Args:
+        cavities: List of cavity dicts from find_cavities()
+        atom_coords: Protein atom coordinates
+        profile: Scoring profile name
+
+    Returns:
+        cavities: Same list, now with bio_score fields added
+    """
+    for cavity in cavities:
+        result = calculate_bio_score(cavity, atom_coords, profile)
+        cavity.update(result)
+
+    return cavities
+
+
+def rank_pockets(
+    cavities: list[dict[str, Any]],
+    atom_coords: np.ndarray,
+    profile: str = "default",
+    top_n: int | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Score, rank, and optionally filter top-N cavities.
+
+    Main API for Phase 3 integration with pipeline.
+
+    Args:
+        cavities: List of cavity dicts from find_cavities()
+        atom_coords: Protein heavy atom coordinates
+        profile: Scoring profile ('enzyme', 'ppi', 'gpcr', 'default')
+        top_n: Return only top N cavities (None = return all)
+
+    Returns:
+        ranked: List of cavity dicts sorted by bio_score (descending),
+                each with 'rank' field (1-based)
+    """
+    if not cavities:
+        return []
+
+    # Score all
+    scored = score_all_cavities(cavities, atom_coords, profile)
+
+    # Sort by bio_score descending
+    ranked = sorted(scored, key=lambda c: c.get("bio_score", 0.0), reverse=True)
+
+    # Assign ranks (1-based)
+    for i, cavity in enumerate(ranked):
+        cavity["rank"] = i + 1
+
+    # Top-N filter
+    if top_n is not None and top_n > 0:
+        ranked = ranked[:top_n]
+
+    return ranked
+
+
+def rank_product_pockets(
+    cavities: list[dict[str, Any]],
+    atom_coords: np.ndarray,
+    profile: str = "default",
+    top_n: int | None = None,
+) -> list[dict[str, Any]]:
+    """Apply the single user-facing ranking contract used by product evaluation."""
+    ranked = rank_pockets(cavities, atom_coords, profile=profile, top_n=top_n)
+    for pocket in ranked:
+        pocket["ranking_contract_version"] = PRODUCT_RANKING_CONTRACT_VERSION
+    return ranked
+
+
+def rerank_from_measurements(
+    pockets: list[dict[str, Any]],
+    *,
+    profile: str = "default",
+    custom_weights: dict[str, float] | None = None,
+    top_n: int | None = None,
+) -> list[dict[str, Any]]:
+    """Rerank pockets using stored score inputs without rerunning geometry."""
+    for pocket in pockets:
+        measurements = pocket.get("scoring_measurements")
+        if not isinstance(measurements, dict):
+            raise ValueError("Pocket is missing scoring_measurements")
+        pocket.update(
+            score_from_measurements(
+                measurements,
+                profile=profile,
+                custom_weights=custom_weights,
+            )
+        )
+    ranked = sorted(pockets, key=lambda item: item.get("bio_score", 0.0), reverse=True)
+    for rank, pocket in enumerate(ranked, start=1):
+        pocket["rank"] = rank
+    return ranked[:top_n] if top_n is not None and top_n > 0 else ranked
+
+
+def calculate_novelty_score(
+    cavity: dict[str, Any],
+    fpocket_pockets: list[dict[str, Any]] | None = None,
+    tolerance: float = 8.0,
+) -> float:
+    """
+    Calculate how 'novel' a discovery is — higher means less likely
+    to be found by traditional tools like fpocket.
+
+    Factors:
+    - Distance from nearest fpocket pocket (if comparison data available)
+    - Depth (deeper = harder to find statically)
+    - Enclosure (more enclosed = harder to find)
+    - Cryptic indicators (low volume but high score)
+    """
+    depth = cavity.get("score_components", {}).get("depth_score", 0.5)
+    enclosure = cavity.get("score_components", {}).get("enclosure_score", 0.5)
+    bio_score = cavity.get("bio_score", 0.0)
+
+    depth_factor = depth * 0.3
+    enclosure_factor = enclosure * 0.3
+    score_factor = bio_score * 0.2
+
+    fpocket_factor = 0.2
+    if fpocket_pockets:
+        center = np.array(cavity.get("center", [0, 0, 0]), dtype=float)
+        min_dist = float("inf")
+        for fp in fpocket_pockets:
+            fp_center = np.array(fp.get("center", [0, 0, 0]), dtype=float)
+            dist = float(np.linalg.norm(center - fp_center))
+            min_dist = min(min_dist, dist)
+
+        fpocket_factor = 0.2 if min_dist > tolerance else 0.2 * (min_dist / tolerance)
+
+    novelty = depth_factor + enclosure_factor + score_factor + fpocket_factor
+    return round(max(0.0, min(1.0, novelty)), 4)
+
+
+def get_elite_pockets(
+    cavities: list[dict[str, Any]],
+    atom_coords: np.ndarray,
+    profile: str = "default",
+    top_n: int = 5,
+    min_score: float = 0.0,
+) -> list[dict[str, Any]]:
+    """
+    Get the elite (top-scoring) pockets from a cavity list.
+
+    Convenience function for quick analysis.
+
+    Args:
+        cavities: List of cavity dicts
+        atom_coords: Protein atom coordinates
+        profile: Scoring profile name
+        top_n: Number of top pockets to return
+        min_score: Minimum bio_score threshold
+
+    Returns:
+        elite: Top-N cavities with bio_score >= min_score
+    """
+    ranked = rank_pockets(cavities, atom_coords, profile)
+
+    # Filter by minimum score
+    elite = [c for c in ranked if c.get("bio_score", 0.0) >= min_score]
+
+    return elite[:top_n]
+
+
+def estimate_pocket_heuristic_fit(pocket: dict[str, Any]) -> float:
+    """Return a transparent pocket-property fit heuristic.
+
+    This score describes only configured pocket geometry/property ranges. It
+    does not apply Lipinski rules, which describe ligand properties.
+
+    Current favorable ranges:
+    - Volume 200-1000 A3 -> favorable
+    - Hydrophobicity 0.3-0.7 -> favorable (mixed character)
+    - Enclosure > 0.5 -> favorable
+    - Depth > 0.3 -> favorable
+
+    Args:
+        pocket: Pocket dict with volume, hydrophobic_ratio, score_components
+                (enclosure_score, depth_score)
+
+    Returns:
+        Heuristic pocket fit score in [0, 1].
+    """
+    components = pocket.get("score_components", {})
+    volume = float(pocket.get("volume", 0.0))
+    hydro = pocket.get("hydrophobic_ratio")
+    if hydro is None:
+        hydro = components.get("hydrophobicity_score", 0.0)
+    hydro = float(hydro) if hydro is not None else 0.0
+    enclosure = float(components.get("enclosure_score", 0.0))
+    depth = float(components.get("depth_score", 0.0))
+
+    vol_score = 1.0 if 200 <= volume <= 1000 else 0.0
+    hydro_score = 1.0 if 0.3 <= hydro <= 0.7 else 0.0
+    encl_score = 1.0 if enclosure > 0.5 else 0.0
+    depth_score = 1.0 if depth > 0.3 else 0.0
+
+    fit_score = (vol_score + hydro_score + encl_score + depth_score) / 4.0
+    return round(max(0.0, min(1.0, fit_score)), 4)
+
+
+def classify_pocket_evidence(cavity: dict[str, Any]) -> str:
+    """
+    Classify pocket evidence level for FPR reduction.
+
+    Uses multiple signals to assign an evidence tier instead of
+    binary supported/unsupported classification.
+
+    Returns:
+        One of: 'strong', 'moderate', 'weak', 'insufficient'
+    """
+    bio_score = cavity.get("bio_score", 0.0)
+    quality_tier = cavity.get("measurement_quality", {}).get("tier", "low")
+    n_vertices = cavity.get("merged_vertices", 1)
+    volume = cavity.get("volume", 0.0)
+    druggable = cavity.get("druggable", False)
+    sphericity = cavity.get("score_components", {}).get("sphericity", 0.5)
+    depth = cavity.get("score_components", {}).get("depth_score", 0.0)
+    enclosure = cavity.get("score_components", {}).get("enclosure_score", 0.0)
+    hydro = cavity.get("hydrophobic_ratio", 0.0) or 0.0
+
+    evidence_points = 0.0
+
+    if bio_score >= DRUGGABILITY_HIGH:
+        evidence_points += 3.0
+    elif bio_score >= DRUGGABILITY_MEDIUM:
+        evidence_points += 2.0
+    elif bio_score >= 0.20:
+        evidence_points += 1.0
+
+    if quality_tier == "high":
+        evidence_points += 2.0
+    elif quality_tier == "medium":
+        evidence_points += 1.0
+
+    if n_vertices >= 8:
+        evidence_points += 2.0
+    elif n_vertices >= 4:
+        evidence_points += 1.0
+
+    if druggable:
+        evidence_points += 1.5
+
+    if 150.0 <= volume <= 2500.0:
+        evidence_points += 1.0
+    elif 80.0 <= volume < 150.0:
+        evidence_points += 0.5
+
+    if depth >= 0.5:
+        evidence_points += 1.0
+    if enclosure >= 0.6:
+        evidence_points += 1.0
+    if 0.3 <= sphericity <= 0.9:
+        evidence_points += 0.5
+    if hydro >= 0.4:
+        evidence_points += 0.5
+
+    if evidence_points >= 8.0:
+        return "strong"
+    elif evidence_points >= 5.0:
+        return "moderate"
+    elif evidence_points >= 2.5:
+        return "weak"
+    return "insufficient"

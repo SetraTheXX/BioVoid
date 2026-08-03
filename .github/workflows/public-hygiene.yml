@@ -1,0 +1,20 @@
+name: public-hygiene
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "ws-main/*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  source-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Check source-only boundary
+        run: python scripts/check_public_hygiene.py --history --history-ref HEAD

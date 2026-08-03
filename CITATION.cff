@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If BioVoid contributes to your work, please cite this software release."
+type: software
+title: "BioVoid: Local Protein Pocket Analysis Prototype"
+version: 0.1.0
+abstract: >-
+  BioVoid is a local computational research prototype for full-atom structure
+  preparation and geometry-based protein pocket candidate ranking. Its
+  motion-aware analysis is experimental and remains separate from the
+  canonical static result.
+authors:
+  - name: "BioVoid contributors"
+license: MIT
+repository-code: "https://github.com/SetraTheXX/BioVoid"
+keywords:
+  - protein structure analysis
+  - pocket geometry
+  - computational research

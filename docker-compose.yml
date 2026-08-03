@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # The API must bind to the container interface for port publishing. The
+    # host-side mapping below remains loopback-only.
+    command: ["python", "scripts/run_phase6_api.py", "--host", "0.0.0.0", "--port", "8000", "--allow-remote"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - BIOVOID_WORKERS=1
+      - BIOVOID_LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
