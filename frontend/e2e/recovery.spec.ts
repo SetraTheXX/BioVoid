@@ -110,6 +110,9 @@ test('molecular viewer spike renders a structure and exposes pocket focus', asyn
 
   const canvas = page.locator('.molstar-spike-canvas canvas').first();
   await expect(canvas).toBeVisible();
+  const viewer = page.locator('.molstar-spike');
+  await expect(viewer).toHaveAttribute('data-camera-target', /,/);
+  const firstCameraTarget = await viewer.getAttribute('data-camera-target');
   const desktopCanvas = await canvas.evaluate((element) => {
     const gl = element.getContext('webgl2') ?? element.getContext('webgl');
     if (!gl) return { width: 0, height: 0, renderer: null, pixelEnergy: 0 };
@@ -134,6 +137,7 @@ test('molecular viewer spike renders a structure and exposes pocket focus', asyn
 
   await page.getByRole('combobox', { name: 'Focus pocket in molecular viewer' }).selectOption('2');
   await expect(page.getByText(/P2 center/)).toBeVisible();
+  await expect.poll(() => viewer.getAttribute('data-camera-target')).not.toBe(firstCameraTarget);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(canvas).toBeVisible();

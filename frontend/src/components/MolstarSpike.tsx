@@ -25,6 +25,7 @@ export default function MolstarSpike({ pdbId, runId, pockets }: MolstarSpikeProp
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [phase, setPhase] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [cameraTarget, setCameraTarget] = useState<[number, number, number] | null>(null);
 
   const focusablePockets = useMemo(
     () => pockets.filter((pocket) => pocket.center?.length === 3),
@@ -41,6 +42,7 @@ export default function MolstarSpike({ pdbId, runId, pockets }: MolstarSpikeProp
     const target = targetRef.current;
     if (!target || !pdbId || !runId) {
       setPhase('idle');
+      setCameraTarget(null);
       return;
     }
 
@@ -52,6 +54,7 @@ export default function MolstarSpike({ pdbId, runId, pockets }: MolstarSpikeProp
     async function loadStructure() {
       setPhase('loading');
       setError(null);
+      setCameraTarget(null);
       try {
         const structureText = await api.proteinStructure(structureId, analysisRunId, controller.signal);
         if (disposed) return;
@@ -107,16 +110,32 @@ export default function MolstarSpike({ pdbId, runId, pockets }: MolstarSpikeProp
     const canvas3d = pluginRef.current?.canvas3d;
     if (phase !== 'ready' || !center || center.length !== 3 || !canvas3d) return;
 
+    let cancelled = false;
     const target = Vec3.create(center[0], center[1], center[2]);
     const radius = Math.max(6, Math.cbrt(selectedPocket.volume ?? 100) * 2);
     canvas3d.camera.focus(target, radius, 250);
+
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      const snapshot = canvas3d.camera.getSnapshot();
+      setCameraTarget([snapshot.target[0], snapshot.target[1], snapshot.target[2]]);
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [phase, selectedPocket]);
 
   const selectedIndex = selectedPocket ? focusablePockets.indexOf(selectedPocket) : -1;
   const center = selectedPocket?.center;
 
   return (
-    <section className="molstar-spike" aria-label="Molecular 3D viewer spike">
+    <section
+      className="molstar-spike"
+      aria-label="Molecular 3D viewer spike"
+      data-camera-target={cameraTarget?.map((value) => value.toFixed(2)).join(',')}
+    >
       <div className="molstar-spike-header">
         <div>
           <div className="molstar-spike-title">Molecular 3D Workbench Spike</div>
