@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { api } from '../services/api';
 import ErrorNotice from '../components/ErrorNotice';
+import MolstarSpike from '../components/MolstarSpike';
 import ProvenancePanel from '../components/ProvenancePanel';
 import ResearchStatus from '../components/ResearchStatus';
 import type { AnalysisResult, Pocket } from '../types/api';
@@ -429,6 +430,11 @@ export default function Analyze() {
           </div>
           {cavities.length > 0 && (
             <>
+            <MolstarSpike
+              pdbId={result.pdb_id}
+              runId={result.run_id}
+              pockets={cavities}
+            />
             <div
               style={{
                 display: 'grid',

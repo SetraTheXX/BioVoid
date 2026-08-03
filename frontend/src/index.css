@@ -65,6 +65,62 @@ body {
 .provenance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
 .provenance-grid dt { color: var(--text2); font-size: 10px; }
 .provenance-grid dd { color: var(--text); overflow-wrap: anywhere; font-family: monospace; }
+.molstar-spike {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.molstar-spike-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.molstar-spike-title { color: var(--accent); font-size: 13px; font-weight: 700; }
+.molstar-spike-subtitle { color: var(--text2); font-size: 10px; margin-top: 2px; }
+.molstar-pocket-select { display: grid; gap: 3px; min-width: 150px; color: var(--text2); font-size: 10px; }
+.molstar-pocket-select select {
+  min-width: 150px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 5px 7px;
+}
+.molstar-spike-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  color: var(--text2);
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.molstar-spike-canvas {
+  position: relative;
+  height: 520px;
+  min-height: 360px;
+  overflow: hidden;
+  background: #101016;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.molstar-spike-canvas .msp-plugin { position: absolute; inset: 0; }
+.molstar-spike-empty,
+.molstar-spike-status,
+.molstar-spike-error {
+  padding: 20px;
+  color: var(--text2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.molstar-spike-error { color: var(--danger); }
+.molstar-spike-footnote { color: var(--text2); font-size: 10px; margin-top: 8px; }
 
 @media (max-width: 720px) {
   .app-shell { display: block; }
@@ -82,6 +138,9 @@ body {
   .sidebar-footer { display: none; }
   .app-main { margin-left: 0; padding: 16px 12px 28px; }
   .provenance-grid { grid-template-columns: 1fr; }
+  .molstar-spike-header { display: block; }
+  .molstar-pocket-select { margin-top: 10px; }
+  .molstar-spike-canvas { height: 420px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

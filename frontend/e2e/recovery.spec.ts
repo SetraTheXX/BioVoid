@@ -53,6 +53,96 @@ test('submit, poll, and result smoke', async ({ page }) => {
   await expect(page.getByText('1CBS Results')).toBeVisible();
 });
 
+test('molecular viewer spike renders a structure and exposes pocket focus', async ({ page }, testInfo) => {
+  const syntheticPdb = [
+    'HEADER    SYNTHETIC UI FIXTURE',
+    'ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00 20.00           N',
+    'ATOM      2  CA  ALA A   1       1.458   0.000   0.000  1.00 20.00           C',
+    'ATOM      3  C   ALA A   1       2.050   1.400   0.000  1.00 20.00           C',
+    'ATOM      4  O   ALA A   1       1.400   2.400   0.000  1.00 20.00           O',
+    'ATOM      5  N   GLY A   2       3.300   1.450   0.000  1.00 20.00           N',
+    'ATOM      6  CA  GLY A   2       4.000   2.750   0.000  1.00 20.00           C',
+    'ATOM      7  C   GLY A   2       5.450   2.450   0.000  1.00 20.00           C',
+    'ATOM      8  O   GLY A   2       6.000   1.350   0.000  1.00 20.00           O',
+    'END',
+  ].join('\n');
+
+  await page.route('**/jobs', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify({ job_id: 'molstar-job', status: 'queued' }),
+    });
+  });
+  await page.route('**/jobs/molstar-job', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        job_id: 'molstar-job',
+        status: 'succeeded',
+        result: {
+          run_id: 'e2e-run',
+          pdb_id: '1CBS',
+          total_cavities: 2,
+          heuristic_shortlist_cavities: 1,
+          runtime_seconds: 0.2,
+          validation_status: 'recovery_unvalidated',
+          canonical_eligible: false,
+          cavities: [
+            { id: 1, center: [1, 1, 1], volume: 120, bio_score: 0.8, heuristic_quality_tier: 'high' },
+            { id: 2, center: [4, 3, 2], volume: 80, bio_score: 0.5, heuristic_quality_tier: 'medium' },
+          ],
+        },
+      }),
+    });
+  });
+  await page.route('**/protein/1CBS/structure**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'chemical/x-pdb', body: syntheticPdb });
+  });
+
+  await page.goto('/analyze');
+  await page.getByPlaceholder('e.g. 1CBS').fill('1CBS');
+  await page.getByRole('button', { name: 'Run Analysis' }).click();
+  await expect(page.getByText('1CBS Results')).toBeVisible();
+  await expect(page.getByText(/1CBS · ready/)).toBeVisible({ timeout: 30_000 });
+
+  const canvas = page.locator('.molstar-spike-canvas canvas').first();
+  await expect(canvas).toBeVisible();
+  const desktopCanvas = await canvas.evaluate((element) => {
+    const gl = element.getContext('webgl2') ?? element.getContext('webgl');
+    if (!gl) return { width: 0, height: 0, renderer: null, pixelEnergy: 0 };
+    const pixel = new Uint8Array(4);
+    let pixelEnergy = 0;
+    for (const [x, y] of [[1, 1], [gl.drawingBufferWidth / 2, gl.drawingBufferHeight / 2], [gl.drawingBufferWidth - 2, gl.drawingBufferHeight - 2]]) {
+      gl.readPixels(Math.max(0, Math.floor(x)), Math.max(0, Math.floor(y)), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      pixelEnergy += pixel[0] + pixel[1] + pixel[2] + pixel[3];
+    }
+    return {
+      width: gl.drawingBufferWidth,
+      height: gl.drawingBufferHeight,
+      renderer: String(gl.getParameter(gl.RENDERER)),
+      pixelEnergy,
+    };
+  });
+  expect(desktopCanvas.width).toBeGreaterThan(0);
+  expect(desktopCanvas.height).toBeGreaterThan(0);
+  expect(desktopCanvas.renderer).toBeTruthy();
+  expect(desktopCanvas.pixelEnergy).toBeGreaterThan(0);
+  await page.screenshot({ path: testInfo.outputPath('molstar-desktop.png'), fullPage: true });
+
+  await page.getByRole('combobox', { name: 'Focus pocket in molecular viewer' }).selectOption('2');
+  await expect(page.getByText(/P2 center/)).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(canvas).toBeVisible();
+  const mobileBox = await canvas.boundingBox();
+  expect(mobileBox?.width ?? 0).toBeGreaterThan(300);
+  expect(mobileBox?.height ?? 0).toBeGreaterThan(300);
+  await page.screenshot({ path: testInfo.outputPath('molstar-mobile.png'), fullPage: true });
+});
+
 test('Atlas pagination advances without a backend', async ({ page }) => {
   const items = Array.from({ length: 10 }, (_, index) => ({
     pdb_id: `T${String(index).padStart(3, '0')}`,

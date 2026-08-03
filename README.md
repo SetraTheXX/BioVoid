@@ -26,7 +26,7 @@ motion-aware analysis improves pocket localization.
 - FastAPI backend with job submission, status, result download, Atlas queries,
   and health/readiness endpoints.
 - React/Vite frontend for local dashboard, analysis submission, Atlas browsing,
-  and system status.
+  system status, and a bounded Mol* molecular-viewer spike.
 - SQLite Atlas schema and helper APIs. The actual local Atlas database under
   `data/runtime/` is intentionally excluded from git.
 - Tests for scientific invariants, the pipeline, API, Atlas persistence,
@@ -60,7 +60,9 @@ local unless an independently documented release artifact is prepared.
 - Optional: AutoDock Vina, fpocket, and P2Rank tooling for docking or external comparisons
 
 Third-party licenses, citations, and runtime attribution requirements are
-listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). The Mol* viewer
+is an interface-only spike and does not alter canonical ranking or evaluator
+inputs.
 
 Install Python dependencies:
 

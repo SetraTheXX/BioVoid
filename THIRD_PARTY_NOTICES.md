@@ -49,6 +49,18 @@ P2Rank datasets, release assets, and future model packages may have their own
 distribution terms. They are not included in this repository and must be
 audited separately before redistribution.
 
+## Mol*
+
+The optional React molecular viewer spike bundles Mol* `5.11.0` from the npm
+package. Mol* is distributed under the MIT License.
+
+- Source: https://github.com/molstar/molstar
+- License: https://github.com/molstar/molstar/blob/master/LICENSE
+- Scientific citation guidance: follow the upstream repository and Mol* paper
+
+The viewer is an interface component only. It does not change BioVoid scoring,
+ranking, evaluator inputs, or scientific claims.
+
 ## Container Base Images
 
 The repository contains Docker build recipes that refer to pinned base image
