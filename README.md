@@ -57,7 +57,10 @@ local unless an independently documented release artifact is prepared.
 
 - Python 3.12 or 3.13 (the supported release range is `>=3.12,<3.14`)
 - Node.js and npm for the React frontend
-- Optional: AutoDock Vina/fpocket tooling for docking or external comparisons
+- Optional: AutoDock Vina, fpocket, and P2Rank tooling for docking or external comparisons
+
+Third-party licenses, citations, and runtime attribution requirements are
+listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 Install Python dependencies:
 
@@ -111,6 +114,13 @@ loopback-only by default; enabling `--allow-remote` is an explicit operator
 choice and requires an authenticated network boundary.
 
 ## CLI Examples
+
+Run a bounded live RCSB/mmCIF smoke check. The default command uses a temporary
+output directory and does not commit or retain structure files:
+
+```powershell
+python scripts/smoke_rcsb.py --pdb-id 1CRN
+```
 
 Analyze one structure:
 
