@@ -78,5 +78,9 @@ markers = [
     "private: local research checks that require ignored evidence or evaluator locks",
 ]
 
+[tool.coverage.run]
+# Keep the release gate focused on importable package code, not root tooling.
+source = ["src"]
+
 [tool.mypy]
 ignore_missing_imports = true
