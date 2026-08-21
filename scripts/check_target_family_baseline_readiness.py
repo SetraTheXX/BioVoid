@@ -456,6 +456,8 @@ def build_readiness_report(
             "nma_started": False,
             "ml_training_started": False,
             "container_execution_started": False,
+            "target_family_runner_adapter_required": True,
+            "ri3_runner_case_lock": 663,
             "user_approval_required": True,
             "claims_authorized": False,
         },
@@ -463,8 +465,9 @@ def build_readiness_report(
             "current_gate": "G2-bounded-static-development-pilot",
             "purpose": "Prepare a reproducible, independent fpocket/P2Rank comparison without executing it.",
             "next_step": (
-                "Complete the representative-chain policy review, then obtain explicit user approval; "
-                "only after Docker/images are available may the two-case single-worker baseline run start."
+                "Complete the representative-chain policy review and verify a target-family runner adapter "
+                "(the existing RI-3 runner remains locked to 663 cases); then obtain explicit user approval. "
+                "Only after Docker/images are available may the two-case single-worker baseline run start."
             ),
             "status": "readiness_only_no_baseline_started",
         },

@@ -34,6 +34,11 @@ and explicit user approval as separate gates. A ready report therefore means
 “safe to consider starting a run”, never “the run has started” or “the method
 is scientifically validated”.
 
+The existing RI-3 baseline runner remains locked to its 663-structure cohort and
+must not be pointed at this two-case manifest. A separate target-family runner
+adapter with an explicit approval flag is required before any container is
+started.
+
 ## Current development gate
 
 The current local report is expected to remain one of:
