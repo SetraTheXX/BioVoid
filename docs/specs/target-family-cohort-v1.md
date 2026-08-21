@@ -40,7 +40,27 @@ The current PF00497 metadata pilot has two cases and therefore remains
 `blocked_insufficient_cohort` for held-out/ML work. The next research task is
 metadata curation and sequence-cluster review for a larger cohort. The local
 metadata-only candidate audit currently finds two strict paired UniProt groups
-and three under the relaxed 120-residue length policy, but none has materialized
-sequence clusters or contact labels yet. Only after that review can a bounded
+and three under the relaxed 120-residue length policy, but no independent
+contact labels have been materialized yet. Sequence clusters are now materialized
+only as review-required metadata; only after that review can a bounded
 static benchmark be considered. A later ML baseline must use the redacted
 manifest plus independent labels and family-aware splits.
+
+## Sequence-cluster materialization boundary
+
+`scripts/materialize_target_family_sequence_clusters.py` is the bounded
+metadata curation step. With an explicit `--allow-network` acknowledgement it
+requests only RCSB entry and polymer-entity JSON, sequentially, for at most 100
+inventory records. It selects the protein entity whose RCSB UniProt metadata
+matches the inventory group, stores sequence lengths and SHA-256 digests in the
+ignored local report, and never stores raw sequences in the public repository.
+Coordinate URLs are rejected by the command boundary.
+
+The current local run materialized all 42 inventory records into eight
+sequence components using `global_pairwise_identity_v1` at a 0.90 identity
+threshold, with 283 threshold edges. This is a curation diagnostic only:
+single-linkage clusters are explicitly marked `review_required`, do not create
+independent labels, and are not yet eligible to authorize a detector,
+benchmark, ML training, or discovery claim. The next gate remains independent
+apo--holo contact-label curation followed by the leakage-audited cohort
+contract.
