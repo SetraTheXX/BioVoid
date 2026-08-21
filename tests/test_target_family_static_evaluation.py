@@ -7,10 +7,12 @@ import pytest
 
 from scripts.evaluate_target_family_static_pilot import (
     EVALUATION_REPORT_SCHEMA_VERSION,
+    TargetFamilyEvaluationError,
     _summary,
     _chain_pairs,
     build_evaluation_skeleton,
     enforce_workspace_quota,
+    validate_evaluation_report,
 )
 from src.target_family_manifest import (
     NonPolymerComponent,
@@ -142,3 +144,22 @@ def test_chain_policy_uses_one_representative_common_chain(monkeypatch) -> None:
     )
 
     assert _chain_pairs(Path("apo"), Path("holo")) == (ChainPair("A", "A"),)
+
+
+def test_evaluation_report_guard_accepts_diagnostic_skeleton() -> None:
+    manifest = _manifest()
+    payload = build_evaluation_skeleton(manifest, max_cases=2, max_disk_bytes=1)
+
+    result = validate_evaluation_report(payload, manifest)
+
+    assert result["status"] == "diagnostic_contract_valid"
+    assert result["claim_authorized"] is False
+
+
+def test_evaluation_report_guard_rejects_claim_ready_flags() -> None:
+    manifest = _manifest()
+    payload = build_evaluation_skeleton(manifest, max_cases=2, max_disk_bytes=1)
+    payload["sealed_evaluation_authorized"] = True
+
+    with pytest.raises(TargetFamilyEvaluationError, match="sealed evaluation"):
+        validate_evaluation_report(payload, manifest)

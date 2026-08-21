@@ -463,6 +463,148 @@ def _summary(report: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_evaluation_report(
+    report: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Fail closed if an evaluator report can be mistaken for canonical evidence."""
+
+    validate_detector_manifest(manifest)
+    if report.get("schema_version") != EVALUATION_REPORT_SCHEMA_VERSION:
+        raise TargetFamilyEvaluationError("Unexpected target-family evaluator report schema")
+    if report.get("manifest_sha256") != manifest.get("manifest_sha256"):
+        raise TargetFamilyEvaluationError("Evaluator report manifest hash mismatch")
+    if report.get("protocol_sha256") != phase6_frozen_protocol_v1().protocol_sha256:
+        raise TargetFamilyEvaluationError("Evaluator report protocol hash mismatch")
+    if report.get("detector_target_blind") is not True:
+        raise TargetFamilyEvaluationError("Evaluator report is not detector-target-blind")
+    if report.get("evaluator_only") is not True:
+        raise TargetFamilyEvaluationError("Evaluator report is not evaluator-only")
+    if report.get("sealed_evaluation_authorized") is not False:
+        raise TargetFamilyEvaluationError("sealed evaluation authorization must remain false")
+    if report.get("claim_boundary") != "diagnostic_dcc_dca_only":
+        raise TargetFamilyEvaluationError("Evaluator report claim boundary is unsafe")
+    if report.get("chain_selection_policy") != CHAIN_SELECTION_POLICY:
+        raise TargetFamilyEvaluationError("Evaluator chain-selection policy is not locked")
+
+    execution = report.get("execution")
+    if not isinstance(execution, Mapping):
+        raise TargetFamilyEvaluationError("Evaluator report is missing execution controls")
+    if execution.get("workers") != 1:
+        raise TargetFamilyEvaluationError("Evaluator report violates single-worker boundary")
+    if execution.get("motion_enabled") is not False:
+        raise TargetFamilyEvaluationError("Evaluator report unexpectedly enables motion")
+    if execution.get("external_baselines_enabled") is not False:
+        raise TargetFamilyEvaluationError(
+            "Evaluator report unexpectedly enables external baselines"
+        )
+    max_disk_bytes = execution.get("max_disk_bytes")
+    if not isinstance(max_disk_bytes, int) or max_disk_bytes < 1 or max_disk_bytes > MAX_DISK_BYTES:
+        raise TargetFamilyEvaluationError("Evaluator report has no bounded disk quota")
+    final_disk_bytes = execution.get("final_disk_bytes")
+    if final_disk_bytes is not None and (
+        not isinstance(final_disk_bytes, int) or final_disk_bytes > max_disk_bytes
+    ):
+        raise TargetFamilyEvaluationError("Evaluator report exceeds its disk quota")
+
+    roadmap = report.get("roadmap")
+    if not isinstance(roadmap, Mapping):
+        raise TargetFamilyEvaluationError("Evaluator report is missing roadmap state")
+    if roadmap.get("current_gate") != "G2-bounded-static-development-pilot":
+        raise TargetFamilyEvaluationError("Evaluator report roadmap gate drifted")
+    if not str(roadmap.get("next_step", "")).strip():
+        raise TargetFamilyEvaluationError("Evaluator report roadmap next step is empty")
+
+    expected_case_ids = {str(case["case_id"]) for case in manifest["cases"]}
+    records = report.get("records")
+    if not isinstance(records, Mapping):
+        raise TargetFamilyEvaluationError("Evaluator report records must be an object")
+    if set(str(key) for key in records) - expected_case_ids:
+        raise TargetFamilyEvaluationError("Evaluator report contains an unknown case")
+    counts = report.get("counts")
+    if not isinstance(counts, Mapping):
+        raise TargetFamilyEvaluationError("Evaluator report is missing counts")
+    completed_ground_truth = sum(
+        record.get("status") == "completed_ground_truth"
+        for record in records.values()
+        if isinstance(record, Mapping)
+    )
+    alignment_unavailable = sum(
+        record.get("status") == "alignment_unavailable"
+        for record in records.values()
+        if isinstance(record, Mapping)
+    )
+    download_failed = sum(
+        record.get("status") == "download_failed"
+        for record in records.values()
+        if isinstance(record, Mapping)
+    )
+    canonical_completed = sum(
+        record.get("detector_arm") == "canonical_static"
+        and record.get("status") == "completed_ground_truth"
+        for record in records.values()
+        if isinstance(record, Mapping)
+    )
+    secondary_completed = sum(
+        record.get("detector_arm") == "secondary_recovery"
+        and record.get("status") == "completed_ground_truth"
+        for record in records.values()
+        if isinstance(record, Mapping)
+    )
+    expected_counts = {
+        "completed_ground_truth": completed_ground_truth,
+        "alignment_unavailable": alignment_unavailable,
+        "download_failed": download_failed,
+        "canonical_completed": canonical_completed,
+        "secondary_recovery_completed": secondary_completed,
+    }
+    if any(counts.get(key) != value for key, value in expected_counts.items()):
+        raise TargetFamilyEvaluationError("Evaluator report counts do not match records")
+
+    for case_id, record in records.items():
+        if not isinstance(record, Mapping):
+            raise TargetFamilyEvaluationError(f"Evaluator case is not an object: {case_id}")
+        arm = record.get("detector_arm")
+        if arm not in {"unavailable", "canonical_static", "secondary_recovery"}:
+            raise TargetFamilyEvaluationError(f"Evaluator case has unsafe detector arm: {case_id}")
+        evaluation = record.get("case_evaluation")
+        if isinstance(evaluation, Mapping) and evaluation.get("status") == "completed":
+            if arm not in {"canonical_static", "secondary_recovery"}:
+                raise TargetFamilyEvaluationError(
+                    f"Completed evaluation has no valid detector arm: {case_id}"
+                )
+            if evaluation.get("detector") != "biovoid_static":
+                raise TargetFamilyEvaluationError(
+                    f"Unexpected detector in evaluator result: {case_id}"
+                )
+
+    status = str(report.get("status", ""))
+    if status == "not_started":
+        return {"status": "diagnostic_contract_valid", "claim_authorized": False}
+    summary = report.get("summary")
+    if not isinstance(summary, Mapping):
+        raise TargetFamilyEvaluationError("Completed evaluator report is missing summary")
+    if summary.get("status") != "diagnostic_only_not_for_claim":
+        raise TargetFamilyEvaluationError("Evaluator summary is not diagnostic-only")
+    if summary.get("ground_truth_available_case_count") != completed_ground_truth:
+        raise TargetFamilyEvaluationError("Evaluator summary denominator drifted")
+    if summary.get("canonical_case_count") != canonical_completed:
+        raise TargetFamilyEvaluationError("Evaluator canonical count drifted")
+    if summary.get("secondary_recovery_case_count") != secondary_completed:
+        raise TargetFamilyEvaluationError("Evaluator secondary count drifted")
+    if summary.get("scientific_superiority_claim_authorized") is not False:
+        raise TargetFamilyEvaluationError("Scientific superiority claim is unexpectedly enabled")
+    if summary.get("discovery_claim_authorized") is not False:
+        raise TargetFamilyEvaluationError("Discovery claim is unexpectedly enabled")
+    return {
+        "status": "diagnostic_contract_valid",
+        "claim_authorized": False,
+        "canonical_cases": canonical_completed,
+        "secondary_cases": secondary_completed,
+        "ground_truth_cases": completed_ground_truth,
+    }
+
+
 def run_target_family_evaluation(
     *,
     manifest_path: Path = DEFAULT_MANIFEST,
@@ -652,11 +794,23 @@ def main() -> int:
     parser.add_argument("--max-cases", type=int, default=2)
     parser.add_argument("--max-disk-bytes", type=int, default=MAX_DISK_BYTES)
     parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Validate an existing evaluator report without network or holo access.",
+    )
+    parser.add_argument(
         "--approve-evaluator",
         action="store_true",
         help="Explicitly authorize evaluator-only holo access and DCC/DCA calculation.",
     )
     args = parser.parse_args()
+    if args.validate_only:
+        manifest = _read_json(args.manifest.resolve())
+        report = _read_json(args.report.resolve())
+        result = validate_evaluation_report(report, manifest)
+        print(f"status={result['status']}")
+        print(f"claim_authorized={result['claim_authorized']}")
+        return 0
     report = run_target_family_evaluation(
         manifest_path=args.manifest,
         static_run_path=args.static_run,
