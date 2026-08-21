@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 from scripts.evaluate_target_family_static_pilot import (
+    DEFAULT_HOLO_DIR,
+    DEFAULT_MANIFEST,
+    DEFAULT_MAX_CASES,
+    DEFAULT_PAIRS,
+    DEFAULT_REPORT,
+    DEFAULT_STATIC_RUN,
     EVALUATION_REPORT_SCHEMA_VERSION,
     TargetFamilyEvaluationError,
     _summary,
+    _download_holo,
     _chain_pairs,
     build_evaluation_skeleton,
     enforce_workspace_quota,
@@ -70,6 +78,26 @@ def test_evaluation_skeleton_keeps_evaluator_separate_and_bounded() -> None:
     assert "4P0I" in payload["roadmap"]["next_step"]
 
 
+def test_evaluator_defaults_point_to_current_pfam_cohort() -> None:
+    assert DEFAULT_MANIFEST.as_posix().endswith(
+        "data/runtime/target-family/cohort-detector-pfam-v1/"
+        "target-family-cohort-detector-pfam-v1.json"
+    )
+    assert DEFAULT_STATIC_RUN.as_posix().endswith(
+        "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
+        "target-family-static-pilot-run-v1.json"
+    )
+    assert DEFAULT_PAIRS.as_posix().endswith(
+        "local-private/research/target-family/pilot-pairs-pfam-v1.json"
+    )
+    assert DEFAULT_HOLO_DIR.as_posix().endswith("local-private/research/target-family/holo-pfam-v1")
+    assert DEFAULT_REPORT.as_posix().endswith(
+        "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
+        "target-family-static-evaluation-pfam-v1.json"
+    )
+    assert DEFAULT_MAX_CASES == 6
+
+
 def test_evaluation_skeleton_rejects_unbounded_cases() -> None:
     with pytest.raises(ValueError, match="max_cases"):
         build_evaluation_skeleton(_manifest(), max_cases=11, max_disk_bytes=1)
@@ -111,6 +139,22 @@ def test_workspace_quota_counts_report_and_holo_roots(tmp_path) -> None:
     assert enforce_workspace_quota(report_root, holo_root, 12) == 12
     with pytest.raises(RuntimeError, match="workspace quota"):
         enforce_workspace_quota(report_root, holo_root, 11)
+
+
+def test_download_holo_resolves_relative_cache_root(tmp_path, monkeypatch) -> None:
+    import scripts.evaluate_target_family_static_pilot as evaluator
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(evaluator, "REPO_ROOT", tmp_path)
+    response = Mock(content=b"data_test\n_atom_site.id\n")
+    response.raise_for_status.return_value = None
+    session = Mock()
+    session.get.return_value = response
+
+    result = _download_holo(session, "1ABC", Path("holo"))
+
+    assert result["path"] == "holo/1ABC.cif"
+    assert (tmp_path / "holo/1ABC.cif").is_file()
 
 
 def test_chain_policy_uses_one_representative_common_chain(monkeypatch) -> None:

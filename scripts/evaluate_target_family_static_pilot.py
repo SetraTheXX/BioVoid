@@ -48,21 +48,26 @@ from src.structure_preparation import (  # noqa: E402
 from src.target_family_manifest import MAX_PILOT_CASES, validate_detector_manifest  # noqa: E402
 
 
-DEFAULT_MANIFEST = REPO_ROOT / "data/runtime/target-family/target-blind-static-pilot-v1.json"
+DEFAULT_MANIFEST = (
+    REPO_ROOT / "data/runtime/target-family/cohort-detector-pfam-v1/"
+    "target-family-cohort-detector-pfam-v1.json"
+)
 DEFAULT_STATIC_RUN = (
-    REPO_ROOT / "data/runtime/target-family/static-pilot-v1/target-family-static-pilot-run-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
+    "target-family-static-pilot-run-v1.json"
 )
 DEFAULT_RECOVERY_RUN = (
-    REPO_ROOT
-    / "data/runtime/target-family/static-pilot-recovery-v4/target-family-static-recovery-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-pilot-recovery-pfam-v1/"
+    "target-family-static-recovery-v1.json"
 )
-DEFAULT_PAIRS = REPO_ROOT / "local-private/research/target-family/pilot-pairs-v1.json"
-DEFAULT_HOLO_DIR = REPO_ROOT / "local-private/research/target-family/holo"
+DEFAULT_PAIRS = REPO_ROOT / "local-private/research/target-family/pilot-pairs-pfam-v1.json"
+DEFAULT_HOLO_DIR = REPO_ROOT / "local-private/research/target-family/holo-pfam-v1"
 DEFAULT_REPORT = (
-    REPO_ROOT
-    / "data/runtime/target-family/static-evaluation-v1/target-family-static-evaluation-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
+    "target-family-static-evaluation-pfam-v1.json"
 )
 MAX_DISK_BYTES = 10_000_000_000
+DEFAULT_MAX_CASES = 6
 EVALUATION_REPORT_SCHEMA_VERSION = "biovoid-target-family-static-evaluation-v1"
 RCSB_DOWNLOAD_TEMPLATE = "https://files.rcsb.org/download/{structure_id}.cif"
 EVALUATOR_POLICY = AlignmentPolicy(
@@ -158,7 +163,7 @@ def enforce_workspace_quota(
 def build_evaluation_skeleton(
     manifest: Mapping[str, Any],
     *,
-    max_cases: int = 2,
+    max_cases: int = DEFAULT_MAX_CASES,
     max_disk_bytes: int = MAX_DISK_BYTES,
 ) -> dict[str, Any]:
     """Build the evaluator report before any holo coordinate is opened."""
@@ -243,6 +248,10 @@ def _seal(payload: dict[str, Any]) -> None:
 
 def _download_holo(session: requests.Session, structure_id: str, holo_dir: Path) -> dict[str, Any]:
     structure_id = structure_id.upper()
+    # CLI callers commonly pass a repository-relative cache path. Resolve it
+    # before serializing a repo-relative provenance path; otherwise
+    # ``Path.relative_to(REPO_ROOT)`` raises after a successful download.
+    holo_dir = holo_dir.resolve()
     path = holo_dir / f"{structure_id}.cif"
     if path.is_file():
         content = path.read_bytes()
@@ -613,7 +622,7 @@ def run_target_family_evaluation(
     pairs_path: Path = DEFAULT_PAIRS,
     holo_dir: Path = DEFAULT_HOLO_DIR,
     report_path: Path = DEFAULT_REPORT,
-    max_cases: int = 2,
+    max_cases: int = DEFAULT_MAX_CASES,
     max_disk_bytes: int = MAX_DISK_BYTES,
     user_approved: bool = False,
 ) -> dict[str, Any]:
@@ -791,7 +800,7 @@ def main() -> int:
     parser.add_argument("--pairs", type=Path, default=DEFAULT_PAIRS)
     parser.add_argument("--holo-dir", type=Path, default=DEFAULT_HOLO_DIR)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
-    parser.add_argument("--max-cases", type=int, default=2)
+    parser.add_argument("--max-cases", type=int, default=DEFAULT_MAX_CASES)
     parser.add_argument("--max-disk-bytes", type=int, default=MAX_DISK_BYTES)
     parser.add_argument(
         "--validate-only",
