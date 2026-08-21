@@ -44,8 +44,11 @@ from src.target_family_manifest import (  # noqa: E402
 )
 
 
-DEFAULT_MANIFEST = REPO_ROOT / "data/runtime/target-family/target-blind-static-pilot-v1.json"
-DEFAULT_OUTPUT_ROOT = REPO_ROOT / "data/runtime/target-family/static-pilot-v1"
+DEFAULT_MANIFEST = (
+    REPO_ROOT / "data/runtime/target-family/cohort-detector-pfam-v1/"
+    "target-family-cohort-detector-pfam-v1.json"
+)
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1"
 MAX_DISK_BYTES = 1_000_000_000
 PILOT_RUN_SCHEMA_VERSION = "biovoid-target-family-static-pilot-run-v1"
 FORBIDDEN_OUTPUT_TOKENS = ("holo", "ligand", "evaluator", "ground_truth")
@@ -323,7 +326,7 @@ def run_static_pilot(
     max_disk_bytes: int = MAX_DISK_BYTES,
     user_approved: bool = False,
 ) -> dict[str, Any]:
-    """Run the approved, two-case target-blind static pilot."""
+    """Run the approved, bounded target-family target-blind static pilot."""
 
     if not user_approved:
         raise TargetFamilyPilotError(
@@ -398,4 +401,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

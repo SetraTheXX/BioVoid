@@ -5,6 +5,8 @@ import json
 import pytest
 
 from scripts.run_target_family_static_pilot import (
+    DEFAULT_MANIFEST,
+    DEFAULT_OUTPUT_ROOT,
     build_pilot_run_skeleton,
     enforce_disk_quota,
     DiskQuotaExceeded,
@@ -73,3 +75,13 @@ def test_disk_quota_fails_closed(tmp_path) -> None:
 
     with pytest.raises(DiskQuotaExceeded, match="disk quota"):
         enforce_disk_quota(tmp_path, max_disk_bytes=31)
+
+
+def test_cli_defaults_point_to_current_pfam_cohort() -> None:
+    assert DEFAULT_MANIFEST.as_posix().endswith(
+        "data/runtime/target-family/cohort-detector-pfam-v1/"
+        "target-family-cohort-detector-pfam-v1.json"
+    )
+    assert DEFAULT_OUTPUT_ROOT.as_posix().endswith(
+        "data/runtime/target-family/static-pilot-pfam-v1"
+    )

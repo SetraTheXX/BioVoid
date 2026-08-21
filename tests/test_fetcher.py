@@ -8,7 +8,15 @@ from unittest.mock import Mock
 import pytest
 
 import src.fetcher as fetcher
-from src.fetcher import FetchError, batch_fetch, fetch_pdb, get_ca_atoms, get_structure
+from src.fetcher import (
+    FetchError,
+    batch_fetch,
+    fetch_pdb,
+    fetch_structure_input,
+    get_ca_atoms,
+    get_structure,
+)
+from src.structure_preparation import StructureSource
 
 
 PDB_TEXT = """\
@@ -76,6 +84,18 @@ def test_corrupt_cache_is_replaced_through_mock_transport(
 def test_invalid_rcsb_ids_fail_before_network(tmp_path: Path, pdb_id: str) -> None:
     with pytest.raises(FetchError, match="Invalid PDB ID"):
         fetch_pdb(pdb_id, cache_dir=tmp_path)
+
+
+def test_local_source_missing_path_fails_closed() -> None:
+    source = StructureSource(
+        provider="local",
+        identifier="fixture",
+        representation="local",
+        local_path=Path("fixture.pdb"),
+    ).model_copy(update={"local_path": None})
+
+    with pytest.raises(FetchError, match="missing local_path"):
+        fetch_structure_input(source)
 
 
 def test_alphafold_download_uses_mock_http_transport(

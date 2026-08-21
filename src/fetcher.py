@@ -152,7 +152,10 @@ def fetch_structure_input(source, cache_dir: Path | None = None) -> FetchedStruc
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     if source.provider == "local":
-        path = Path(source.local_path).resolve()
+        local_path = source.local_path
+        if local_path is None:
+            raise FetchError("Local source is missing local_path")
+        path = local_path.resolve()
         if not path.is_file():
             raise FetchError(f"Local structure not found: {path}")
         return FetchedStructure(path=path, metadata={"provider": "local"})
