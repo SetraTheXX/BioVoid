@@ -163,6 +163,95 @@ def test_materializer_rejects_missing_sequence_cluster() -> None:
         )
 
 
+def test_materializer_can_exclude_unavailable_labels_with_audit() -> None:
+    from scripts.materialize_target_family_cohort import materialize_private_cohort
+
+    pairs, inventory, sequence_clusters, evaluator = _inputs()
+    second_case_id = "PF00497:A002:case"
+    pairs["pairs"].append(
+        {
+            "case_id": second_case_id,
+            "family_id": "PF00497",
+            "apo_pdb_id": "A002",
+            "holo_pdb_id": "B002",
+            "uniprot_group": "U1",
+            "holo_components": [{"comp_id": "LIG", "name": "test ligand"}],
+        }
+    )
+    inventory["records"].extend(
+        [
+            {
+                "pdb_id": "A002",
+                "family_id": "PF00497",
+                "uniprot_ids": ["U1"],
+                "release_date": "2020-03-01",
+                "sequence_length": 200,
+            },
+            {
+                "pdb_id": "B002",
+                "family_id": "PF00497",
+                "uniprot_ids": ["U1"],
+                "release_date": "2020-04-01",
+                "sequence_length": 200,
+            },
+        ]
+    )
+    sequence_clusters["records"].extend(
+        [
+            {
+                "pdb_id": "A002",
+                "family_id": "PF00497",
+                "uniprot_ids": ["U1"],
+                "sequence_cluster_id": "scv1-a",
+            },
+            {
+                "pdb_id": "B002",
+                "family_id": "PF00497",
+                "uniprot_ids": ["U1"],
+                "sequence_cluster_id": "scv1-a",
+            },
+        ]
+    )
+    evaluator["records"][second_case_id] = {
+        "case_id": second_case_id,
+        "structure_id": "A002",
+        "status": "alignment_unavailable",
+        "error": "Ambiguous sequence alignment has multiple mappings",
+    }
+
+    cohort = materialize_private_cohort(
+        pairs,
+        inventory,
+        sequence_clusters,
+        evaluator,
+        temporal_cutoff="2021-01-01",
+        allow_unavailable_labels=True,
+    )
+
+    assert len(cohort["cases"]) == 1
+    assert cohort["contact_labels"] == "materialized_partial_review_required"
+    assert cohort["excluded_cases"] == [
+        {"case_id": second_case_id, "reason": "evaluator case is not completed: PF00497:A002:case"}
+    ]
+
+
+def test_materializer_auto_temporal_split_keeps_post_cutoff_cases_in_test() -> None:
+    from scripts.materialize_target_family_cohort import materialize_private_cohort
+
+    pairs, inventory, sequence_clusters, evaluator = _inputs()
+    inventory["records"][0]["release_date"] = "2022-01-01"
+    cohort = materialize_private_cohort(
+        pairs,
+        inventory,
+        sequence_clusters,
+        evaluator,
+        temporal_cutoff="2021-01-01",
+        split="auto_temporal",
+    )
+
+    assert cohort["cases"][0]["split"] == "test"
+
+
 def test_materializer_reads_ground_truth_digest_from_legacy_provenance() -> None:
     from scripts.materialize_target_family_cohort import materialize_private_cohort
 

@@ -10,7 +10,7 @@ contract before any detector-facing work.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import json
 import math
@@ -45,6 +45,8 @@ DEFAULT_EVALUATOR = (
 DEFAULT_OUTPUT = REPO_ROOT / "local-private/research/target-family/cohort-v1.json"
 MAX_CASES = 10
 LABEL_SOURCE = "holo_ligand_contact_v1"
+AUTO_TEMPORAL_SPLIT = "auto_temporal"
+SPLIT_OPTIONS = tuple(sorted((*ALLOWED_SPLITS, AUTO_TEMPORAL_SPLIT)))
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -92,6 +94,16 @@ def _pdb_id(value: Any, field: str) -> str:
     if re.fullmatch(r"[A-Z0-9]{4}", normalized) is None:
         raise TargetFamilyCohortMaterializationError(f"{field} must be a four-character PDB ID")
     return normalized
+
+
+def _iso_date(value: Any, field: str) -> date:
+    text = _required_text(value, field)
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+    except ValueError as exc:
+        raise TargetFamilyCohortMaterializationError(
+            f"{field} must be an ISO/RFC3339 timestamp"
+        ) from exc
 
 
 def _uniprot_ids(record: Mapping[str, Any], field: str) -> set[str]:
@@ -331,13 +343,21 @@ def materialize_private_cohort(
     temporal_cutoff: str,
     split: str = "development",
     max_cases: int = MAX_CASES,
+    allow_unavailable_labels: bool = False,
 ) -> dict[str, Any]:
-    """Join local evaluator evidence into a validated private cohort."""
+    """Join local evaluator evidence into a validated private cohort.
+
+    When ``allow_unavailable_labels`` is enabled, pairs whose independent
+    evaluator record is unavailable are excluded from the usable cohort and
+    retained in ``excluded_cases`` with their reason.  This keeps ambiguous
+    alignments fail-closed without hiding the selection outcome.
+    """
 
     if not 1 <= max_cases <= MAX_CASES:
         raise ValueError(f"max_cases must be between 1 and {MAX_CASES}")
-    if split not in ALLOWED_SPLITS:
+    if split not in ALLOWED_SPLITS and split != AUTO_TEMPORAL_SPLIT:
         raise ValueError(f"unsupported split: {split}")
+    cutoff_date = _iso_date(temporal_cutoff, "temporal_cutoff")
     family_id = _family_id(inventory_payload)
     metadata = _index_metadata(inventory_payload, family_id)
     sequence_clusters = _index_clusters(sequence_cluster_payload, family_id)
@@ -346,7 +366,21 @@ def materialize_private_cohort(
     if not isinstance(evaluator_records, Mapping):
         raise TargetFamilyCohortMaterializationError("evaluator report records are missing")
 
+    auto_split_by_case: dict[str, str] = {}
+    if split == AUTO_TEMPORAL_SPLIT:
+        for pair in pairs:
+            case_id = _required_text(pair.get("case_id"), "pair.case_id")
+            apo_id = _pdb_id(pair.get("apo_pdb_id"), "pair.apo_pdb_id")
+            apo_metadata = metadata.get(apo_id)
+            if apo_metadata is None:
+                raise TargetFamilyCohortMaterializationError(
+                    f"pair metadata is missing for {case_id}"
+                )
+            apo_date = _iso_date(apo_metadata.get("release_date"), "apo.release_date")
+            auto_split_by_case[case_id] = "test" if apo_date >= cutoff_date else "development"
+
     cases: list[dict[str, Any]] = []
+    excluded_cases: list[dict[str, str]] = []
     for pair in pairs:
         case_id = _required_text(pair.get("case_id"), "pair.case_id")
         apo_id = _pdb_id(pair.get("apo_pdb_id"), "pair.apo_pdb_id")
@@ -372,10 +406,20 @@ def materialize_private_cohort(
         )
         evaluator_record = evaluator_records.get(case_id)
         if not isinstance(evaluator_record, Mapping):
-            raise TargetFamilyCohortMaterializationError(f"evaluator case is missing: {case_id}")
-        contact_label = _label_from_evaluator(
-            evaluator_record, pair, case_id=case_id, holo_id=holo_id
-        )
+            reason = "evaluator case is missing"
+            if not allow_unavailable_labels:
+                raise TargetFamilyCohortMaterializationError(f"{reason}: {case_id}")
+            excluded_cases.append({"case_id": case_id, "reason": reason})
+            continue
+        try:
+            contact_label = _label_from_evaluator(
+                evaluator_record, pair, case_id=case_id, holo_id=holo_id
+            )
+        except TargetFamilyCohortMaterializationError as exc:
+            if not allow_unavailable_labels:
+                raise
+            excluded_cases.append({"case_id": case_id, "reason": str(exc)[:500]})
+            continue
         cases.append(
             {
                 "case_id": case_id,
@@ -384,7 +428,7 @@ def materialize_private_cohort(
                 "family_id": family_id,
                 "uniprot_group_id": expected_group,
                 "sequence_cluster_id": sequence_cluster_id,
-                "split": split,
+                "split": auto_split_by_case.get(case_id, split),
                 "apo_release_date": _required_text(
                     apo_metadata.get("release_date"), "apo.release_date"
                 ),
@@ -396,15 +440,32 @@ def materialize_private_cohort(
             }
         )
 
+    if not cases:
+        raise TargetFamilyCohortMaterializationError(
+            "no independent labels are available for the private cohort"
+        )
+    partial = bool(excluded_cases)
     cohort: dict[str, Any] = {
         "schema_version": COHORT_SCHEMA_VERSION,
         "manifest_kind": "private_target_family_cohort",
-        "status": "private_contact_labels_materialized_review_required",
+        "status": (
+            "private_contact_labels_partial_review_required"
+            if partial
+            else "private_contact_labels_materialized_review_required"
+        ),
         "family_id": family_id,
         "split_strategy": SPLIT_STRATEGY,
         "temporal_cutoff": _required_text(temporal_cutoff, "temporal_cutoff"),
         "sequence_clusters": "materialized_review_required",
-        "contact_labels": "materialized_review_required",
+        "contact_labels": (
+            "materialized_partial_review_required" if partial else "materialized_review_required"
+        ),
+        "excluded_cases": excluded_cases,
+        "materialization_policy": (
+            "exclude_unavailable_with_audit_v1"
+            if allow_unavailable_labels
+            else "require_all_pairs_v1"
+        ),
         "claims_authorized": False,
         "coordinates_downloaded": False,
         "detector_started": False,
@@ -460,6 +521,7 @@ def run_private_cohort_materializer(
     temporal_cutoff: str = "2021-01-01",
     split: str = "development",
     max_cases: int = MAX_CASES,
+    allow_unavailable_labels: bool = False,
 ) -> dict[str, Any]:
     cohort = materialize_private_cohort(
         _read_json(pairs_path.resolve()),
@@ -469,11 +531,13 @@ def run_private_cohort_materializer(
         temporal_cutoff=temporal_cutoff,
         split=split,
         max_cases=max_cases,
+        allow_unavailable_labels=allow_unavailable_labels,
     )
     _write_json(output_path.resolve(), cohort)
     print(
         f"target-family private cohort: cases={len(cohort['cases'])} "
-        f"split={split} labels={cohort['contact_labels']}"
+        f"excluded={len(cohort['excluded_cases'])} split={split} "
+        f"labels={cohort['contact_labels']}"
     )
     print(f"private cohort: {output_path}")
     print("coordinates downloaded by materializer: no")
@@ -489,8 +553,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--evaluator", type=Path, default=DEFAULT_EVALUATOR)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--temporal-cutoff", default="2021-01-01")
-    parser.add_argument("--split", choices=sorted(ALLOWED_SPLITS), default="development")
+    parser.add_argument("--split", choices=SPLIT_OPTIONS, default="development")
     parser.add_argument("--max-cases", type=int, default=MAX_CASES)
+    parser.add_argument(
+        "--allow-unavailable-labels",
+        action="store_true",
+        help="exclude unavailable/ambiguous evaluator cases with an explicit audit trail",
+    )
     return parser.parse_args()
 
 
@@ -506,6 +575,7 @@ def main() -> int:
             temporal_cutoff=args.temporal_cutoff,
             split=args.split,
             max_cases=args.max_cases,
+            allow_unavailable_labels=args.allow_unavailable_labels,
         )
     except (TargetFamilyCohortMaterializationError, ValueError) as exc:
         print(f"target-family cohort materialization error: {exc}", file=sys.stderr)

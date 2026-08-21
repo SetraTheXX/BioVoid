@@ -36,17 +36,21 @@ download, detector run, NMA, or ML training.
 
 ## Next decision
 
-The current PF00497 metadata pilot has two cases and therefore remains
-`blocked_insufficient_cohort` for held-out/ML work. The next research task is
-metadata curation and sequence-cluster review for a larger cohort. The local
-metadata-only candidate audit currently finds two strict paired UniProt groups
-and three under the relaxed 120-residue length policy. Independent holo-derived
-contact labels are now materialized for the two existing evaluator pairs, but
-the cohort remains too small and lacks validation/test split coverage. Sequence
-clusters are materialized only as review-required metadata; only after that
-review and independent labels can a bounded static benchmark be considered. A
-later ML baseline must use the redacted
-manifest plus independent labels and family-aware splits.
+The bounded PF00497 metadata expansion now contains 98 records and nine strict
+paired UniProt groups. Six pairs produced exact independent holo-derived contact
+labels; three remain explicitly unavailable because ligand selection or sequence
+alignment was ambiguous. The private cohort therefore contains six usable cases,
+four development and two temporal-test cases, while validation is empty. The
+readiness checker correctly reports `blocked_split_coverage`; no held-out
+benchmark or ML run is authorized. The three unavailable cases remain in the
+evaluator report and are recorded in the cohort's `excluded_cases` audit trail;
+they are not silently relabelled or counted as negatives.
+
+Sequence clusters remain review-required metadata. The next research task is a
+pre-registered validation split and independent review of the three unavailable
+pairs, followed by a bounded static comparison only after the cohort contract is
+complete. A later ML baseline must use the redacted manifest plus independent
+labels and family-aware splits.
 
 ## Sequence-cluster materialization boundary
 
@@ -58,13 +62,14 @@ matches the inventory group, stores sequence lengths and SHA-256 digests in the
 ignored local report, and never stores raw sequences in the public repository.
 Coordinate URLs are rejected by the command boundary.
 
-The current local run materialized all 42 inventory records into eight
-sequence components using `global_pairwise_identity_v1` at a 0.90 identity
-threshold, with 283 threshold edges. This is a curation diagnostic only:
+The original local run materialized 42 inventory records into eight sequence
+components using `global_pairwise_identity_v1` at a 0.90 identity threshold,
+with 283 threshold edges. The bounded PFAM expansion materialized 98 records
+into 48 components with 203 threshold edges. Both are curation diagnostics:
 single-linkage clusters are explicitly marked `review_required`, do not create
-independent labels, and are not yet eligible to authorize a detector,
-benchmark, ML training, or discovery claim. The next gate remains independent
-contact-label review followed by the leakage-audited cohort contract.
+independent labels, and are not eligible to authorize a detector, benchmark, ML
+training, or discovery claim. The next gate remains independent contact-label
+review followed by the leakage-audited cohort contract.
 
 `scripts/build_target_family_pfam_inventory.py` is a separate bounded
 preflight for the exact PF00497 annotation. It requests only the first 100
@@ -73,22 +78,32 @@ ambiguous multiple PF00497 polymer entities, and produced 98 metadata records
 across 42 UniProt groups. The same quality policy found nine strict paired
 groups. Its expanded sequence report contains 98 records and 48
 review-required components; these candidates are not automatically promoted
-into the private labelled cohort or a detector manifest.
+into the private labelled cohort or a detector manifest. Six were later
+materialized only through the explicit independent contact-label gate; three
+ambiguous cases remain excluded with reasons.
 
 ## Independent contact-label boundary
 
-`scripts/materialize_target_family_cohort.py` joins the ignored pilot-pair
-metadata, the ignored sequence-cluster report and the already completed
-evaluator-only report. It accepts only `completed_ground_truth` cases whose
-benchmark evaluation records `score_used: false`, whose ligand component
-matches the independent holo metadata, and whose alignment quality is exact.
+`scripts/materialize_target_family_contact_labels.py` is the bounded private
+label step. With explicit `--allow-network`, it downloads at most ten apo/holo
+mmCIF files under a 1 GB quota, prepares only the apo side for alignment, and
+never starts the pocket detector, benchmark, NMA or ML. It accepts ambiguous
+ligand/sequence cases only as failed records; it never guesses a label.
+
+`scripts/materialize_target_family_cohort.py` then joins the ignored pilot-pair
+metadata, the ignored sequence-cluster report and the evaluator-only report. It
+accepts only `completed_ground_truth` cases whose benchmark evaluation records
+`score_used: false`, whose ligand component matches the independent holo
+metadata, and whose alignment quality is exact.
 The private case label contains the transformed holo ligand geometry, digest and
 alignment provenance under `holo_ligand_contact_v1`; it never enters a detector
 manifest. The materializer performs no network access or coordinate download.
 
-The current private cohort contains two development cases (`6MLD`--`6FT2` and
-`4P0I`--`4POW`). `scripts/check_target_family_cohort.py` correctly reports
-`blocked_insufficient_cohort`: two cases are below the conservative six-case
-gate and validation/test splits are empty. The redacted detector manifest is
-still apo-only; no held-out benchmark, ML training or discovery claim is
-authorized.
+The current private PFAM cohort contains six usable cases. The materializer can
+be run with the explicit `--allow-unavailable-labels` flag; this excludes only
+evaluator records that fail the independent label contract and records each
+reason. With `--split auto_temporal --temporal-cutoff 2018-01-01`, four cases are
+development and two are test; validation remains intentionally empty. The
+readiness checker therefore reports `blocked_split_coverage`. The redacted
+detector manifest is still apo-only; no held-out benchmark, ML training or
+discovery claim is authorized.
