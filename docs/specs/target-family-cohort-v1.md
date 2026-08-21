@@ -105,4 +105,9 @@ reason. With `--split auto_temporal --validation-cutoff 2014-01-01
 --temporal-cutoff 2018-01-01`, two cases are development, two validation, and
 two test under the pre-registered `temporal_three_way_v1` policy. The readiness
 checker reports `ready_for_explicit_user_approval`; the redacted detector
-manifest is still apo-only and no computation starts at this gate.
+manifest is still apo-only and no computation starts at this gate. An offline
+`safe-16gb` preflight also passes for six cases at one worker (maximum 511
+C-alpha and 3,921 protein heavy atoms); the full benchmark remains approval
+gated. Available RAM is sampled at run time; the canonical detector rechecks
+the per-case `SAFE_16GB` guard before and after candidate generation and records
+resource-blocked cases instead of bypassing the limit.
