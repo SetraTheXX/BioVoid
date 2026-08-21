@@ -1,13 +1,17 @@
 """
-Train and compare multiple ML classifiers for pocket druggability.
+Train and compare legacy heuristic-imitation classifiers.
 
 Usage:
-    python scripts/train_multi_model.py
+    python scripts/train_multi_model.py --allow-legacy-heuristic-labels
 
 Trains RF, Gradient Boosting, and Logistic Regression models,
-runs ablation study, and generates comparison report.
+runs an ablation study, and generates a comparison report. Labels come from
+BioVoid's own bio_score rather than independent pocket ground truth, so this
+script is disabled by default and its output is not scientific validation or
+discovery evidence.
 """
 
+import argparse
 import json
 import sys
 import logging
@@ -29,6 +33,26 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+LEGACY_LABEL_WARNING = (
+    "[DISABLED] Training labels are derived from BioVoid's own heuristic bio_score. "
+    "This can only reproduce the heuristic and is not pocket truth, scientific "
+    "validation, or discovery evidence. Use --allow-legacy-heuristic-labels only "
+    "for explicit legacy reproduction."
+)
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--allow-legacy-heuristic-labels",
+        action="store_true",
+        help="explicitly authorize the scientifically circular legacy label policy",
+    )
+    args = parser.parse_args(argv)
+    if not args.allow_legacy_heuristic_labels:
+        parser.error(LEGACY_LABEL_WARNING)
+    return args
 
 
 def load_atlas_pockets(db_path: str = "data/atlas.db"):
@@ -71,7 +95,8 @@ def load_atlas_pockets(db_path: str = "data/atlas.db"):
     return pockets, pdb_ids
 
 
-def main():
+def main(argv: list[str] | None = None):
+    _parse_args(argv)
     logger.info("Loading atlas data...")
     pockets, pdb_ids = load_atlas_pockets()
     logger.info("Loaded %d pockets from %d proteins", len(pockets), len(set(pdb_ids)))
@@ -85,7 +110,8 @@ def main():
     p30 = float(np.percentile(scores, 30))
 
     ds = build_dataset(
-        pockets, pdb_ids,
+        pockets,
+        pdb_ids,
         label_policy=LabelPolicy(
             positive_min_bio_score=p75,
             negative_max_bio_score=p30,
@@ -95,9 +121,14 @@ def main():
         exclude_uncertain=True,
     )
 
-    logger.info("Dataset: Train=%d, Val=%d, Test=%d | Pos=%d, Neg=%d",
-                ds["X_train"].shape[0], ds["X_val"].shape[0], ds["X_test"].shape[0],
-                ds["manifest"].n_positive, ds["manifest"].n_negative)
+    logger.info(
+        "Dataset: Train=%d, Val=%d, Test=%d | Pos=%d, Neg=%d",
+        ds["X_train"].shape[0],
+        ds["X_val"].shape[0],
+        ds["X_test"].shape[0],
+        ds["manifest"].n_positive,
+        ds["manifest"].n_negative,
+    )
 
     X_train, stats = normalize_features(ds["X_train"], method="standard")
     X_val, _ = normalize_features(ds["X_val"], method="standard", stats=stats)
@@ -105,7 +136,10 @@ def main():
 
     models_config = [
         ("Random Forest", ModelConfig(model_type="random_forest", n_estimators=200, max_depth=15)),
-        ("Gradient Boosting", ModelConfig(model_type="gradient_boosting", n_estimators=200, max_depth=8)),
+        (
+            "Gradient Boosting",
+            ModelConfig(model_type="gradient_boosting", n_estimators=200, max_depth=8),
+        ),
         ("Logistic Regression", ModelConfig(model_type="logistic")),
     ]
 
@@ -137,8 +171,11 @@ def main():
             metrics["recall_at_20"] = r20
 
         if result.get("feature_importances"):
-            pairs = sorted(zip(ALL_FEATURE_NAMES, result["feature_importances"]),
-                          key=lambda x: x[1], reverse=True)
+            pairs = sorted(
+                zip(ALL_FEATURE_NAMES, result["feature_importances"]),
+                key=lambda x: x[1],
+                reverse=True,
+            )
             logger.info("  Top features: %s", ", ".join(f"{n}={v:.3f}" for n, v in pairs[:5]))
             metrics["top_features"] = {n: round(v, 4) for n, v in pairs}
 
@@ -161,18 +198,26 @@ def main():
     for name, data in results.items():
         m = data["metrics"]
         marker = " <-- BEST" if name == best_model_name else ""
-        logger.info("%-22s | F1=%.4f | PR-AUC=%s | ECE=%s%s",
-                    name, m["f1"], m.get("pr_auc"), m.get("ece"), marker)
-        comparison.append({
-            "model": name,
-            "accuracy": m["accuracy"],
-            "precision": m["precision"],
-            "recall": m["recall"],
-            "f1": m["f1"],
-            "pr_auc": m.get("pr_auc"),
-            "roc_auc": m.get("roc_auc"),
-            "ece": m.get("ece"),
-        })
+        logger.info(
+            "%-22s | F1=%.4f | PR-AUC=%s | ECE=%s%s",
+            name,
+            m["f1"],
+            m.get("pr_auc"),
+            m.get("ece"),
+            marker,
+        )
+        comparison.append(
+            {
+                "model": name,
+                "accuracy": m["accuracy"],
+                "precision": m["precision"],
+                "recall": m["recall"],
+                "f1": m["f1"],
+                "pr_auc": m.get("pr_auc"),
+                "roc_auc": m.get("roc_auc"),
+                "ece": m.get("ece"),
+            }
+        )
 
     logger.info("\nBest model: %s (PR-AUC: %s)", best_model_name, best_pr_auc)
 
@@ -209,20 +254,24 @@ def main():
     from sklearn.ensemble import RandomForestClassifier
 
     def train_fn(X, y):
-        clf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42,
-                                     class_weight="balanced", n_jobs=-1)
+        clf = RandomForestClassifier(
+            n_estimators=100, max_depth=10, random_state=42, class_weight="balanced", n_jobs=-1
+        )
         clf.fit(X, y)
         return clf
 
     ablation_results = ablation_study(
-        train_fn, X_train, ds["y_train"], X_test, ds["y_test"],
-        list(ALL_FEATURE_NAMES)
+        train_fn, X_train, ds["y_train"], X_test, ds["y_test"], list(ALL_FEATURE_NAMES)
     )
 
     logger.info("\nAblation Results (feature importance by removal):")
     for r in ablation_results[:8]:
-        logger.info("  %-35s delta_F1=%.4f  delta_PR-AUC=%.4f",
-                    r["feature_removed"], r["delta_f1"], r["delta_pr_auc"])
+        logger.info(
+            "  %-35s delta_F1=%.4f  delta_PR-AUC=%.4f",
+            r["feature_removed"],
+            r["delta_f1"],
+            r["delta_pr_auc"],
+        )
 
     ablation_path = model_dir / "ablation_study.json"
     with open(ablation_path, "w") as f:

@@ -1,12 +1,15 @@
 """
-Train ML classifier from Atlas database.
+Train a legacy heuristic-imitation classifier from the Atlas database.
 
 Usage:
-    python scripts/train_ml_model.py
+    python scripts/train_ml_model.py --allow-legacy-heuristic-labels
 
-Saves trained model to data/models/pocket_classifier.pkl
+The labels are derived from BioVoid's own bio_score, not independent pocket
+ground truth. This script is disabled by default and must not be used as
+scientific validation or discovery evidence.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -28,6 +31,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+LEGACY_LABEL_WARNING = (
+    "[DISABLED] Training labels are derived from BioVoid's own heuristic bio_score. "
+    "This can only reproduce the heuristic and is not pocket truth, scientific "
+    "validation, or discovery evidence. Use --allow-legacy-heuristic-labels only "
+    "for explicit legacy reproduction."
+)
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--allow-legacy-heuristic-labels",
+        action="store_true",
+        help="explicitly authorize the scientifically circular legacy label policy",
+    )
+    args = parser.parse_args(argv)
+    if not args.allow_legacy_heuristic_labels:
+        parser.error(LEGACY_LABEL_WARNING)
+    return args
+
 
 def load_atlas_pockets(db_path: str = "data/atlas.db"):
     """Load all pockets from atlas with their PDB IDs."""
@@ -39,6 +62,7 @@ def load_atlas_pockets(db_path: str = "data/atlas.db"):
             sc = {}
             try:
                 import json
+
                 meta_raw = r.get("metadata_json", "{}")
                 if meta_raw:
                     meta = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
@@ -71,7 +95,8 @@ def load_atlas_pockets(db_path: str = "data/atlas.db"):
     return pockets, pdb_ids
 
 
-def main():
+def main(argv: list[str] | None = None):
+    _parse_args(argv)
     logger.info("Loading atlas data...")
     pockets, pdb_ids = load_atlas_pockets()
     logger.info("Loaded %d pockets from %d proteins", len(pockets), len(set(pdb_ids)))
@@ -87,7 +112,8 @@ def main():
 
     logger.info("Building dataset...")
     ds = build_dataset(
-        pockets, pdb_ids,
+        pockets,
+        pdb_ids,
         label_policy=LabelPolicy(
             positive_min_bio_score=p75,
             negative_max_bio_score=p30,
@@ -97,12 +123,19 @@ def main():
         exclude_uncertain=True,
     )
 
-    logger.info("Train: %d, Val: %d, Test: %d",
-                ds["X_train"].shape[0], ds["X_val"].shape[0], ds["X_test"].shape[0])
-    logger.info("Positive: %d, Negative: %d",
-                ds["manifest"].n_positive, ds["manifest"].n_negative)
+    logger.info(
+        "Train: %d, Val: %d, Test: %d",
+        ds["X_train"].shape[0],
+        ds["X_val"].shape[0],
+        ds["X_test"].shape[0],
+    )
+    logger.info("Positive: %d, Negative: %d", ds["manifest"].n_positive, ds["manifest"].n_negative)
 
-    if ds["X_train"].shape[0] < 20 or ds["manifest"].n_positive < 5 or ds["manifest"].n_negative < 5:
+    if (
+        ds["X_train"].shape[0] < 20
+        or ds["manifest"].n_positive < 5
+        or ds["manifest"].n_negative < 5
+    ):
         logger.error("Not enough labeled samples (need both classes)")
         return
 
@@ -112,9 +145,11 @@ def main():
 
     logger.info("Training Random Forest...")
     result = train_model(
-        X_train, ds["y_train"],
+        X_train,
+        ds["y_train"],
         config=ModelConfig(model_type="random_forest", n_estimators=200, max_depth=15),
-        X_val=X_val, y_val=ds["y_val"],
+        X_val=X_val,
+        y_val=ds["y_val"],
     )
     logger.info("Train accuracy: %.4f", result["train_accuracy"])
 

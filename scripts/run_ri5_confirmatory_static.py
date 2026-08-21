@@ -149,7 +149,11 @@ def _preparation_report(
         "updated_at_utc": _utc_now(),
     }
     payload["report_sha256"] = stable_hash(
-        {key: value for key, value in payload.items() if key not in {"updated_at_utc", "report_sha256"}}
+        {
+            key: value
+            for key, value in payload.items()
+            if key not in {"updated_at_utc", "report_sha256"}
+        }
     )
     return payload
 
@@ -183,7 +187,9 @@ def _prepare(
     if report_path.is_file() and existing.get("schema_version") != PREPARATION_SCHEMA:
         raise ConfirmatoryRunError("Existing confirmatory preparation schema mismatch")
     records = {str(item["structure_id"]): item for item in existing.get("records", [])}
-    pending = [key for key in sorted(structures) if records.get(key, {}).get("status") != "eligible"]
+    pending = [
+        key for key in sorted(structures) if records.get(key, {}).get("status") != "eligible"
+    ]
     print(
         f"RI-5 confirmatory preparation: structures={len(structures)} "
         f"compressed={compressed_budget / 1024 / 1024:.1f} MiB pending={len(pending)}",
@@ -287,13 +293,18 @@ def _runtime_manifest(source: Mapping[str, Any], preparation: Mapping[str, Any])
 
 
 def _validate_manifest(payload: Mapping[str, Any], source: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != MANIFEST_SCHEMA or payload.get("status") != "target_blind_ready":
+    if (
+        payload.get("schema_version") != MANIFEST_SCHEMA
+        or payload.get("status") != "target_blind_ready"
+    ):
         raise ConfirmatoryRunError("Unexpected confirmatory runtime manifest")
     if payload.get("source_lock_sha256") != source.get("source_lock_sha256"):
         raise ConfirmatoryRunError("Runtime manifest and source lock differ")
     if payload.get("structure_count") != 222 or payload.get("case_count") != 265:
         raise ConfirmatoryRunError("Confirmatory manifest cohort drifted")
-    expected = stable_hash({key: value for key, value in payload.items() if key != "manifest_sha256"})
+    expected = stable_hash(
+        {key: value for key, value in payload.items() if key != "manifest_sha256"}
+    )
     if payload.get("manifest_sha256") != expected:
         raise ConfirmatoryRunError("Confirmatory runtime manifest hash mismatch")
     encoded = json.dumps(payload, ensure_ascii=True).lower()
@@ -315,9 +326,7 @@ def _resume_ledger(path: Path, open_contract: Mapping[str, Any]) -> dict[str, An
     return ledger
 
 
-def _validate_completed_baseline(
-    path: Path, *, tool: str, manifest_sha256: str
-) -> dict[str, Any]:
+def _validate_completed_baseline(path: Path, *, tool: str, manifest_sha256: str) -> dict[str, Any]:
     report = _read(path)
     if report.get("schema_version") != "biovoid-ri5-confirmatory-external-baseline-v1":
         raise ConfirmatoryRunError(f"Unexpected {tool} confirmatory baseline schema")
@@ -338,25 +347,29 @@ def _validate_completed_baseline(
 def _run_static(
     manifest: Mapping[str, Any], ledger: Mapping[str, Any], run_path: Path
 ) -> dict[str, Any]:
-    run = _read(run_path) if run_path.is_file() else {
-        "schema_version": RUN_SCHEMA,
-        "status": "not_started",
-        "manifest_sha256": manifest["manifest_sha256"],
-        "ledger_sha256": ledger["ledger_sha256"],
-        "detector": {
-            "name": "biovoid_static",
-            "version": "canonical-static-v1",
-            "config_sha256": static_detector_config_sha256(),
-        },
-        "execution": {
-            "resource_profile": "safe-16gb",
-            "workers": 1,
-            "nma_started": False,
-            "target_blind": True,
-        },
-        "records": {},
-        "counts": {"completed": 0, "resource_blocked": 0, "failed": 0},
-    }
+    run = (
+        _read(run_path)
+        if run_path.is_file()
+        else {
+            "schema_version": RUN_SCHEMA,
+            "status": "not_started",
+            "manifest_sha256": manifest["manifest_sha256"],
+            "ledger_sha256": ledger["ledger_sha256"],
+            "detector": {
+                "name": "biovoid_static",
+                "version": "canonical-static-v1",
+                "config_sha256": static_detector_config_sha256(),
+            },
+            "execution": {
+                "resource_profile": "safe-16gb",
+                "workers": 1,
+                "nma_started": False,
+                "target_blind": True,
+            },
+            "records": {},
+            "counts": {"completed": 0, "resource_blocked": 0, "failed": 0},
+        }
+    )
     if run.get("manifest_sha256") != manifest["manifest_sha256"]:
         raise ConfirmatoryRunError("Static checkpoint belongs to another manifest")
     structures = {str(item["structure_id"]): item for item in manifest["structures"]}
@@ -429,16 +442,20 @@ def _evaluate(
         raise ConfirmatoryRunError("Evaluator lock is not bound to the open ledger")
     sites = tuple(_site_from_payload(raw) for raw in evaluator_lock["cases"])
     structures = {str(item["structure_id"]): item for item in manifest["structures"]}
-    report = _read(evaluation_path) if evaluation_path.is_file() else {
-        "schema_version": EVALUATION_SCHEMA,
-        "status": "not_started",
-        "manifest_sha256": manifest["manifest_sha256"],
-        "ledger_sha256": ledger["ledger_sha256"],
-        "evaluator_lock_sha256": evaluator_lock["evaluator_lock_sha256"],
-        "alignment_policy": asdict(EVALUATOR_V3_POLICY),
-        "detector_target_blind": True,
-        "records": {},
-    }
+    report = (
+        _read(evaluation_path)
+        if evaluation_path.is_file()
+        else {
+            "schema_version": EVALUATION_SCHEMA,
+            "status": "not_started",
+            "manifest_sha256": manifest["manifest_sha256"],
+            "ledger_sha256": ledger["ledger_sha256"],
+            "evaluator_lock_sha256": evaluator_lock["evaluator_lock_sha256"],
+            "alignment_policy": asdict(EVALUATOR_V3_POLICY),
+            "detector_target_blind": True,
+            "records": {},
+        }
+    )
     if report.get("manifest_sha256") != manifest["manifest_sha256"]:
         raise ConfirmatoryRunError("Evaluator checkpoint belongs to another manifest")
     session = requests.Session()
@@ -456,7 +473,9 @@ def _evaluate(
                 download = _download_holo(session, site.representative.holo_pdb_id, holo_dir)
                 truth = _ground_truth_result(
                     site=site,
-                    prepared_path=(REPO_ROOT / structures[site.apo_pdb_id]["prepared_path"]).resolve(),
+                    prepared_path=(
+                        REPO_ROOT / structures[site.apo_pdb_id]["prepared_path"]
+                    ).resolve(),
                     holo_path=(REPO_ROOT / download["path"]).resolve(),
                     policy=EVALUATOR_V3_POLICY,
                     provenance_label="cryptobench-ri5-confirmatory-evaluator-v3",
@@ -521,7 +540,9 @@ def _evaluate(
         split="validation",
         records=detector_records,
         ground_truth=truths,
-        binding_site_reference_centers={key: tuple(sorted(value)) for key, value in centers.items()},
+        binding_site_reference_centers={
+            key: tuple(sorted(value)) for key, value in centers.items()
+        },
         manifest=eligible_manifest,
         protocol=phase6_frozen_protocol_v1(),
     )
@@ -578,6 +599,10 @@ def main() -> int:
     mode_count = sum((args.prepare_only, args.static_only, args.evaluate_only))
     if mode_count > 1:
         raise ConfirmatoryRunError("Choose only one execution mode")
+    if not args.authorize_confirmatory and not args.resume_confirmatory:
+        raise ConfirmatoryRunError(
+            "Confirmatory preparation or execution requires explicit authorization or resume"
+        )
     source = _read(args.source_lock)
     validate_detector_source_lock(source)
     open_contract = _read(args.open_contract)
@@ -598,8 +623,6 @@ def main() -> int:
     if args.prepare_only:
         print("RI-5 confirmatory preparation complete; ledger remains closed")
         return 0
-    if not args.authorize_confirmatory and not args.resume_confirmatory:
-        raise ConfirmatoryRunError("Confirmatory execution requires explicit authorization or resume")
     ledger = (
         _resume_ledger(args.ledger, open_contract)
         if args.resume_confirmatory
