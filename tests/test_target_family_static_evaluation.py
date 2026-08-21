@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
 from scripts.evaluate_target_family_static_pilot import (
     EVALUATION_REPORT_SCHEMA_VERSION,
     _summary,
+    _chain_pairs,
     build_evaluation_skeleton,
     enforce_workspace_quota,
 )
@@ -16,6 +18,8 @@ from src.target_family_manifest import (
     RcsbMetadataRecord,
     build_detector_manifest,
 )
+from src.ground_truth_alignment import ChainPair
+from src.structure_preparation import ParsedAtom
 
 
 def _record(
@@ -105,3 +109,36 @@ def test_workspace_quota_counts_report_and_holo_roots(tmp_path) -> None:
     assert enforce_workspace_quota(report_root, holo_root, 12) == 12
     with pytest.raises(RuntimeError, match="workspace quota"):
         enforce_workspace_quota(report_root, holo_root, 11)
+
+
+def test_chain_policy_uses_one_representative_common_chain(monkeypatch) -> None:
+    def atoms_for(*chains: str) -> tuple[ParsedAtom, ...]:
+        return tuple(
+            ParsedAtom(
+                record="ATOM",
+                atom_name="CA",
+                altloc="",
+                res_name="ALA",
+                chain_id=chain,
+                res_id=index,
+                ins_code="",
+                x=float(index),
+                y=0.0,
+                z=0.0,
+                occupancy=1.0,
+                b_factor=0.0,
+                element="C",
+            )
+            for chain in chains
+            for index in range(1, 52)
+        )
+
+    import scripts.evaluate_target_family_static_pilot as evaluator
+
+    monkeypatch.setattr(
+        evaluator,
+        "load_structure_atoms",
+        lambda path: atoms_for("A", "B") if Path(path).name == "apo" else atoms_for("A", "B"),
+    )
+
+    assert _chain_pairs(Path("apo"), Path("holo")) == (ChainPair("A", "A"),)

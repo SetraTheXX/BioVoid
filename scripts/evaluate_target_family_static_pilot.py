@@ -69,6 +69,7 @@ EVALUATOR_POLICY = AlignmentPolicy(
     policy_version="ground-truth-alignment-v1-target-family-pilot",
     ambiguous_sequence_policy="reject",
 )
+CHAIN_SELECTION_POLICY = "representative-common-chain-v1"
 
 
 class TargetFamilyEvaluationError(RuntimeError):
@@ -197,6 +198,7 @@ def build_evaluation_skeleton(
             "raw_holo_files_ignored": True,
         },
         "alignment_policy": asdict(EVALUATOR_POLICY),
+        "chain_selection_policy": CHAIN_SELECTION_POLICY,
         "interpretation_status": "pending_independent_review",
         "records": {},
         "counts": {
@@ -219,8 +221,8 @@ def build_evaluation_skeleton(
                 "results remain diagnostic."
             ),
             "next_step": (
-                "Review the 4P0I alignment-unavailable result and pair policy before "
-                "any broader benchmark, NMA, or ML work."
+                "Review the representative-chain policy and 4P0I secondary metrics; "
+                "keep DCC/DCA diagnostic-only before any broader benchmark, NMA, or ML work."
             ),
         },
         "created_at_utc": _utc_now(),
@@ -359,7 +361,8 @@ def _chain_pairs(prepared_path: Path, holo_path: Path) -> tuple[ChainPair, ...]:
         if min(apo_counts[chain], holo_counts[chain]) >= EVALUATOR_POLICY.minimum_matched_residues
     ]
     if common_chains:
-        return tuple(ChainPair(apo_chain_id=chain, holo_chain_id=chain) for chain in common_chains)
+        chain = common_chains[0]
+        return (ChainPair(apo_chain_id=chain, holo_chain_id=chain),)
     raise GroundTruthAlignmentError("No common apo/holo protein chain met alignment minimum")
 
 
@@ -577,6 +580,7 @@ def run_target_family_evaluation(
                     "holo_source": holo_source,
                     "ligand_selector": asdict(selector),
                     "chain_pairs": [asdict(pair_value) for pair_value in chain_pairs],
+                    "chain_selection_policy": CHAIN_SELECTION_POLICY,
                     "alignment": {
                         "status": alignment.status,
                         "matched_residue_count": alignment.matched_residue_count,
