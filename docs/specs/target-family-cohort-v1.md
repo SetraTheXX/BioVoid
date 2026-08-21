@@ -40,10 +40,12 @@ The current PF00497 metadata pilot has two cases and therefore remains
 `blocked_insufficient_cohort` for held-out/ML work. The next research task is
 metadata curation and sequence-cluster review for a larger cohort. The local
 metadata-only candidate audit currently finds two strict paired UniProt groups
-and three under the relaxed 120-residue length policy, but no independent
-contact labels have been materialized yet. Sequence clusters are now materialized
-only as review-required metadata; only after that review can a bounded
-static benchmark be considered. A later ML baseline must use the redacted
+and three under the relaxed 120-residue length policy. Independent holo-derived
+contact labels are now materialized for the two existing evaluator pairs, but
+the cohort remains too small and lacks validation/test split coverage. Sequence
+clusters are materialized only as review-required metadata; only after that
+review and independent labels can a bounded static benchmark be considered. A
+later ML baseline must use the redacted
 manifest plus independent labels and family-aware splits.
 
 ## Sequence-cluster materialization boundary
@@ -62,5 +64,22 @@ threshold, with 283 threshold edges. This is a curation diagnostic only:
 single-linkage clusters are explicitly marked `review_required`, do not create
 independent labels, and are not yet eligible to authorize a detector,
 benchmark, ML training, or discovery claim. The next gate remains independent
-apo--holo contact-label curation followed by the leakage-audited cohort
-contract.
+contact-label review followed by the leakage-audited cohort contract.
+
+## Independent contact-label boundary
+
+`scripts/materialize_target_family_cohort.py` joins the ignored pilot-pair
+metadata, the ignored sequence-cluster report and the already completed
+evaluator-only report. It accepts only `completed_ground_truth` cases whose
+benchmark evaluation records `score_used: false`, whose ligand component
+matches the independent holo metadata, and whose alignment quality is exact.
+The private case label contains the transformed holo ligand geometry, digest and
+alignment provenance under `holo_ligand_contact_v1`; it never enters a detector
+manifest. The materializer performs no network access or coordinate download.
+
+The current private cohort contains two development cases (`6MLD`--`6FT2` and
+`4P0I`--`4POW`). `scripts/check_target_family_cohort.py` correctly reports
+`blocked_insufficient_cohort`: two cases are below the conservative six-case
+gate and validation/test splits are empty. The redacted detector manifest is
+still apo-only; no held-out benchmark, ML training or discovery claim is
+authorized.
