@@ -334,6 +334,14 @@ def _label_from_evaluator(
     }
 
 
+def _unavailable_evaluator_reason(record: Mapping[str, Any], case_id: str) -> str:
+    status = _required_text(record.get("status"), "evaluator.status")
+    error = record.get("error")
+    if isinstance(error, str) and error.strip():
+        return f"evaluator status {status}: {error.strip()}"[:500]
+    return f"evaluator status {status}: independent label unavailable for {case_id}"
+
+
 def materialize_private_cohort(
     pairs_payload: Mapping[str, Any],
     inventory_payload: Mapping[str, Any],
@@ -344,6 +352,7 @@ def materialize_private_cohort(
     split: str = "development",
     max_cases: int = MAX_CASES,
     allow_unavailable_labels: bool = False,
+    validation_cutoff: str | None = None,
 ) -> dict[str, Any]:
     """Join local evaluator evidence into a validated private cohort.
 
@@ -358,6 +367,13 @@ def materialize_private_cohort(
     if split not in ALLOWED_SPLITS and split != AUTO_TEMPORAL_SPLIT:
         raise ValueError(f"unsupported split: {split}")
     cutoff_date = _iso_date(temporal_cutoff, "temporal_cutoff")
+    validation_date = (
+        _iso_date(validation_cutoff, "validation_cutoff") if validation_cutoff is not None else None
+    )
+    if validation_date is not None and split != AUTO_TEMPORAL_SPLIT:
+        raise ValueError("validation_cutoff requires split=auto_temporal")
+    if validation_date is not None and validation_date >= cutoff_date:
+        raise ValueError("validation_cutoff must precede temporal_cutoff")
     family_id = _family_id(inventory_payload)
     metadata = _index_metadata(inventory_payload, family_id)
     sequence_clusters = _index_clusters(sequence_cluster_payload, family_id)
@@ -377,7 +393,12 @@ def materialize_private_cohort(
                     f"pair metadata is missing for {case_id}"
                 )
             apo_date = _iso_date(apo_metadata.get("release_date"), "apo.release_date")
-            auto_split_by_case[case_id] = "test" if apo_date >= cutoff_date else "development"
+            if apo_date >= cutoff_date:
+                auto_split_by_case[case_id] = "test"
+            elif validation_date is not None and apo_date >= validation_date:
+                auto_split_by_case[case_id] = "validation"
+            else:
+                auto_split_by_case[case_id] = "development"
 
     cases: list[dict[str, Any]] = []
     excluded_cases: list[dict[str, str]] = []
@@ -410,6 +431,14 @@ def materialize_private_cohort(
             if not allow_unavailable_labels:
                 raise TargetFamilyCohortMaterializationError(f"{reason}: {case_id}")
             excluded_cases.append({"case_id": case_id, "reason": reason})
+            continue
+        if allow_unavailable_labels and evaluator_record.get("status") != "completed_ground_truth":
+            excluded_cases.append(
+                {
+                    "case_id": case_id,
+                    "reason": _unavailable_evaluator_reason(evaluator_record, case_id),
+                }
+            )
             continue
         try:
             contact_label = _label_from_evaluator(
@@ -456,6 +485,14 @@ def materialize_private_cohort(
         "family_id": family_id,
         "split_strategy": SPLIT_STRATEGY,
         "temporal_cutoff": _required_text(temporal_cutoff, "temporal_cutoff"),
+        "validation_cutoff": (
+            _required_text(validation_cutoff, "validation_cutoff")
+            if validation_cutoff is not None
+            else None
+        ),
+        "split_assignment_policy": (
+            "temporal_three_way_v1" if validation_date is not None else "temporal_test_holdout_v1"
+        ),
         "sequence_clusters": "materialized_review_required",
         "contact_labels": (
             "materialized_partial_review_required" if partial else "materialized_review_required"
@@ -522,6 +559,7 @@ def run_private_cohort_materializer(
     split: str = "development",
     max_cases: int = MAX_CASES,
     allow_unavailable_labels: bool = False,
+    validation_cutoff: str | None = None,
 ) -> dict[str, Any]:
     cohort = materialize_private_cohort(
         _read_json(pairs_path.resolve()),
@@ -532,6 +570,7 @@ def run_private_cohort_materializer(
         split=split,
         max_cases=max_cases,
         allow_unavailable_labels=allow_unavailable_labels,
+        validation_cutoff=validation_cutoff,
     )
     _write_json(output_path.resolve(), cohort)
     print(
@@ -553,6 +592,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--evaluator", type=Path, default=DEFAULT_EVALUATOR)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--temporal-cutoff", default="2021-01-01")
+    parser.add_argument(
+        "--validation-cutoff",
+        default=None,
+        help="optional earlier cutoff for the validation split with auto_temporal",
+    )
     parser.add_argument("--split", choices=SPLIT_OPTIONS, default="development")
     parser.add_argument("--max-cases", type=int, default=MAX_CASES)
     parser.add_argument(
@@ -576,6 +620,7 @@ def main() -> int:
             split=args.split,
             max_cases=args.max_cases,
             allow_unavailable_labels=args.allow_unavailable_labels,
+            validation_cutoff=args.validation_cutoff,
         )
     except (TargetFamilyCohortMaterializationError, ValueError) as exc:
         print(f"target-family cohort materialization error: {exc}", file=sys.stderr)

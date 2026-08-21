@@ -40,17 +40,16 @@ The bounded PF00497 metadata expansion now contains 98 records and nine strict
 paired UniProt groups. Six pairs produced exact independent holo-derived contact
 labels; three remain explicitly unavailable because ligand selection or sequence
 alignment was ambiguous. The private cohort therefore contains six usable cases,
-four development and two temporal-test cases, while validation is empty. The
-readiness checker correctly reports `blocked_split_coverage`; no held-out
-benchmark or ML run is authorized. The three unavailable cases remain in the
+two development, two validation, and two temporal-test cases. The readiness
+checker now reports `ready_for_explicit_user_approval`; this is an approval gate,
+not a benchmark or ML authorization. The three unavailable cases remain in the
 evaluator report and are recorded in the cohort's `excluded_cases` audit trail;
 they are not silently relabelled or counted as negatives.
 
 Sequence clusters remain review-required metadata. The next research task is a
-pre-registered validation split and independent review of the three unavailable
-pairs, followed by a bounded static comparison only after the cohort contract is
-complete. A later ML baseline must use the redacted manifest plus independent
-labels and family-aware splits.
+review of the three unavailable pairs and an explicit user decision on a bounded
+static comparison. A later ML baseline must use the redacted manifest plus
+independent labels and family-aware splits.
 
 ## Sequence-cluster materialization boundary
 
@@ -102,8 +101,8 @@ manifest. The materializer performs no network access or coordinate download.
 The current private PFAM cohort contains six usable cases. The materializer can
 be run with the explicit `--allow-unavailable-labels` flag; this excludes only
 evaluator records that fail the independent label contract and records each
-reason. With `--split auto_temporal --temporal-cutoff 2018-01-01`, four cases are
-development and two are test; validation remains intentionally empty. The
-readiness checker therefore reports `blocked_split_coverage`. The redacted
-detector manifest is still apo-only; no held-out benchmark, ML training or
-discovery claim is authorized.
+reason. With `--split auto_temporal --validation-cutoff 2014-01-01
+--temporal-cutoff 2018-01-01`, two cases are development, two validation, and
+two test under the pre-registered `temporal_three_way_v1` policy. The readiness
+checker reports `ready_for_explicit_user_approval`; the redacted detector
+manifest is still apo-only and no computation starts at this gate.

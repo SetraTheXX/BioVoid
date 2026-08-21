@@ -231,7 +231,13 @@ def test_materializer_can_exclude_unavailable_labels_with_audit() -> None:
     assert len(cohort["cases"]) == 1
     assert cohort["contact_labels"] == "materialized_partial_review_required"
     assert cohort["excluded_cases"] == [
-        {"case_id": second_case_id, "reason": "evaluator case is not completed: PF00497:A002:case"}
+        {
+            "case_id": second_case_id,
+            "reason": (
+                "evaluator status alignment_unavailable: "
+                "Ambiguous sequence alignment has multiple mappings"
+            ),
+        }
     ]
 
 
@@ -250,6 +256,26 @@ def test_materializer_auto_temporal_split_keeps_post_cutoff_cases_in_test() -> N
     )
 
     assert cohort["cases"][0]["split"] == "test"
+
+
+def test_materializer_auto_temporal_split_supports_pre_registered_validation_cutoff() -> None:
+    from scripts.materialize_target_family_cohort import materialize_private_cohort
+
+    pairs, inventory, sequence_clusters, evaluator = _inputs()
+    inventory["records"][0]["release_date"] = "2015-01-01"
+    cohort = materialize_private_cohort(
+        pairs,
+        inventory,
+        sequence_clusters,
+        evaluator,
+        temporal_cutoff="2021-01-01",
+        split="auto_temporal",
+        validation_cutoff="2014-01-01",
+    )
+
+    assert cohort["cases"][0]["split"] == "validation"
+    assert cohort["split_assignment_policy"] == "temporal_three_way_v1"
+    assert cohort["validation_cutoff"] == "2014-01-01"
 
 
 def test_materializer_reads_ground_truth_digest_from_legacy_provenance() -> None:
