@@ -10,6 +10,8 @@ an apo structure, its paired holo structure, an independent label source, an
 exact UniProt grouping, a sequence-cluster identifier, and release dates. The
 allowed label sources are `holo_ligand_contact_v1` and
 `independent_annotation_v1`; BioVoid heuristic scores are explicitly rejected.
+Release dates may be calendar dates or RFC3339/ISO timestamps as returned by
+RCSB; the detector manifest canonicalizes the temporal cutoff to a date.
 
 The split strategy is `sequence_cluster_temporal_holdout_v1`:
 

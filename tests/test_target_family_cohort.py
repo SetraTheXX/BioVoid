@@ -127,6 +127,15 @@ def test_temporal_test_case_must_be_after_cutoff() -> None:
         validate_cohort_manifest(_manifest(cases))
 
 
+def test_rcsb_timestamp_release_dates_are_accepted() -> None:
+    cases = _valid_cases()
+    for case in cases:
+        case["apo_release_date"] += "T00:00:00.000+00:00"
+        case["holo_release_date"] += "T00:00:00.000+00:00"
+
+    validate_cohort_manifest(_manifest(cases))
+
+
 def test_readiness_script_writes_only_report_and_redacted_manifest(tmp_path: Path) -> None:
     from scripts.check_target_family_cohort import check_target_family_cohort
 

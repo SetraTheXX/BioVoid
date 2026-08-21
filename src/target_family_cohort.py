@@ -10,7 +10,7 @@ curation step and are treated as locked inputs here.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 import hashlib
 import json
 import re
@@ -21,9 +21,7 @@ COHORT_SCHEMA_VERSION = "biovoid-target-family-cohort-v1"
 TARGET_BLIND_MANIFEST_SCHEMA_VERSION = "biovoid-target-family-cohort-detector-v1"
 MAX_COHORT_CASES = 10
 ALLOWED_SPLITS = frozenset({"development", "validation", "test"})
-ALLOWED_LABEL_SOURCES = frozenset(
-    {"holo_ligand_contact_v1", "independent_annotation_v1"}
-)
+ALLOWED_LABEL_SOURCES = frozenset({"holo_ligand_contact_v1", "independent_annotation_v1"})
 SPLIT_STRATEGY = "sequence_cluster_temporal_holdout_v1"
 _PDB_ID_RE = re.compile(r"^[A-Z0-9]{4}$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -54,20 +52,21 @@ def _pdb_id(value: Any, field: str) -> str:
 
 def _iso_date(value: Any, field: str) -> date:
     text = _required_text(value, field)
-    if _DATE_RE.fullmatch(text) is None:
-        raise CohortContractError(f"{field} must use YYYY-MM-DD")
+    if _DATE_RE.fullmatch(text) is not None:
+        try:
+            return date.fromisoformat(text)
+        except ValueError as exc:
+            raise CohortContractError(f"{field} is not a valid calendar date") from exc
     try:
-        return date.fromisoformat(text)
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
     except ValueError as exc:
-        raise CohortContractError(f"{field} is not a valid calendar date") from exc
+        raise CohortContractError(f"{field} must use an ISO date or timestamp") from exc
 
 
 def _case_list(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     cases = payload.get("cases")
     if not isinstance(cases, list) or not 1 <= len(cases) <= MAX_COHORT_CASES:
-        raise CohortContractError(
-            f"cohort case count must be between 1 and {MAX_COHORT_CASES}"
-        )
+        raise CohortContractError(f"cohort case count must be between 1 and {MAX_COHORT_CASES}")
     if any(not isinstance(case, Mapping) for case in cases):
         raise CohortContractError("every cohort case must be an object")
     return [case for case in cases if isinstance(case, Mapping)]
@@ -79,9 +78,7 @@ def _overlap_by_split(cases: list[Mapping[str, Any]], field: str) -> dict[str, l
         value = str(case[field])
         split_by_value.setdefault(value, set()).add(str(case["split"]))
     return {
-        value: sorted(splits)
-        for value, splits in sorted(split_by_value.items())
-        if len(splits) > 1
+        value: sorted(splits) for value, splits in sorted(split_by_value.items()) if len(splits) > 1
     }
 
 
@@ -123,7 +120,9 @@ def validate_cohort_manifest(payload: Mapping[str, Any]) -> None:
         if split == "test" and apo_date < cutoff:
             raise CohortContractError("test case apo release must be on/after temporal cutoff")
         if split != "test" and apo_date >= cutoff:
-            raise CohortContractError("development/validation apo release must be before temporal cutoff")
+            raise CohortContractError(
+                "development/validation apo release must be before temporal cutoff"
+            )
         label_source = _required_text(case.get("label_source"), "case.label_source")
         if label_source not in ALLOWED_LABEL_SOURCES:
             raise CohortContractError(
@@ -136,9 +135,7 @@ def validate_cohort_manifest(payload: Mapping[str, Any]) -> None:
         )
     uniprot_overlap = _overlap_by_split(cases, "uniprot_group_id")
     if uniprot_overlap:
-        raise CohortContractError(
-            f"UniProt group overlap across splits: {sorted(uniprot_overlap)}"
-        )
+        raise CohortContractError(f"UniProt group overlap across splits: {sorted(uniprot_overlap)}")
 
 
 def assess_cohort_readiness(
@@ -150,7 +147,9 @@ def assess_cohort_readiness(
         raise ValueError(f"minimum_cases must be between 1 and {MAX_COHORT_CASES}")
     validate_cohort_manifest(payload)
     cases = _case_list(payload)
-    split_counts = {split: sum(case["split"] == split for case in cases) for split in ALLOWED_SPLITS}
+    split_counts = {
+        split: sum(case["split"] == split for case in cases) for split in ALLOWED_SPLITS
+    }
     missing_splits = sorted(split for split, count in split_counts.items() if not count)
     if len(cases) < minimum_cases:
         status = "blocked_insufficient_cohort"
@@ -186,7 +185,7 @@ def build_target_blind_manifest(payload: Mapping[str, Any]) -> dict[str, Any]:
         "materialization_status": "metadata_only",
         "family_id": str(payload["family_id"]),
         "split_strategy": SPLIT_STRATEGY,
-        "temporal_cutoff": str(payload["temporal_cutoff"]),
+        "temporal_cutoff": _iso_date(payload["temporal_cutoff"], "temporal_cutoff").isoformat(),
         "constraints": {
             "case_count": len(cases),
             "max_case_count": MAX_COHORT_CASES,

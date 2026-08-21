@@ -73,7 +73,7 @@ def test_build_baseline_manifest_uses_recovery_input_without_evaluator_fields(
 
     static_run = {
         "schema_version": "biovoid-target-family-static-pilot-run-v1",
-                "manifest_sha256": _manifest()["manifest_sha256"],
+        "manifest_sha256": _manifest()["manifest_sha256"],
         "run_sha256": "primary-hash",
         "cases": {
             "PF00497:6MLD:test6": {
@@ -97,7 +97,7 @@ def test_build_baseline_manifest_uses_recovery_input_without_evaluator_fields(
         "status": "completed_secondary_resource_recovery",
         "result": {
             "status": "completed",
-                "prepared_structure_sha256": sha4,
+            "prepared_structure_sha256": sha4,
         },
     }
 
@@ -154,7 +154,9 @@ def test_docker_probe_is_read_only(monkeypatch: pytest.MonkeyPatch) -> None:
         stdout = ""
         stderr = "daemon unavailable"
 
-    monkeypatch.setattr("scripts.check_target_family_baseline_readiness.shutil.which", lambda _: "docker")
+    monkeypatch.setattr(
+        "scripts.check_target_family_baseline_readiness.shutil.which", lambda _: "docker"
+    )
     monkeypatch.setattr(
         "scripts.check_target_family_baseline_readiness.subprocess.run",
         lambda command, **_: calls.append(command) or Result(),
