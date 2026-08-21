@@ -38,6 +38,9 @@ download, detector run, NMA, or ML training.
 
 The current PF00497 metadata pilot has two cases and therefore remains
 `blocked_insufficient_cohort` for held-out/ML work. The next research task is
-metadata curation and sequence-cluster review for a larger cohort; only after
-that review can a bounded static benchmark be considered. A later ML baseline
-must use the redacted manifest plus independent labels and family-aware splits.
+metadata curation and sequence-cluster review for a larger cohort. The local
+metadata-only candidate audit currently finds two strict paired UniProt groups
+and three under the relaxed 120-residue length policy, but none has materialized
+sequence clusters or contact labels yet. Only after that review can a bounded
+static benchmark be considered. A later ML baseline must use the redacted
+manifest plus independent labels and family-aware splits.
