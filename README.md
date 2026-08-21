@@ -188,8 +188,9 @@ scientific result must be released with a frozen protocol, case-level evidence,
 checksums, limitations, and independent rerun instructions.
 
 Public method contracts are under `docs/specs/`, including the bounded
-[`target-family static evaluator contract`](docs/specs/target-family-static-evaluator-v1.md)
-and [`target-family external-baseline readiness contract`](docs/specs/target-family-external-baseline-readiness-v1.md).
+[`target-family static evaluator contract`](docs/specs/target-family-static-evaluator-v1.md),
+[`target-family external-baseline readiness contract`](docs/specs/target-family-external-baseline-readiness-v1.md),
+and [`target-family external-baseline comparison contract`](docs/specs/target-family-external-baseline-comparison-v1.md).
 Personal planning, internal audits, research execution reports, and
 evaluator-only inputs stay local.
 

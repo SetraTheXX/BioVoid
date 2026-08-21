@@ -35,15 +35,18 @@ and explicit user approval as separate gates. A ready report therefore means
 is scientifically validated”.
 
 The existing RI-3 baseline runner remains locked to its 663-structure cohort and
-must not be pointed at this two-case manifest. A separate target-family runner
-adapter with an explicit approval flag is required before any container is
-started.
+must not be pointed at this two-case manifest. The separate target-family
+adapter is `scripts/run_target_family_external_baseline.py`; it has its own
+explicit `--approve-baselines` gate and preserves the same target-blind,
+single-worker boundary.
 
 ## Current development gate
 
 The current local report is expected to remain one of:
 `blocked_review_and_tooling`, `blocked_independent_review`,
 `blocked_tooling_unavailable`, or `ready_for_explicit_user_approval`.
-Only the last state permits a future, separately authorized two-case external
-baseline run. Until then, NMA, broad scans, ML training, and discovery language
-remain out of scope.
+The current two-case run was started only after the last state and explicit
+user approval; its ignored output is diagnostic-only and does not authorize
+superiority or discovery claims. Until a larger leakage-audited cohort is
+designed, NMA, broad scans, ML training, and discovery language remain out of
+scope.

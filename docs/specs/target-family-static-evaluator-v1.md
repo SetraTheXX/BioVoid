@@ -58,7 +58,8 @@ disk quota, or drift from the locked representative-chain policy.
 
 ## Next gate
 
-The next gate is an independent review of the representative-chain policy and
-the two-case diagnostic metrics. Only after that review may a new, explicitly
-bounded fpocket/P2Rank comparison be considered. NMA, ML, broad PDB scans and
+The bounded two-case fpocket/P2Rank comparison is now complete, but remains
+diagnostic-only. The next gate is an independent review of the
+representative-chain policy and these metrics, followed by a larger
+family/sequence-aware leakage-audited cohort. NMA, ML, broad PDB scans and
 discovery language remain out of scope until independent evidence supports them.

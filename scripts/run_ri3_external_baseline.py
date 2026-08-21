@@ -296,6 +296,7 @@ def _record_for_case(
     image_id: str,
     structure: Mapping[str, Any],
     work_root: Path,
+    runner_id: str = "ri3-external-baseline-v1",
 ) -> tuple[DetectorEvaluationRecord, dict[str, Any]]:
     structure_id = str(structure["structure_id"]).upper()
     prepared_path = (REPO_ROOT / str(structure["prepared_path"])).resolve()
@@ -333,7 +334,7 @@ def _record_for_case(
                 structure_id,
                 rows,
                 provenance={
-                    "runner": "ri3-external-baseline-v1",
+                    "runner": runner_id,
                     "target_blind": True,
                     "prepared_structure_sha256": structure["prepared_structure_sha256"],
                     "tool_commit": config["commit"],
@@ -347,7 +348,7 @@ def _record_for_case(
                 structure_id,
                 rows,
                 provenance={
-                    "runner": "ri3-external-baseline-v1",
+                    "runner": runner_id,
                     "target_blind": True,
                     "prepared_structure_sha256": structure["prepared_structure_sha256"],
                     "tool_commit": config["commit"],

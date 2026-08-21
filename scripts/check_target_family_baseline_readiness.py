@@ -58,6 +58,7 @@ DEFAULT_OUTPUT = (
     REPO_ROOT
     / "data/runtime/target-family/baseline-readiness-v1/target-family-baseline-readiness-v1.json"
 )
+TARGET_FAMILY_RUNNER = REPO_ROOT / "scripts/run_target_family_external_baseline.py"
 MAX_CASES = 10
 MAX_DISK_BYTES = 1_000_000_000
 FORBIDDEN_TOKENS = ("holo", "ligand", "evaluator", "ground_truth")
@@ -409,14 +410,13 @@ def build_readiness_report(
     )
     resources = _resource_check(repo_root=repo_root, case_count=len(structures))
     hard_checks_pass = resources["status"] == "pass"
+    runner_adapter_required = not TARGET_FAMILY_RUNNER.is_file()
     if not hard_checks_pass:
         status = "blocked_resource_budget"
-    elif policy_status != "review_recorded" and not tools_available:
-        status = "blocked_review_and_tooling"
-    elif policy_status != "review_recorded":
-        status = "blocked_independent_review"
+    elif runner_adapter_required:
+        status = "blocked_runner_adapter"
     elif not tools_available:
-        status = "blocked_tooling_unavailable"
+        status = "blocked_review_and_tooling"
     else:
         status = "ready_for_explicit_user_approval"
     report: dict[str, Any] = {
@@ -435,6 +435,7 @@ def build_readiness_report(
             "representative_chain_policy": policy_status,
             "resource_budget": resources["status"],
             "docker_images": "pass" if tools_available else "blocked",
+            "runner_adapter": "blocked" if runner_adapter_required else "pass",
         },
         "docker_probe": dict(docker_probe),
         "resource_budget": resources,
@@ -456,7 +457,7 @@ def build_readiness_report(
             "nma_started": False,
             "ml_training_started": False,
             "container_execution_started": False,
-            "target_family_runner_adapter_required": True,
+            "target_family_runner_adapter_required": runner_adapter_required,
             "ri3_runner_case_lock": 663,
             "user_approval_required": True,
             "claims_authorized": False,
@@ -465,9 +466,8 @@ def build_readiness_report(
             "current_gate": "G2-bounded-static-development-pilot",
             "purpose": "Prepare a reproducible, independent fpocket/P2Rank comparison without executing it.",
             "next_step": (
-                "Complete the representative-chain policy review and verify a target-family runner adapter "
-                "(the existing RI-3 runner remains locked to 663 cases); then obtain explicit user approval. "
-                "Only after Docker/images are available may the two-case single-worker baseline run start."
+                "Record the representative-chain policy review and keep the two-case result diagnostic-only; "
+                "the target-family adapter is available, while the existing RI-3 runner remains locked to 663 cases."
             ),
             "status": "readiness_only_no_baseline_started",
         },
