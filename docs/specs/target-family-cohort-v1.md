@@ -66,6 +66,15 @@ independent labels, and are not yet eligible to authorize a detector,
 benchmark, ML training, or discovery claim. The next gate remains independent
 contact-label review followed by the leakage-audited cohort contract.
 
+`scripts/build_target_family_pfam_inventory.py` is a separate bounded
+preflight for the exact PF00497 annotation. It requests only the first 100
+RCSB entry results (the service reported 126 total), skips entries with
+ambiguous multiple PF00497 polymer entities, and produced 98 metadata records
+across 42 UniProt groups. The same quality policy found nine strict paired
+groups. Its expanded sequence report contains 98 records and 48
+review-required components; these candidates are not automatically promoted
+into the private labelled cohort or a detector manifest.
+
 ## Independent contact-label boundary
 
 `scripts/materialize_target_family_cohort.py` joins the ignored pilot-pair
