@@ -187,8 +187,10 @@ outputs are deliberately excluded from the public source tree. Any future
 scientific result must be released with a frozen protocol, case-level evidence,
 checksums, limitations, and independent rerun instructions.
 
-Public method contracts are under `docs/specs/`. Personal planning, internal
-audits, research execution reports, and evaluator-only inputs stay local.
+Public method contracts are under `docs/specs/`, including the bounded
+[`target-family static evaluator contract`](docs/specs/target-family-static-evaluator-v1.md).
+Personal planning, internal audits, research execution reports, and
+evaluator-only inputs stay local.
 
 ## Scientific Boundaries
 
