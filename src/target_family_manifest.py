@@ -17,6 +17,7 @@ from typing import Any, Iterable, Mapping
 
 
 TARGET_FAMILY_MANIFEST_SCHEMA_VERSION = "biovoid-target-family-static-pilot-v1"
+TARGET_FAMILY_COHORT_MANIFEST_SCHEMA_VERSION = "biovoid-target-family-cohort-detector-v1"
 DEFAULT_MIN_SEQUENCE_LENGTH = 180
 DEFAULT_MAX_SEQUENCE_LENGTH = 350
 DEFAULT_MAX_RESOLUTION_ANGSTROM = 2.8
@@ -339,10 +340,20 @@ def build_detector_manifest(pairs: Iterable[PilotPair]) -> dict[str, Any]:
 def validate_detector_manifest(payload: Mapping[str, Any]) -> None:
     """Validate the redacted pilot manifest and its resource boundary."""
 
-    if payload.get("schema_version") != TARGET_FAMILY_MANIFEST_SCHEMA_VERSION:
+    schema_version = payload.get("schema_version")
+    if schema_version not in {
+        TARGET_FAMILY_MANIFEST_SCHEMA_VERSION,
+        TARGET_FAMILY_COHORT_MANIFEST_SCHEMA_VERSION,
+    }:
         raise TargetFamilyContractError("Unsupported target-family manifest schema")
-    if payload.get("manifest_kind") != "target_blind_static_pilot":
-        raise TargetFamilyContractError("Unsupported target-family manifest kind")
+    if schema_version == TARGET_FAMILY_MANIFEST_SCHEMA_VERSION:
+        if payload.get("manifest_kind") != "target_blind_static_pilot":
+            raise TargetFamilyContractError("Unsupported target-family manifest kind")
+    else:
+        if payload.get("manifest_kind") != "target_blind_cohort":
+            raise TargetFamilyContractError("Unsupported target-family cohort manifest kind")
+        if payload.get("split_strategy") != "sequence_cluster_temporal_holdout_v1":
+            raise TargetFamilyContractError("Cohort manifest split strategy is unsupported")
     if payload.get("materialization_status") != "metadata_only":
         raise TargetFamilyContractError("Pilot manifest must remain metadata-only")
     if payload.get("boundary") != "apo_structure_only_v1":
@@ -365,8 +376,17 @@ def validate_detector_manifest(payload: Mapping[str, Any]) -> None:
             raise TargetFamilyContractError("Pilot case must be an object")
         for field in ("case_id", "structure_id", "family_id", "split"):
             _required_text(case.get(field), f"case.{field}")
-        if case["split"] != "development":
+        if (
+            schema_version == TARGET_FAMILY_MANIFEST_SCHEMA_VERSION
+            and case["split"] != "development"
+        ):
             raise TargetFamilyContractError("Pilot cases must use the development split")
+        if schema_version == TARGET_FAMILY_COHORT_MANIFEST_SCHEMA_VERSION and case["split"] not in {
+            "development",
+            "validation",
+            "test",
+        }:
+            raise TargetFamilyContractError("Cohort cases must use a supported split")
         case_id = str(case["case_id"]).casefold()
         structure_id = _normalise_pdb_id(case["structure_id"], "case.structure_id")
         if case_id in case_ids or structure_id in structures:

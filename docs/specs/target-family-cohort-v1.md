@@ -111,3 +111,8 @@ C-alpha and 3,921 protein heavy atoms); the full benchmark remains approval
 gated. Available RAM is sampled at run time; the canonical detector rechecks
 the per-case `SAFE_16GB` guard before and after candidate generation and records
 resource-blocked cases instead of bypassing the limit.
+
+The canonical static runner now accepts this cohort-detector manifest schema in
+addition to the legacy development-only pilot schema. Development, validation,
+and test split names remain target-blind metadata; holo/evaluator fields are
+still rejected by the manifest validator.

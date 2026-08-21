@@ -1,7 +1,8 @@
 """Run the bounded, target-blind PF00497 static smoke pilot.
 
-The runner accepts only the redacted metadata-only manifest produced by
-``build_target_family_manifest.py``.  It materializes the two apo structures,
+The runner accepts a redacted metadata-only manifest produced by either
+``build_target_family_manifest.py`` or the leakage-audited cohort checker. It
+materializes the bounded apo structures,
 prepares them with the canonical full-heavy-atom policy, runs
 ``canonical-static-v1`` one case at a time, and keeps a hard local disk quota.
 It never reads the private pair inventory, downloads holo coordinates, starts
