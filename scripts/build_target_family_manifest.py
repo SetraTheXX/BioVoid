@@ -1,4 +1,4 @@
-"""Build a metadata-only, target-blind pilot for the selected SBP_bac_3 family.
+"""Build a metadata-only, target-blind pilot for the selected PF00497 family.
 
 The command uses the RCSB Search and Data APIs only.  It retrieves sequence,
 entry, polymer-entity and non-polymer *metadata*; it never requests a PDB/mmCIF
@@ -46,6 +46,13 @@ DEFAULT_FAMILY_ID = "PF00497"
 MAX_METADATA_ENTRIES = 100
 DEFAULT_TIMEOUT_SECONDS = 60
 INVENTORY_SCHEMA_VERSION = "biovoid-target-family-metadata-inventory-v1"
+DEFAULT_INVENTORY_OUTPUT = (
+    REPO_ROOT / "local-private/research/target-family/metadata-inventory-pfam-v1.json"
+)
+DEFAULT_PAIRS_OUTPUT = REPO_ROOT / "local-private/research/target-family/pilot-pairs-pfam-v1.json"
+DEFAULT_MANIFEST_OUTPUT = (
+    REPO_ROOT / "data/runtime/target-family/target-blind-static-pilot-pfam-v1.json"
+)
 
 
 class TargetFamilyMetadataError(RuntimeError):
@@ -436,17 +443,17 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--inventory-output",
         type=Path,
-        default=REPO_ROOT / "local-private/research/target-family/metadata-inventory-v1.json",
+        default=DEFAULT_INVENTORY_OUTPUT,
     )
     parser.add_argument(
         "--pairs-output",
         type=Path,
-        default=REPO_ROOT / "local-private/research/target-family/pilot-pairs-v1.json",
+        default=DEFAULT_PAIRS_OUTPUT,
     )
     parser.add_argument(
         "--manifest-output",
         type=Path,
-        default=REPO_ROOT / "data/runtime/target-family/target-blind-static-pilot-v1.json",
+        default=DEFAULT_MANIFEST_OUTPUT,
     )
     return parser.parse_args()
 

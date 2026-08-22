@@ -1,7 +1,7 @@
 """Evaluate target-family baselines against the private diagnostic ground truth.
 
 This command is evaluator-only. It combines the already completed, target-blind
-BioVoid/fpocket/P2Rank records with the two-case DCC/DCA ground truth and writes
+BioVoid/fpocket/P2Rank records with the private DCC/DCA ground truth and writes
 diagnostic metrics. It never changes detector inputs and never authorizes a
 superiority or discovery claim.
 """
@@ -51,30 +51,33 @@ from src.evaluator_format import (  # noqa: E402
 from src.target_family_manifest import validate_detector_manifest  # noqa: E402
 
 
-DEFAULT_MANIFEST = REPO_ROOT / "data/runtime/target-family/target-blind-static-pilot-v1.json"
+DEFAULT_MANIFEST = (
+    REPO_ROOT / "data/runtime/target-family/cohort-detector-pfam-v1/"
+    "target-family-cohort-detector-pfam-v1.json"
+)
 DEFAULT_STATIC_RUN = (
-    REPO_ROOT / "data/runtime/target-family/static-pilot-v1/target-family-static-pilot-run-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
+    "target-family-static-pilot-run-v1.json"
 )
 DEFAULT_RECOVERY_RUN = (
-    REPO_ROOT
-    / "data/runtime/target-family/static-pilot-recovery-v4/target-family-static-recovery-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-pilot-recovery-pfam-v1/"
+    "target-family-static-recovery-v1.json"
 )
 DEFAULT_EVALUATION_REPORT = (
-    REPO_ROOT
-    / "data/runtime/target-family/static-evaluation-v1/target-family-static-evaluation-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
+    "target-family-static-evaluation-pfam-v1.json"
 )
 DEFAULT_FPOCKET_REPORT = (
-    REPO_ROOT
-    / "data/runtime/target-family/external-baselines-v1/fpocket-target-family-v1.json"
+    REPO_ROOT / "data/runtime/target-family/external-baselines-pfam-v1/"
+    "fpocket-target-family-pfam-v1.json"
 )
 DEFAULT_P2RANK_REPORT = (
-    REPO_ROOT
-    / "data/runtime/target-family/external-baselines-v1/p2rank-target-family-v1.json"
+    REPO_ROOT / "data/runtime/target-family/external-baselines-pfam-v1/"
+    "p2rank-target-family-pfam-v1.json"
 )
 DEFAULT_OUTPUT = (
-    REPO_ROOT
-    / "data/runtime/target-family/external-baseline-comparison-v1/"
-    "target-family-external-baseline-comparison-v1.json"
+    REPO_ROOT / "data/runtime/target-family/external-baseline-comparison-pfam-v1/"
+    "target-family-external-baseline-comparison-pfam-v1.json"
 )
 COMPARISON_SCHEMA_VERSION = "biovoid-target-family-external-baseline-comparison-v1"
 
@@ -126,7 +129,9 @@ def _load_target_family_baseline_records(
     for structure_id, raw in raw_records.items():
         normalized_id = str(structure_id).upper()
         if not isinstance(raw, Mapping):
-            result[normalized_id] = failed_record(detector, normalized_id, "baseline_record_invalid")
+            result[normalized_id] = failed_record(
+                detector, normalized_id, "baseline_record_invalid"
+            )
             continue
         payload = raw.get("detector_record")
         if not isinstance(payload, Mapping):
@@ -253,7 +258,9 @@ def evaluate_target_family_comparison(
     recovery_result = recovery_run.get("result")
     recovery_by_structure = {}
     if isinstance(recovery_result, Mapping):
-        recovery_by_structure[str(recovery_result.get("structure_id", "")).upper()] = recovery_result
+        recovery_by_structure[str(recovery_result.get("structure_id", "")).upper()] = (
+            recovery_result
+        )
     baseline_structures = {
         str(item["structure_id"]).upper(): item
         for item in baseline_manifest["structures"]
@@ -276,7 +283,10 @@ def evaluate_target_family_comparison(
         if not isinstance(primary, Mapping):
             raise TargetFamilyComparisonError(f"Static case missing: {case_id}")
         evaluator_record = evaluator_records.get(case_id)
-        if not isinstance(evaluator_record, Mapping) or evaluator_record.get("status") != "completed_ground_truth":
+        if (
+            not isinstance(evaluator_record, Mapping)
+            or evaluator_record.get("status") != "completed_ground_truth"
+        ):
             raise TargetFamilyComparisonError(f"Ground truth unavailable for case: {case_id}")
         cases.append(_build_benchmark_case(case, structure=structure, static_case=primary))
         truths[case_id.casefold()] = _ground_truth_from_record(evaluator_record)
@@ -328,14 +338,14 @@ def evaluate_target_family_comparison(
             "motion_enabled": False,
             "ml_training": False,
             "rank_scope": [1, 3, 5],
-            "interpretation": "two_case_development_diagnostic_not_for_claim",
+            "interpretation": "bounded_target_family_diagnostic_not_for_claim",
         },
         "case_arms": case_arms,
         "results": results,
         "roadmap": {
             "current_gate": "G2-bounded-static-development-pilot",
-            "purpose": "Compare three target-blind detectors on the same two prepared apo inputs.",
-            "next_step": "Review failure patterns and representative-chain limitations; do not promote this two-case result to superiority or discovery evidence.",
+            "purpose": "Compare three target-blind detectors on the same prepared apo inputs.",
+            "next_step": "Review failure patterns and representative-chain limitations; do not promote this bounded result to superiority or discovery evidence.",
             "status": "diagnostic_only",
         },
     }

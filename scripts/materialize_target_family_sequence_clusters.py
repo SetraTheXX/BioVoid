@@ -30,10 +30,10 @@ if str(REPO_ROOT) not in sys.path:
 DATA_URL = "https://data.rcsb.org/rest/v1/core"
 INVENTORY_SCHEMA_VERSION = "biovoid-target-family-metadata-inventory-v1"
 CLUSTER_SCHEMA_VERSION = "biovoid-target-family-sequence-clusters-v1"
-DEFAULT_INPUT = REPO_ROOT / "local-private/research/target-family/metadata-inventory-v1.json"
+DEFAULT_INPUT = REPO_ROOT / "local-private/research/target-family/metadata-inventory-pfam-v1.json"
 DEFAULT_OUTPUT = (
-    REPO_ROOT
-    / "data/runtime/target-family/sequence-clusters-v1/target-family-sequence-clusters-v1.json"
+    REPO_ROOT / "data/runtime/target-family/sequence-clusters-pfam-v1/"
+    "target-family-sequence-clusters-pfam-v1.json"
 )
 MAX_RECORDS = 100
 DEFAULT_TIMEOUT_SECONDS = 60

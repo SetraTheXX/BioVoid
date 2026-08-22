@@ -37,26 +37,30 @@ from src.target_family_manifest import validate_detector_manifest  # noqa: E402
 
 BASELINE_INPUT_SCHEMA_VERSION = "biovoid-target-family-baseline-input-v1"
 READINESS_SCHEMA_VERSION = "biovoid-target-family-baseline-readiness-v1"
-DEFAULT_MANIFEST = REPO_ROOT / "data/runtime/target-family/target-blind-static-pilot-v1.json"
+DEFAULT_MANIFEST = (
+    REPO_ROOT / "data/runtime/target-family/cohort-detector-pfam-v1/"
+    "target-family-cohort-detector-pfam-v1.json"
+)
 DEFAULT_STATIC_RUN = (
-    REPO_ROOT / "data/runtime/target-family/static-pilot-v1/target-family-static-pilot-run-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
+    "target-family-static-pilot-run-v1.json"
 )
 DEFAULT_RECOVERY_RUN = (
-    REPO_ROOT
-    / "data/runtime/target-family/static-pilot-recovery-v4/target-family-static-recovery-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-pilot-recovery-pfam-v1/"
+    "target-family-static-recovery-v1.json"
 )
 DEFAULT_EVALUATION_REPORT = (
-    REPO_ROOT
-    / "data/runtime/target-family/static-evaluation-v1/target-family-static-evaluation-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
+    "target-family-static-evaluation-pfam-v1.json"
 )
-DEFAULT_PREPARED_ROOT = REPO_ROOT / "data/runtime/target-family/static-pilot-v1"
+DEFAULT_PREPARED_ROOT = REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2"
 DEFAULT_BASELINE_MANIFEST = (
-    REPO_ROOT
-    / "data/runtime/target-family/baseline-input-v1/target-family-baseline-input-v1.json"
+    REPO_ROOT / "data/runtime/target-family/baseline-input-pfam-v1/"
+    "target-family-baseline-input-pfam-v1.json"
 )
 DEFAULT_OUTPUT = (
-    REPO_ROOT
-    / "data/runtime/target-family/baseline-readiness-v1/target-family-baseline-readiness-v1.json"
+    REPO_ROOT / "data/runtime/target-family/baseline-readiness-pfam-v1/"
+    "target-family-baseline-readiness-pfam-v1.json"
 )
 TARGET_FAMILY_RUNNER = REPO_ROOT / "scripts/run_target_family_external_baseline.py"
 MAX_CASES = 10
@@ -161,7 +165,9 @@ def _case_input(
 
     raw_path = primary.get("prepared_path")
     if not isinstance(raw_path, str) or not raw_path.strip():
-        raw_path = _relative_path(_expected_prepared_path(structure_id, prepared_root=prepared_root), repo_root=repo_root)
+        raw_path = _relative_path(
+            _expected_prepared_path(structure_id, prepared_root=prepared_root), repo_root=repo_root
+        )
     prepared_path = _resolve_prepared_path(raw_path, repo_root=repo_root)
     observed_sha = _sha256_file(prepared_path)
     expected_sha = primary.get("prepared_structure_sha256")
@@ -198,7 +204,10 @@ def validate_baseline_input_manifest(payload: Mapping[str, Any]) -> None:
     if payload.get("boundary") != "prepared_apo_only_v1":
         raise ValueError("Baseline input boundary is not apo-only")
     detector_boundary = payload.get("detector_boundary")
-    if not isinstance(detector_boundary, Mapping) or detector_boundary.get("target_blind") is not True:
+    if (
+        not isinstance(detector_boundary, Mapping)
+        or detector_boundary.get("target_blind") is not True
+    ):
         raise ValueError("Baseline input is not target-blind")
     if detector_boundary.get("target_annotations_present") is not False:
         raise ValueError("Baseline input contains target annotations")
@@ -233,7 +242,9 @@ def validate_baseline_input_manifest(payload: Mapping[str, Any]) -> None:
             raise ValueError("Baseline input prepared hash is invalid")
         seen_ids.add(structure_id)
         seen_paths.add(prepared_path)
-    expected_hash = _stable_hash({key: value for key, value in payload.items() if key != "manifest_sha256"})
+    expected_hash = _stable_hash(
+        {key: value for key, value in payload.items() if key != "manifest_sha256"}
+    )
     if payload.get("manifest_sha256") != expected_hash:
         raise ValueError("Baseline input manifest hash mismatch")
 
@@ -363,7 +374,9 @@ def _resource_check(*, repo_root: Path, case_count: int) -> dict[str, Any]:
         "max_cases": MAX_CASES,
         "selected_cases": case_count,
         "per_tool_memory": {name: config["memory"] for name, config in BASELINE_CONFIG.items()},
-        "timeouts_seconds": {name: config["timeout_seconds"] for name, config in BASELINE_CONFIG.items()},
+        "timeouts_seconds": {
+            name: config["timeout_seconds"] for name, config in BASELINE_CONFIG.items()
+        },
         "max_disk_bytes": MAX_DISK_BYTES,
         "free_bytes": usage.free,
     }
