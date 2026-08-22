@@ -155,3 +155,23 @@ def test_readiness_script_writes_only_report_and_redacted_manifest(tmp_path: Pat
     assert readiness_path.is_file()
     assert detector["manifest_kind"] == "target_blind_cohort"
     assert "holo" not in detector_path.read_text(encoding="utf-8").casefold()
+
+
+def test_readiness_script_defaults_to_current_pfam_cohort() -> None:
+    from scripts.check_target_family_cohort import (
+        DEFAULT_DETECTOR_OUTPUT,
+        DEFAULT_INPUT,
+        DEFAULT_READINESS_OUTPUT,
+    )
+
+    assert DEFAULT_INPUT.as_posix().endswith(
+        "local-private/research/target-family/cohort-pfam-v1.json"
+    )
+    assert DEFAULT_READINESS_OUTPUT.as_posix().endswith(
+        "data/runtime/target-family/cohort-readiness-pfam-v1/"
+        "target-family-cohort-readiness-pfam-v1.json"
+    )
+    assert DEFAULT_DETECTOR_OUTPUT.as_posix().endswith(
+        "data/runtime/target-family/cohort-detector-pfam-v1/"
+        "target-family-cohort-detector-pfam-v1.json"
+    )

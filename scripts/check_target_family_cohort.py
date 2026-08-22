@@ -26,14 +26,14 @@ from src.target_family_cohort import (  # noqa: E402
 )
 
 
-DEFAULT_INPUT = REPO_ROOT / "local-private/research/target-family/cohort-v1.json"
+DEFAULT_INPUT = REPO_ROOT / "local-private/research/target-family/cohort-pfam-v1.json"
 DEFAULT_READINESS_OUTPUT = (
-    REPO_ROOT
-    / "data/runtime/target-family/cohort-readiness-v1/target-family-cohort-readiness-v1.json"
+    REPO_ROOT / "data/runtime/target-family/cohort-readiness-pfam-v1/"
+    "target-family-cohort-readiness-pfam-v1.json"
 )
 DEFAULT_DETECTOR_OUTPUT = (
-    REPO_ROOT
-    / "data/runtime/target-family/cohort-detector-v1/target-family-cohort-detector-v1.json"
+    REPO_ROOT / "data/runtime/target-family/cohort-detector-pfam-v1/"
+    "target-family-cohort-detector-pfam-v1.json"
 )
 
 
