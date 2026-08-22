@@ -209,6 +209,23 @@ def _build_benchmark_case(
     )
 
 
+def _cohort_split_counts(manifest: Mapping[str, Any]) -> dict[str, int]:
+    """Return the original cohort split counts for diagnostic audit metadata."""
+
+    cases = manifest.get("cases")
+    if not isinstance(cases, list):
+        raise TargetFamilyComparisonError("Target-family manifest cases are missing")
+    counts = {"development": 0, "validation": 0, "test": 0}
+    for case in cases:
+        if not isinstance(case, Mapping):
+            raise TargetFamilyComparisonError("Target-family manifest case is malformed")
+        split = str(case.get("split", ""))
+        if split not in counts:
+            raise TargetFamilyComparisonError(f"Unsupported target-family split: {split}")
+        counts[split] += 1
+    return counts
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     return _read_baseline_json(path)
 
@@ -297,6 +314,7 @@ def evaluate_target_family_comparison(
         case_arms[case_id] = arm
     benchmark_manifest = BenchmarkManifest(cases=tuple(cases))
     protocol = phase6_frozen_protocol_v1()
+    cohort_split_counts = _cohort_split_counts(manifest)
     fpocket_records = _load_target_family_baseline_records(fpocket_report, detector="fpocket")
     p2rank_records = _load_target_family_baseline_records(p2rank_report, detector="p2rank")
     results = {
@@ -340,6 +358,9 @@ def evaluate_target_family_comparison(
             "ml_training": False,
             "rank_scope": [1, 3, 5],
             "interpretation": "bounded_target_family_diagnostic_not_for_claim",
+            "cohort_split_counts": cohort_split_counts,
+            "evaluated_case_scope": "all_cohort_cases_diagnostic",
+            "held_out_evaluation": False,
         },
         "case_arms": case_arms,
         "results": results,

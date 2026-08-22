@@ -42,3 +42,24 @@ def test_target_family_baseline_loader_accepts_only_blind_detector_records() -> 
 
     assert records["6MLD"].detector == "fpocket"
     assert records["6MLD"].pockets[0].center == (1.0, 2.0, 3.0)
+
+
+def test_external_comparison_split_counts_are_explicit_and_bounded() -> None:
+    from scripts.evaluate_target_family_external_baselines import _cohort_split_counts
+
+    manifest = {
+        "cases": [
+            {"split": "development"},
+            {"split": "development"},
+            {"split": "validation"},
+            {"split": "validation"},
+            {"split": "test"},
+            {"split": "test"},
+        ]
+    }
+
+    assert _cohort_split_counts(manifest) == {
+        "development": 2,
+        "validation": 2,
+        "test": 2,
+    }

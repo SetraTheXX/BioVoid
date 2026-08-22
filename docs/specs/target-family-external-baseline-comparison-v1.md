@@ -53,7 +53,11 @@ These values are descriptive only: one protein family and six cases cannot
 support superiority, validation, or discovery claims. Motion/NMA and ML were
 not used, and the detector records were written before evaluator ground truth
 was opened. False-pocket burden and resource reporting remain unavailable in
-this comparison and are not silently imputed.
+this comparison and are not silently imputed. The report retains the original
+`2 development / 2 validation / 2 test` cohort split for audit, but its metrics
+explicitly use `all_cohort_cases_diagnostic`; `held_out_evaluation` is false.
+Therefore the validation and temporal-test rows must not be read as held-out
+performance.
 
 ## Next gate
 
