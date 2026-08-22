@@ -92,3 +92,13 @@ def test_target_family_external_runner_defaults_follow_current_pfam_root() -> No
     assert DEFAULT_WORK_ROOT.as_posix().endswith(
         "data/runtime/target-family/external-baselines-pfam-v1"
     )
+
+
+def test_target_family_external_evaluator_defaults_match_runner_report_names() -> None:
+    from scripts.evaluate_target_family_external_baselines import (
+        DEFAULT_FPOCKET_REPORT,
+        DEFAULT_P2RANK_REPORT,
+    )
+
+    assert DEFAULT_FPOCKET_REPORT.name == "fpocket-target-family-v1.json"
+    assert DEFAULT_P2RANK_REPORT.name == "p2rank-target-family-v1.json"

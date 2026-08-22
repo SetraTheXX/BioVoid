@@ -69,11 +69,11 @@ DEFAULT_EVALUATION_REPORT = (
 )
 DEFAULT_FPOCKET_REPORT = (
     REPO_ROOT / "data/runtime/target-family/external-baselines-pfam-v1/"
-    "fpocket-target-family-pfam-v1.json"
+    "fpocket-target-family-v1.json"
 )
 DEFAULT_P2RANK_REPORT = (
     REPO_ROOT / "data/runtime/target-family/external-baselines-pfam-v1/"
-    "p2rank-target-family-pfam-v1.json"
+    "p2rank-target-family-v1.json"
 )
 DEFAULT_OUTPUT = (
     REPO_ROOT / "data/runtime/target-family/external-baseline-comparison-pfam-v1/"
@@ -344,9 +344,9 @@ def evaluate_target_family_comparison(
         "case_arms": case_arms,
         "results": results,
         "roadmap": {
-            "current_gate": "G2-bounded-static-development-pilot",
+            "current_gate": "G4-bounded-target-family-external-baseline-diagnostic",
             "purpose": "Compare three target-blind detectors on the same prepared apo inputs.",
-            "next_step": "Review failure patterns and representative-chain limitations; do not promote this bounded result to superiority or discovery evidence.",
+            "next_step": "Review six-case failure patterns and family/sequence limitations; keep the result diagnostic and do not promote it to superiority or discovery evidence.",
             "status": "diagnostic_only",
         },
     }
