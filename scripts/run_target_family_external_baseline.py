@@ -39,7 +39,7 @@ from scripts.run_target_family_static_pilot import directory_size_bytes  # noqa:
 
 BASELINE_RUN_SCHEMA_VERSION = "biovoid-target-family-external-baseline-v1"
 RUNNER_ID = "target-family-external-baseline-v1"
-DEFAULT_WORK_ROOT = REPO_ROOT / "data/runtime/target-family/external-baselines-v1"
+DEFAULT_WORK_ROOT = REPO_ROOT / "data/runtime/target-family/external-baselines-pfam-v1"
 TARGET_FAMILY_RUNTIME_ROOT = REPO_ROOT / "data/runtime/target-family"
 
 

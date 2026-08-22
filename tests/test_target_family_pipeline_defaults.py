@@ -84,3 +84,11 @@ def test_target_family_recovery_defaults_follow_current_pfam_rerun() -> None:
     assert DEFAULT_OUTPUT_ROOT.as_posix().endswith(
         "data/runtime/target-family/static-pilot-recovery-pfam-v1"
     )
+
+
+def test_target_family_external_runner_defaults_follow_current_pfam_root() -> None:
+    from scripts.run_target_family_external_baseline import DEFAULT_WORK_ROOT
+
+    assert DEFAULT_WORK_ROOT.as_posix().endswith(
+        "data/runtime/target-family/external-baselines-pfam-v1"
+    )
