@@ -64,3 +64,23 @@ def test_external_baseline_defaults_follow_current_pfam_rerun() -> None:
     assert "target-blind-static-pilot-v1.json" not in serialized
     assert "static-pilot-v1/" not in serialized
     assert "static-evaluation-v1/" not in serialized
+
+
+def test_target_family_recovery_defaults_follow_current_pfam_rerun() -> None:
+    from scripts.run_target_family_static_recovery import (
+        DEFAULT_MANIFEST,
+        DEFAULT_OUTPUT_ROOT,
+        DEFAULT_PRIMARY_RUN,
+    )
+
+    assert DEFAULT_MANIFEST.as_posix().endswith(
+        "data/runtime/target-family/cohort-detector-pfam-v1/"
+        "target-family-cohort-detector-pfam-v1.json"
+    )
+    assert DEFAULT_PRIMARY_RUN.as_posix().endswith(
+        "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
+        "target-family-static-pilot-run-v1.json"
+    )
+    assert DEFAULT_OUTPUT_ROOT.as_posix().endswith(
+        "data/runtime/target-family/static-pilot-recovery-pfam-v1"
+    )

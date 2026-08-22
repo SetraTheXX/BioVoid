@@ -479,7 +479,7 @@ def build_readiness_report(
             "current_gate": "G2-bounded-static-development-pilot",
             "purpose": "Prepare a reproducible, independent fpocket/P2Rank comparison without executing it.",
             "next_step": (
-                "Record the representative-chain policy review and keep the two-case result diagnostic-only; "
+                "Record the representative-chain policy review and keep the bounded target-family result diagnostic-only; "
                 "the target-family adapter is available, while the existing RI-3 runner remains locked to 663 cases."
             ),
             "status": "readiness_only_no_baseline_started",

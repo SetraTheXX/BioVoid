@@ -41,11 +41,15 @@ from src.static_detector import detect_static_pockets  # noqa: E402
 from src.target_family_manifest import validate_detector_manifest  # noqa: E402
 
 
-DEFAULT_MANIFEST = REPO_ROOT / "data/runtime/target-family/target-blind-static-pilot-v1.json"
-DEFAULT_PRIMARY_RUN = (
-    REPO_ROOT / "data/runtime/target-family/static-pilot-v1/target-family-static-pilot-run-v1.json"
+DEFAULT_MANIFEST = (
+    REPO_ROOT / "data/runtime/target-family/cohort-detector-pfam-v1/"
+    "target-family-cohort-detector-pfam-v1.json"
 )
-DEFAULT_OUTPUT_ROOT = REPO_ROOT / "data/runtime/target-family/static-pilot-recovery-v1"
+DEFAULT_PRIMARY_RUN = (
+    REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
+    "target-family-static-pilot-run-v1.json"
+)
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "data/runtime/target-family/static-pilot-recovery-pfam-v1"
 RECOVERY_MAX_DISK_BYTES = 10_000_000_000
 RECOVERY_RSS_LIMIT_BYTES = 3 * 1024**3
 RECOVERY_TIMEOUT_SECONDS = 180

@@ -695,7 +695,7 @@ def run_target_family_evaluation(
                 prepared_path_text = recovery_case.get("prepared_path")
             if not prepared_path_text:
                 prepared_path_text = (
-                    f"data/runtime/target-family/static-pilot-v1/cases/{structure_id}/preparation/"
+                    f"data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/cases/{structure_id}/preparation/"
                     "prepared_detector.pdb"
                 )
             prepared_path = (REPO_ROOT / str(prepared_path_text)).resolve()
