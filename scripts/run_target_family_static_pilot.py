@@ -38,6 +38,12 @@ from src.structure_preparation import (  # noqa: E402
     load_structure_atoms,
     prepare_structure,
 )
+from src.target_family_ranking import (  # noqa: E402
+    CANDIDATE_RETENTION_FULL,
+    CANDIDATE_RETENTION_TOP10,
+    HELD_OUT_RANKING_CONTRACT,
+    validate_candidate_retention,
+)
 from src.target_family_manifest import (  # noqa: E402
     MAX_PILOT_CASES,
     validate_detector_manifest,
@@ -49,6 +55,9 @@ DEFAULT_MANIFEST = (
     "target-family-cohort-detector-pfam-v1.json"
 )
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1"
+DEFAULT_FULL_OUTPUT_ROOT = (
+    REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-full-candidates"
+)
 MAX_DISK_BYTES = 1_000_000_000
 PILOT_RUN_SCHEMA_VERSION = "biovoid-target-family-static-pilot-run-v1"
 FORBIDDEN_OUTPUT_TOKENS = ("holo", "ligand", "evaluator", "ground_truth")
@@ -120,10 +129,12 @@ def build_pilot_run_skeleton(
     manifest: Mapping[str, Any],
     *,
     max_disk_bytes: int = MAX_DISK_BYTES,
+    candidate_retention: str = CANDIDATE_RETENTION_TOP10,
 ) -> dict[str, Any]:
     """Build a target-blind run record before any coordinate is requested."""
 
     validate_detector_manifest(manifest)
+    candidate_retention = validate_candidate_retention(candidate_retention)
     if max_disk_bytes < 1:
         raise ValueError("max_disk_bytes must be positive")
     case_count = int(manifest["constraints"]["case_count"])
@@ -141,11 +152,18 @@ def build_pilot_run_skeleton(
             "external_baselines_enabled": False,
             "max_disk_bytes": max_disk_bytes,
             "disk_quota_enforced": True,
+            "candidate_retention": candidate_retention,
         },
         "detector": {
             "version": "canonical-static-v1",
             "score_used": False,
             "ranking_contract": "canonical-static-v1-volume-descending",
+            "candidate_scope": (
+                "stored_top10"
+                if candidate_retention == CANDIDATE_RETENTION_TOP10
+                else "all_detected_pockets"
+            ),
+            "held_out_ranking_contract": HELD_OUT_RANKING_CONTRACT,
         },
         "interpretation_status": "pending_independent_review",
         "claim_boundary": "unvalidated_static_method_smoke",
@@ -175,10 +193,26 @@ def validate_pilot_run(payload: Mapping[str, Any], manifest: Mapping[str, Any]) 
         raise TargetFamilyPilotError("Pilot run violates single-worker static boundary")
     if execution.get("external_baselines_enabled") is not False:
         raise TargetFamilyPilotError("Pilot run unexpectedly enables external baselines")
+    try:
+        candidate_retention = validate_candidate_retention(execution.get("candidate_retention"))
+    except ValueError as exc:
+        raise TargetFamilyPilotError(str(exc)) from exc
     if not isinstance(execution.get("max_disk_bytes"), int) or execution["max_disk_bytes"] < 1:
         raise TargetFamilyPilotError("Pilot run has no positive disk quota")
     if payload.get("claim_boundary") != "unvalidated_static_method_smoke":
         raise TargetFamilyPilotError("Pilot run has an unsafe claim boundary")
+    detector = payload.get("detector")
+    if not isinstance(detector, Mapping):
+        raise TargetFamilyPilotError("Pilot run is missing detector contract metadata")
+    expected_scope = (
+        "stored_top10"
+        if candidate_retention == CANDIDATE_RETENTION_TOP10
+        else "all_detected_pockets"
+    )
+    if detector.get("candidate_scope") != expected_scope:
+        raise TargetFamilyPilotError("Pilot run candidate scope does not match retention mode")
+    if detector.get("held_out_ranking_contract") != HELD_OUT_RANKING_CONTRACT:
+        raise TargetFamilyPilotError("Pilot run is missing the held-out ranking contract")
     expected_hash = _stable_hash(
         {key: value for key, value in payload.items() if key != "run_sha256"}
     )
@@ -188,6 +222,29 @@ def validate_pilot_run(payload: Mapping[str, Any], manifest: Mapping[str, Any]) 
     for token in FORBIDDEN_OUTPUT_TOKENS:
         if token in encoded:
             raise TargetFamilyPilotError(f"Pilot run contains forbidden token: {token}")
+    cases = payload.get("cases")
+    if isinstance(cases, Mapping):
+        for case_id, case in cases.items():
+            if not isinstance(case, Mapping) or case.get("status") != "completed":
+                continue
+            if case.get("candidate_retention") != candidate_retention:
+                raise TargetFamilyPilotError(
+                    f"{case_id}: case retention does not match run retention"
+                )
+            pocket_count = case.get("pocket_count")
+            top_pockets = case.get("top_pockets")
+            if not isinstance(pocket_count, int) or pocket_count < 0:
+                raise TargetFamilyPilotError(f"{case_id}: pocket_count must be non-negative")
+            if not isinstance(top_pockets, list):
+                raise TargetFamilyPilotError(f"{case_id}: top_pockets must be a list")
+            if len(top_pockets) != min(10, pocket_count):
+                raise TargetFamilyPilotError(f"{case_id}: top_pockets retention is invalid")
+            if candidate_retention == CANDIDATE_RETENTION_FULL:
+                all_pockets = case.get("all_pockets")
+                if not isinstance(all_pockets, list) or len(all_pockets) != pocket_count:
+                    raise TargetFamilyPilotError(
+                        f"{case_id}: full retention requires every detected pocket"
+                    )
 
 
 def _seal_run(payload: dict[str, Any]) -> None:
@@ -223,6 +280,7 @@ def _run_case(
     *,
     output_root: Path,
     max_disk_bytes: int,
+    candidate_retention: str,
 ) -> dict[str, Any]:
     case_id = str(case["case_id"])
     structure_id = str(case["structure_id"]).upper()
@@ -239,6 +297,7 @@ def _run_case(
         "external_baselines_enabled": False,
         "score_used": False,
         "nma_started": False,
+        "candidate_retention": candidate_retention,
     }
     enforce_disk_quota(output_root, max_disk_bytes)
     source = StructureSource(
@@ -298,6 +357,8 @@ def _run_case(
                 "peak_rss_bytes": max(before.peak_rss_bytes, after.peak_rss_bytes),
             }
         )
+        if candidate_retention == CANDIDATE_RETENTION_FULL:
+            common["all_pockets"] = [pocket.to_portable_dict() for pocket in detection.pockets]
     except ResourceLimitError as exc:
         common.update(
             {
@@ -325,6 +386,7 @@ def run_static_pilot(
     output_root: Path = DEFAULT_OUTPUT_ROOT,
     max_disk_bytes: int = MAX_DISK_BYTES,
     user_approved: bool = False,
+    candidate_retention: str = CANDIDATE_RETENTION_TOP10,
 ) -> dict[str, Any]:
     """Run the approved, bounded target-family target-blind static pilot."""
 
@@ -334,13 +396,26 @@ def run_static_pilot(
         )
     if max_disk_bytes < 1 or max_disk_bytes > MAX_DISK_BYTES:
         raise ValueError(f"max_disk_bytes must be between 1 and {MAX_DISK_BYTES}")
+    candidate_retention = validate_candidate_retention(candidate_retention)
+    if (
+        candidate_retention == CANDIDATE_RETENTION_FULL
+        and output_root.resolve() == DEFAULT_OUTPUT_ROOT.resolve()
+    ):
+        raise TargetFamilyPilotError(
+            "Full candidate retention requires a separate output root; "
+            f"use {DEFAULT_FULL_OUTPUT_ROOT} or an explicit empty directory"
+        )
     manifest = _read_json(manifest_path.resolve())
     validate_detector_manifest(manifest)
     if output_root.exists() and any(output_root.iterdir()):
         raise TargetFamilyPilotError(f"Pilot output root is not empty: {output_root}")
     output_root.mkdir(parents=True, exist_ok=True)
     enforce_disk_quota(output_root, max_disk_bytes)
-    run = build_pilot_run_skeleton(manifest, max_disk_bytes=max_disk_bytes)
+    run = build_pilot_run_skeleton(
+        manifest,
+        max_disk_bytes=max_disk_bytes,
+        candidate_retention=candidate_retention,
+    )
     run["status"] = "running"
     run["execution"]["started_disk_bytes"] = directory_size_bytes(output_root)
     _seal_run(run)
@@ -351,7 +426,12 @@ def run_static_pilot(
     for case in manifest["cases"]:
         if not isinstance(case, Mapping):
             raise TargetFamilyPilotError("Manifest case is not an object")
-        result = _run_case(case, output_root=output_root, max_disk_bytes=max_disk_bytes)
+        result = _run_case(
+            case,
+            output_root=output_root,
+            max_disk_bytes=max_disk_bytes,
+            candidate_retention=candidate_retention,
+        )
         run["cases"][str(case["case_id"])] = result
         run["counts"] = _case_counts(run)
         run["execution"]["last_case_disk_bytes"] = directory_size_bytes(output_root)
@@ -375,8 +455,17 @@ def run_static_pilot(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--output-root", type=Path)
     parser.add_argument("--max-disk-bytes", type=int, default=MAX_DISK_BYTES)
+    parser.add_argument(
+        "--candidate-retention",
+        choices=(CANDIDATE_RETENTION_TOP10, CANDIDATE_RETENTION_FULL),
+        default=CANDIDATE_RETENTION_TOP10,
+        help=(
+            "Keep the default top ten candidates, or explicitly retain every "
+            "detected candidate in a separate private run."
+        ),
+    )
     parser.add_argument(
         "--approve-static-pilot",
         action="store_true",
@@ -385,11 +474,17 @@ def main() -> int:
     args = parser.parse_args()
     if not args.approve_static_pilot:
         raise SystemExit("Pass --approve-static-pilot after explicit user authorization")
+    output_root = args.output_root or (
+        DEFAULT_FULL_OUTPUT_ROOT
+        if args.candidate_retention == CANDIDATE_RETENTION_FULL
+        else DEFAULT_OUTPUT_ROOT
+    )
     run = run_static_pilot(
         manifest_path=args.manifest,
-        output_root=args.output_root,
+        output_root=output_root,
         max_disk_bytes=args.max_disk_bytes,
         user_approved=True,
+        candidate_retention=args.candidate_retention,
     )
     print(f"status={run['status']}")
     print(f"completed={run['counts']['completed']}")
