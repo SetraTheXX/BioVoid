@@ -5,8 +5,9 @@ superiority, or discovery claim.
 
 ## Scope
 
-The comparison combines three detector-shaped records on the same two prepared
-apo inputs:
+This document records an earlier two-case comparison and is retained as
+historical diagnostic evidence. It combines three detector-shaped records on
+the same two prepared apo inputs:
 
 - BioVoid `canonical-static-v1` for the canonical case and the explicitly marked
   secondary recovery arm for the resource-blocked case;
@@ -29,7 +30,9 @@ The evaluator comparison is written under ignored `data/runtime/`; it has
 `diagnostic_dcc_dca_only`, `scientific_superiority_claim_authorized: false`, and
 `discovery_claim_authorized: false`. A two-case, one-family pilot can expose
 failure patterns and data-pipeline bugs, but cannot establish general accuracy
-or superiority.
+or superiority. It does not describe the current six-case PF00497 evaluator
+cohort; a future six-case external comparison requires its own explicit
+readiness and approval record.
 
 ## Next gate
 

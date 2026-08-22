@@ -6,14 +6,18 @@ or discovery claim.
 
 ## Purpose
 
-The bounded PF00497 pilot can be compared with fpocket and P2Rank only after
-the representative-chain policy and the two-case diagnostic evaluator have
-been reviewed. `scripts/check_target_family_baseline_readiness.py` prepares
-that next gate without running either external tool.
+The current bounded PF00497 pilot contains six usable cases (two development,
+two validation, and two temporal-test cases). It can be compared with fpocket
+and P2Rank only after the representative-chain policy and the current
+six-case diagnostic evaluator have been reviewed. The earlier two-case
+evaluator/external-baseline record is historical evidence, not the active
+cohort. `scripts/check_target_family_baseline_readiness.py` prepares that next
+gate without running either external tool.
 
 The generated local manifest contains only the already prepared apo inputs:
 
-- two predeclared cases at most (never more than ten);
+- at most ten predeclared cases (the active PFAM cohort has six; never more than
+  ten);
 - prepared full-heavy-atom coordinates and their hashes;
 - one worker, motion/NMA disabled, and a one-gigabyte local output quota;
 - no holo coordinates, ligand contacts, evaluator labels, or ML artifacts.
@@ -35,7 +39,7 @@ and explicit user approval as separate gates. A ready report therefore means
 is scientifically validated”.
 
 The existing RI-3 baseline runner remains locked to its 663-structure cohort and
-must not be pointed at this two-case manifest. The separate target-family
+must not be pointed at the historical two-case manifest. The separate target-family
 adapter is `scripts/run_target_family_external_baseline.py`; it has its own
 explicit `--approve-baselines` gate and preserves the same target-blind,
 single-worker boundary.
@@ -45,8 +49,9 @@ single-worker boundary.
 The current local report is expected to remain one of:
 `blocked_review_and_tooling`, `blocked_independent_review`,
 `blocked_tooling_unavailable`, or `ready_for_explicit_user_approval`.
-The current two-case run was started only after the last state and explicit
-user approval; its ignored output is diagnostic-only and does not authorize
-superiority or discovery claims. Until a larger leakage-audited cohort is
-designed, NMA, broad scans, ML training, and discovery language remain out of
-scope.
+The historical two-case run was started only after the then-current state and
+explicit user approval; its ignored output is diagnostic-only and does not
+authorize superiority or discovery claims. No six-case external-baseline run is
+implied by this readiness contract. Until the representative-chain review and
+an explicit bounded-run approval are complete, NMA, broad scans, ML training,
+and discovery language remain out of scope.

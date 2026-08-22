@@ -58,8 +58,12 @@ disk quota, or drift from the locked representative-chain policy.
 
 ## Next gate
 
-The bounded two-case fpocket/P2Rank comparison is now complete, but remains
+An earlier bounded two-case fpocket/P2Rank comparison is retained as historical
+diagnostic evidence; it is not the current PF00497 evaluator cohort. The current
+PF00497 static/evaluator pilot contains six usable apo--holo-labelled cases
+(two development, two validation, and two temporal-test cases) and remains
 diagnostic-only. The next gate is an independent review of the
-representative-chain policy and these metrics, followed by a larger
-family/sequence-aware leakage-audited cohort. NMA, ML, broad PDB scans and
+representative-chain policy and these metrics, followed by an explicit decision
+on whether a larger family/sequence-aware leakage-audited cohort or a bounded
+external-baseline comparison is worth running. NMA, ML, broad PDB scans and
 discovery language remain out of scope until independent evidence supports them.
