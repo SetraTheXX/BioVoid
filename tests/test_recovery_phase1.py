@@ -156,7 +156,8 @@ def test_worker_loop_survives_an_unexpected_job_boundary_exception(
     orchestrator.start()
     try:
         deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline and second.status.value == "queued":
+        terminal_states = {"succeeded", "failed", "cancelled"}
+        while time.monotonic() < deadline and second.status.value not in terminal_states:
             time.sleep(0.01)
         assert orchestrator._worker is not None
         assert orchestrator._worker.is_alive()
