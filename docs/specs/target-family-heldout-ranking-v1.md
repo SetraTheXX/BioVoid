@@ -42,8 +42,10 @@ discovery claim.
 The six-case PF00497 cohort keeps the existing sequence-aware temporal split:
 two development, two validation and two temporal-test cases. Ranking policy
 selection or feature decisions may inspect development only. Validation is used
-once for a predeclared check; temporal-test remains locked until the policy and
-all hashes are frozen.
+once for a predeclared check. The local diagnostic run opened all six records
+only after the static artifact and exploratory formula were frozen; the
+temporal-test split remains locked for confirmatory decisions and any policy
+revision.
 
 The detector input is apo structure data only. Holo coordinates, ligand contact
 labels, DCC/DCA distances, split labels and evaluator metadata are opened only
