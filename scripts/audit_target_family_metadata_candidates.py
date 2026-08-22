@@ -78,13 +78,31 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         uniprots = record.get("uniprot_ids")
         if not isinstance(uniprots, list) or not uniprots:
             raise MetadataCandidateAuditError("metadata inventory record has no UniProt group")
+        # Metadata inventories may contain experimentally valid records for
+        # which a quality field is not defined (for example, NMR entries do
+        # not have an X-ray resolution).  Keep those records in the
+        # source-only inventory; _quality_passes() deterministically excludes
+        # them from the X-ray pilot policies.  Malformed non-null values are
+        # still rejected so a broken producer cannot silently affect counts.
+        sequence_length = record.get("sequence_length")
+        if sequence_length is None:
+            raise MetadataCandidateAuditError(
+                "metadata inventory sequence_length must be present"
+            )
         try:
-            float(str(record.get("resolution_angstrom")))
-            int(str(record.get("sequence_length")))
+            int(str(sequence_length))
         except (TypeError, ValueError) as exc:
             raise MetadataCandidateAuditError(
-                "metadata inventory quality fields are invalid"
+                "metadata inventory sequence_length is invalid"
             ) from exc
+        resolution = record.get("resolution_angstrom")
+        if resolution is not None:
+            try:
+                float(str(resolution))
+            except (TypeError, ValueError) as exc:
+                raise MetadataCandidateAuditError(
+                    "metadata inventory resolution_angstrom is invalid"
+                ) from exc
         if not isinstance(record.get("likely_ligand_components"), list):
             raise MetadataCandidateAuditError("metadata inventory ligand metadata is invalid")
     return records

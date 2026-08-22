@@ -83,3 +83,15 @@ def test_metadata_candidate_audit_accepts_builder_source_family_field() -> None:
     report = audit_metadata_candidates(payload)
 
     assert report["family_id"] == "PF00497"
+
+
+def test_metadata_candidate_audit_excludes_missing_resolution_without_failing() -> None:
+    from scripts.audit_target_family_metadata_candidates import audit_metadata_candidates
+
+    payload = _inventory()
+    payload["records"][0]["resolution_angstrom"] = None
+
+    report = audit_metadata_candidates(payload)
+
+    assert report["record_count"] == len(payload["records"])
+    assert report["strict"]["eligible_record_count"] == 5
