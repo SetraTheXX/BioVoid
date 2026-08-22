@@ -7,12 +7,11 @@ or discovery claim.
 ## Purpose
 
 The current bounded PF00497 pilot contains six usable cases (two development,
-two validation, and two temporal-test cases). It can be compared with fpocket
-and P2Rank only after the representative-chain policy and the current
-six-case diagnostic evaluator have been reviewed. The earlier two-case
+two validation, and two temporal-test cases). The earlier two-case
 evaluator/external-baseline record is historical evidence, not the active
-cohort. `scripts/check_target_family_baseline_readiness.py` prepares that next
-gate without running either external tool.
+cohort. `scripts/check_target_family_baseline_readiness.py` prepares this gate
+without running either external tool; the separate target-family runner then
+executes the explicitly approved bounded comparison.
 
 The generated local manifest contains only the already prepared apo inputs:
 
@@ -46,12 +45,13 @@ single-worker boundary.
 
 ## Current development gate
 
-The current local report is expected to remain one of:
+The preflight local report is expected to remain one of:
 `blocked_review_and_tooling`, `blocked_independent_review`,
 `blocked_tooling_unavailable`, or `ready_for_explicit_user_approval`.
-The historical two-case run was started only after the then-current state and
-explicit user approval; its ignored output is diagnostic-only and does not
-authorize superiority or discovery claims. No six-case external-baseline run is
-implied by this readiness contract. Until the representative-chain review and
-an explicit bounded-run approval are complete, NMA, broad scans, ML training,
-and discovery language remain out of scope.
+The six-case external-baseline run has now completed after the readiness report
+was `ready_for_explicit_user_approval` and explicit bounded-run approval was
+provided. Its ignored comparison output is diagnostic-only and does not
+authorize superiority or discovery claims. Readiness remains a preflight
+contract, not a scientific validation result. NMA, broad scans, ML training,
+and discovery language remain out of scope while the six-case failure patterns
+and family/sequence limitations are reviewed.
