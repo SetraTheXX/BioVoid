@@ -291,3 +291,31 @@ def test_materializer_reads_ground_truth_digest_from_legacy_provenance() -> None
     )
 
     assert cohort["cases"][0]["contact_label"]["ground_truth_sha256"] == "a" * 64
+
+
+def test_materializer_defaults_follow_current_pfam_pipeline() -> None:
+    from scripts.materialize_target_family_cohort import (
+        DEFAULT_EVALUATOR,
+        DEFAULT_INVENTORY,
+        DEFAULT_OUTPUT,
+        DEFAULT_PAIRS,
+        DEFAULT_SEQUENCE_CLUSTERS,
+    )
+
+    assert DEFAULT_PAIRS.as_posix().endswith(
+        "local-private/research/target-family/pilot-pairs-pfam-v1.json"
+    )
+    assert DEFAULT_INVENTORY.as_posix().endswith(
+        "local-private/research/target-family/metadata-inventory-pfam-v1.json"
+    )
+    assert DEFAULT_SEQUENCE_CLUSTERS.as_posix().endswith(
+        "data/runtime/target-family/sequence-clusters-pfam-v1/"
+        "target-family-sequence-clusters-pfam-v1.json"
+    )
+    assert DEFAULT_EVALUATOR.as_posix().endswith(
+        "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
+        "target-family-static-evaluation-pfam-v1.json"
+    )
+    assert DEFAULT_OUTPUT.as_posix().endswith(
+        "local-private/research/target-family/cohort-pfam-v1.json"
+    )

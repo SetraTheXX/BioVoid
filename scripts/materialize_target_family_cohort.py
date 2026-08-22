@@ -32,17 +32,19 @@ from src.target_family_cohort import (  # noqa: E402
 )
 
 
-DEFAULT_PAIRS = REPO_ROOT / "local-private/research/target-family/pilot-pairs-v1.json"
-DEFAULT_INVENTORY = REPO_ROOT / "local-private/research/target-family/metadata-inventory-v1.json"
+DEFAULT_PAIRS = REPO_ROOT / "local-private/research/target-family/pilot-pairs-pfam-v1.json"
+DEFAULT_INVENTORY = (
+    REPO_ROOT / "local-private/research/target-family/metadata-inventory-pfam-v1.json"
+)
 DEFAULT_SEQUENCE_CLUSTERS = (
-    REPO_ROOT
-    / "data/runtime/target-family/sequence-clusters-v1/target-family-sequence-clusters-v1.json"
+    REPO_ROOT / "data/runtime/target-family/sequence-clusters-pfam-v1/"
+    "target-family-sequence-clusters-pfam-v1.json"
 )
 DEFAULT_EVALUATOR = (
-    REPO_ROOT
-    / "data/runtime/target-family/static-evaluation-v1/target-family-static-evaluation-v1.json"
+    REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
+    "target-family-static-evaluation-pfam-v1.json"
 )
-DEFAULT_OUTPUT = REPO_ROOT / "local-private/research/target-family/cohort-v1.json"
+DEFAULT_OUTPUT = REPO_ROOT / "local-private/research/target-family/cohort-pfam-v1.json"
 MAX_CASES = 10
 LABEL_SOURCE = "holo_ligand_contact_v1"
 AUTO_TEMPORAL_SPLIT = "auto_temporal"
