@@ -98,6 +98,17 @@ def test_full_candidate_skeleton_is_explicit_and_separate() -> None:
     )
 
 
+def test_legacy_top10_run_without_new_retention_metadata_remains_readable() -> None:
+    manifest = _manifest()
+    payload = build_pilot_run_skeleton(manifest)
+    payload["execution"].pop("candidate_retention")
+    payload["detector"].pop("candidate_scope")
+    payload["detector"].pop("held_out_ranking_contract")
+    _seal_run(payload)
+
+    validate_pilot_run(payload, manifest)
+
+
 def test_full_candidate_validation_requires_complete_case_storage() -> None:
     manifest = _manifest()
     payload = build_pilot_run_skeleton(

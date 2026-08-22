@@ -193,25 +193,34 @@ def validate_pilot_run(payload: Mapping[str, Any], manifest: Mapping[str, Any]) 
         raise TargetFamilyPilotError("Pilot run violates single-worker static boundary")
     if execution.get("external_baselines_enabled") is not False:
         raise TargetFamilyPilotError("Pilot run unexpectedly enables external baselines")
+    detector = payload.get("detector")
+    if not isinstance(detector, Mapping):
+        raise TargetFamilyPilotError("Pilot run is missing detector contract metadata")
+    legacy_top10 = (
+        execution.get("candidate_retention") is None
+        and detector.get("candidate_scope") is None
+        and detector.get("held_out_ranking_contract") is None
+    )
     try:
-        candidate_retention = validate_candidate_retention(execution.get("candidate_retention"))
+        candidate_retention = (
+            CANDIDATE_RETENTION_TOP10
+            if legacy_top10
+            else validate_candidate_retention(execution.get("candidate_retention"))
+        )
     except ValueError as exc:
         raise TargetFamilyPilotError(str(exc)) from exc
     if not isinstance(execution.get("max_disk_bytes"), int) or execution["max_disk_bytes"] < 1:
         raise TargetFamilyPilotError("Pilot run has no positive disk quota")
     if payload.get("claim_boundary") != "unvalidated_static_method_smoke":
         raise TargetFamilyPilotError("Pilot run has an unsafe claim boundary")
-    detector = payload.get("detector")
-    if not isinstance(detector, Mapping):
-        raise TargetFamilyPilotError("Pilot run is missing detector contract metadata")
     expected_scope = (
         "stored_top10"
         if candidate_retention == CANDIDATE_RETENTION_TOP10
         else "all_detected_pockets"
     )
-    if detector.get("candidate_scope") != expected_scope:
+    if not legacy_top10 and detector.get("candidate_scope") != expected_scope:
         raise TargetFamilyPilotError("Pilot run candidate scope does not match retention mode")
-    if detector.get("held_out_ranking_contract") != HELD_OUT_RANKING_CONTRACT:
+    if not legacy_top10 and detector.get("held_out_ranking_contract") != HELD_OUT_RANKING_CONTRACT:
         raise TargetFamilyPilotError("Pilot run is missing the held-out ranking contract")
     expected_hash = _stable_hash(
         {key: value for key, value in payload.items() if key != "run_sha256"}
@@ -227,7 +236,7 @@ def validate_pilot_run(payload: Mapping[str, Any], manifest: Mapping[str, Any]) 
         for case_id, case in cases.items():
             if not isinstance(case, Mapping) or case.get("status") != "completed":
                 continue
-            if case.get("candidate_retention") != candidate_retention:
+            if not legacy_top10 and case.get("candidate_retention") != candidate_retention:
                 raise TargetFamilyPilotError(
                     f"{case_id}: case retention does not match run retention"
                 )

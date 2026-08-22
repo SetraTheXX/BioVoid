@@ -263,11 +263,12 @@ def build_baseline_input_manifest(
     validate_detector_manifest(detector_manifest)
     if static_run.get("manifest_sha256") != detector_manifest.get("manifest_sha256"):
         raise BaselineReadinessError("Static run is not bound to the detector manifest")
-    if recovery_run.get("manifest_sha256") != detector_manifest.get("manifest_sha256"):
-        raise BaselineReadinessError("Recovery run is not bound to the detector manifest")
-    expected_primary_hash = primary_run_file_sha256 or str(static_run.get("run_sha256", ""))
-    if recovery_run.get("primary_run_sha256") != expected_primary_hash:
-        raise BaselineReadinessError("Recovery run is not bound to the static run")
+    if recovery_run:
+        if recovery_run.get("manifest_sha256") != detector_manifest.get("manifest_sha256"):
+            raise BaselineReadinessError("Recovery run is not bound to the detector manifest")
+        expected_primary_hash = primary_run_file_sha256 or str(static_run.get("run_sha256", ""))
+        if recovery_run.get("primary_run_sha256") != expected_primary_hash:
+            raise BaselineReadinessError("Recovery run is not bound to the static run")
     cases = detector_manifest.get("cases")
     if not isinstance(cases, list) or not 1 <= len(cases) <= MAX_CASES:
         raise BaselineReadinessError("Detector manifest is outside the bounded baseline range")
@@ -397,9 +398,12 @@ def build_readiness_report(
 
     validate_detector_manifest(detector_manifest)
     validate_pilot_run(static_run, detector_manifest)
-    validate_recovery_run(recovery_run)
-    if recovery_run.get("manifest_sha256") != detector_manifest.get("manifest_sha256"):
-        raise BaselineReadinessError("Recovery manifest hash does not match detector manifest")
+    recovery_contract = "not_required"
+    if recovery_run:
+        validate_recovery_run(recovery_run)
+        if recovery_run.get("manifest_sha256") != detector_manifest.get("manifest_sha256"):
+            raise BaselineReadinessError("Recovery manifest hash does not match detector manifest")
+        recovery_contract = "pass"
     validate_evaluation_report(evaluation_report, detector_manifest)
     baseline_manifest = build_baseline_input_manifest(
         detector_manifest,
@@ -442,7 +446,7 @@ def build_readiness_report(
         "baseline_input_manifest_sha256": baseline_manifest["manifest_sha256"],
         "checks": {
             "static_run_contract": "pass",
-            "recovery_run_contract": "pass",
+            "recovery_run_contract": recovery_contract,
             "evaluator_contract": "pass",
             "prepared_apo_inputs": "pass",
             "representative_chain_policy": policy_status,
@@ -509,7 +513,7 @@ def main() -> int:
     }
     manifest = _read_json(paths["manifest"])
     static_run = _read_json(paths["static_run"])
-    recovery_run = _read_json(paths["recovery_run"])
+    recovery_run = _read_json(paths["recovery_run"]) if paths["recovery_run"].is_file() else {}
     evaluation_report = _read_json(paths["evaluation_report"])
     probe = _docker_probe(BASELINE_CONFIG)
     try:

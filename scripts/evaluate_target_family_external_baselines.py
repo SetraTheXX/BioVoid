@@ -227,7 +227,8 @@ def evaluate_target_family_comparison(
     manifest = _read_json(manifest_path.resolve())
     baseline_manifest = _read_json(baseline_manifest_path.resolve())
     static_run = _read_json(static_run_path.resolve())
-    recovery_run = _read_json(recovery_run_path.resolve())
+    recovery_path = recovery_run_path.resolve()
+    recovery_run = _read_json(recovery_path) if recovery_path.is_file() else {}
     evaluation_report = _read_json(evaluation_report_path.resolve())
     fpocket_report = _read_json(fpocket_report_path.resolve())
     p2rank_report = _read_json(p2rank_report_path.resolve())

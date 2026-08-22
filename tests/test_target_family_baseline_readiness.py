@@ -119,6 +119,56 @@ def test_build_baseline_manifest_uses_recovery_input_without_evaluator_fields(
     assert "ligand" not in str(payload).casefold()
 
 
+def test_build_baseline_manifest_allows_missing_recovery_when_primary_is_complete(
+    tmp_path: Path,
+) -> None:
+    from scripts.check_target_family_baseline_readiness import (
+        build_baseline_input_manifest,
+        validate_baseline_input_manifest,
+    )
+
+    static_root = tmp_path / "data" / "runtime" / "target-family" / "static-pilot-v1"
+    case_path = static_root / "cases" / "6MLD" / "preparation" / "prepared_detector.pdb"
+    case_path.parent.mkdir(parents=True)
+    case_path.write_text("ATOM 6MLD\n", encoding="ascii")
+    case_sha = hashlib.sha256(case_path.read_bytes()).hexdigest()
+    manifest = _manifest()
+    manifest["cases"] = [manifest["cases"][0]]
+    manifest["constraints"]["case_count"] = 1
+    manifest_body = {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+    manifest["manifest_sha256"] = hashlib.sha256(
+        json.dumps(manifest_body, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    static_run = {
+        "schema_version": "biovoid-target-family-static-pilot-run-v1",
+        "manifest_sha256": manifest["manifest_sha256"],
+        "run_sha256": "primary-hash",
+        "cases": {
+            "PF00497:6MLD:test6": {
+                "status": "completed",
+                "structure_id": "6MLD",
+                "prepared_path": "data/runtime/target-family/static-pilot-v1/cases/6MLD/"
+                "preparation/prepared_detector.pdb",
+                "prepared_structure_sha256": case_sha,
+            }
+        },
+    }
+
+    payload = build_baseline_input_manifest(
+        manifest,
+        static_run,
+        {},
+        repo_root=tmp_path,
+        prepared_root=static_root,
+    )
+
+    validate_baseline_input_manifest(payload)
+    assert payload["source_recovery_run_sha256"] is None
+    assert [item["structure_id"] for item in payload["structures"]] == ["6MLD"]
+
+
 def test_validate_baseline_manifest_rejects_evaluator_field() -> None:
     from scripts.check_target_family_baseline_readiness import (
         validate_baseline_input_manifest,
