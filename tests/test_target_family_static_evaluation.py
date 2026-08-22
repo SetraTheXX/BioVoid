@@ -8,6 +8,9 @@ import pytest
 
 from scripts.evaluate_target_family_static_pilot import (
     DEFAULT_HOLO_DIR,
+    DEFAULT_FULL_HOLO_DIR,
+    DEFAULT_FULL_REPORT,
+    DEFAULT_FULL_STATIC_RUN,
     DEFAULT_MANIFEST,
     DEFAULT_MAX_CASES,
     DEFAULT_PAIRS,
@@ -16,6 +19,7 @@ from scripts.evaluate_target_family_static_pilot import (
     EVALUATION_REPORT_SCHEMA_VERSION,
     TargetFamilyEvaluationError,
     _summary,
+    _detector_record,
     _download_holo,
     _chain_pairs,
     build_evaluation_skeleton,
@@ -30,6 +34,7 @@ from src.target_family_manifest import (
 )
 from src.ground_truth_alignment import ChainPair
 from src.structure_preparation import ParsedAtom
+from src.target_family_ranking import CANDIDATE_RETENTION_FULL, CANDIDATE_RETENTION_TOP10
 
 
 def _record(
@@ -73,6 +78,8 @@ def test_evaluation_skeleton_keeps_evaluator_separate_and_bounded() -> None:
     assert payload["execution"]["workers"] == 1
     assert payload["execution"]["max_cases"] == 2
     assert payload["execution"]["max_disk_bytes"] == 10_000_000_000
+    assert payload["execution"]["candidate_scope"] == CANDIDATE_RETENTION_TOP10
+    assert payload["candidate_scope"] == CANDIDATE_RETENTION_TOP10
     assert payload["claim_boundary"] == "diagnostic_dcc_dca_only"
     assert payload["roadmap"]["current_gate"] == "G2-bounded-static-development-pilot"
     assert "4P0I" in payload["roadmap"]["next_step"]
@@ -96,6 +103,67 @@ def test_evaluator_defaults_point_to_current_pfam_cohort() -> None:
         "target-family-static-evaluation-pfam-v1.json"
     )
     assert DEFAULT_MAX_CASES == 6
+
+
+def test_full_evaluator_defaults_are_separate_from_top10_workspace() -> None:
+    assert DEFAULT_FULL_STATIC_RUN.as_posix().endswith(
+        "data/runtime/target-family/static-pilot-pfam-v1-full-candidates/"
+        "target-family-static-pilot-run-v1.json"
+    )
+    assert DEFAULT_FULL_HOLO_DIR.as_posix().endswith(
+        "local-private/research/target-family/holo-pfam-v1-full-candidates"
+    )
+    assert DEFAULT_FULL_REPORT.as_posix().endswith(
+        "data/runtime/target-family/static-evaluation-pfam-v1-full-candidates/"
+        "target-family-static-evaluation-pfam-v1.json"
+    )
+
+
+def test_full_evaluator_skeleton_records_scope_and_static_hash() -> None:
+    payload = build_evaluation_skeleton(
+        _manifest(),
+        max_cases=2,
+        max_disk_bytes=10_000_000_000,
+        candidate_scope=CANDIDATE_RETENTION_FULL,
+        static_run_sha256="a" * 64,
+    )
+
+    assert payload["execution"]["candidate_scope"] == CANDIDATE_RETENTION_FULL
+    assert payload["candidate_scope"] == CANDIDATE_RETENTION_FULL
+    assert payload["static_run_sha256"] == "a" * 64
+
+
+def test_full_detector_record_uses_all_pockets_and_never_recovery() -> None:
+    pockets = [
+        {"pocket_id": "BV-1", "center": [0.0, 0.0, 0.0], "volume": 20.0},
+        {"pocket_id": "BV-2", "center": [1.0, 1.0, 1.0], "volume": 10.0},
+    ]
+    record, arm = _detector_record(
+        "4P0I",
+        {
+            "status": "completed",
+            "candidate_retention": CANDIDATE_RETENTION_FULL,
+            "pocket_count": 2,
+            "top_pockets": pockets,
+            "all_pockets": pockets,
+        },
+        None,
+        candidate_scope=CANDIDATE_RETENTION_FULL,
+    )
+
+    assert arm == "canonical_static"
+    assert record.status == "completed"
+    assert len(record.pockets) == 2
+    assert record.provenance["candidate_scope"] == CANDIDATE_RETENTION_FULL
+
+    unavailable, unavailable_arm = _detector_record(
+        "4P0I",
+        None,
+        {"status": "completed", "top_pockets": pockets},
+        candidate_scope=CANDIDATE_RETENTION_FULL,
+    )
+    assert unavailable_arm == "unavailable"
+    assert unavailable.status == "unavailable"
 
 
 def test_evaluation_skeleton_rejects_unbounded_cases() -> None:

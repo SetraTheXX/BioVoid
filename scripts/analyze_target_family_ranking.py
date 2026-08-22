@@ -29,6 +29,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.target_family_ranking import (  # noqa: E402
+    CANDIDATE_RETENTION_FULL,
+    CANDIDATE_RETENTION_TOP10,
+    validate_candidate_retention,
+)
+
 
 DEFAULT_STATIC_RUN = (
     REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
@@ -38,12 +44,27 @@ DEFAULT_EVALUATION_REPORT = (
     REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
     "target-family-static-evaluation-pfam-v1.json"
 )
+DEFAULT_FULL_STATIC_RUN = (
+    REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-full-candidates/"
+    "target-family-static-pilot-run-v1.json"
+)
+DEFAULT_FULL_EVALUATION_REPORT = (
+    REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-full-candidates/"
+    "target-family-static-evaluation-pfam-v1.json"
+)
 DEFAULT_COHORT = REPO_ROOT / "local-private/research/target-family/cohort-pfam-v1.json"
 DEFAULT_OUTPUT = (
     REPO_ROOT / "data/runtime/target-family/ranking-shadow-v1/target-family-ranking-shadow-v1.json"
 )
 DEFAULT_MARKDOWN_OUTPUT = (
     REPO_ROOT / "research-local/audits/TARGET_FAMILY_RANKING_SHADOW_ANALYSIS_2026-08-22.md"
+)
+DEFAULT_FULL_OUTPUT = (
+    REPO_ROOT / "data/runtime/target-family/ranking-shadow-full-candidates-v1/"
+    "target-family-ranking-shadow-full-candidates-v1.json"
+)
+DEFAULT_FULL_MARKDOWN_OUTPUT = (
+    REPO_ROOT / "research-local/audits/TARGET_FAMILY_RANKING_FULL_CANDIDATE_ANALYSIS_2026-08-22.md"
 )
 
 SCHEMA_VERSION = "target-family-ranking-shadow-v1"
@@ -266,12 +287,24 @@ def _analyze_case(
     static_record: Mapping[str, Any],
     evaluation_record: Mapping[str, Any],
     split: str,
+    *,
+    candidate_scope: str,
 ) -> dict[str, Any]:
-    pockets = static_record.get("top_pockets")
+    pockets_key = "all_pockets" if candidate_scope == CANDIDATE_RETENTION_FULL else "top_pockets"
+    pockets = static_record.get(pockets_key)
     if not isinstance(pockets, list) or not pockets:
-        raise RankingAnalysisError(f"{case_id}: static top_pockets is empty or invalid")
+        raise RankingAnalysisError(f"{case_id}: static {pockets_key} is empty or invalid")
     if not all(isinstance(pocket, dict) for pocket in pockets):
         raise RankingAnalysisError(f"{case_id}: pocket entries must be objects")
+    if candidate_scope == CANDIDATE_RETENTION_FULL:
+        if static_record.get("candidate_retention") != CANDIDATE_RETENTION_FULL:
+            raise RankingAnalysisError(f"{case_id}: static run is not sealed for full candidates")
+        pocket_count = static_record.get("pocket_count")
+        top_pockets = static_record.get("top_pockets")
+        if not isinstance(pocket_count, int) or len(pockets) != pocket_count:
+            raise RankingAnalysisError(f"{case_id}: full pocket count is inconsistent")
+        if not isinstance(top_pockets, list) or pockets[:10] != top_pockets:
+            raise RankingAnalysisError(f"{case_id}: full candidate top10 prefix is inconsistent")
     _validate_canonical_volume_order(pockets)
 
     case_evaluation = evaluation_record.get("case_evaluation")
@@ -287,9 +320,7 @@ def _analyze_case(
     if not isinstance(dcc, list) or not isinstance(dca, list):
         raise RankingAnalysisError(f"{case_id}: evaluator distances are missing")
     if len(dcc) != len(pockets) or len(dca) != len(pockets):
-        raise RankingAnalysisError(
-            f"{case_id}: evaluator distance arrays must match stored top_pockets"
-        )
+        raise RankingAnalysisError(f"{case_id}: evaluator distance arrays must match {pockets_key}")
 
     shadow_order, shadow_scores = _shadow_order(pockets)
     canonical_order = list(range(len(pockets)))
@@ -345,9 +376,14 @@ def analyze_target_family_ranking(
     cohort_path: Path = DEFAULT_COHORT,
     output_path: Path = DEFAULT_OUTPUT,
     markdown_output_path: Path = DEFAULT_MARKDOWN_OUTPUT,
+    candidate_scope: str = CANDIDATE_RETENTION_TOP10,
 ) -> dict[str, Any]:
     """Create an offline shadow-ranking report from frozen local artifacts."""
 
+    try:
+        candidate_scope = validate_candidate_retention(candidate_scope)
+    except ValueError as exc:
+        raise RankingAnalysisError(str(exc)) from exc
     static_run = _read_json(static_run_path.resolve())
     evaluation_report = _read_json(evaluation_report_path.resolve())
     cohort = _read_json(cohort_path.resolve())
@@ -355,10 +391,20 @@ def analyze_target_family_ranking(
 
     if static_run.get("detector", {}).get("version") != "canonical-static-v1":
         raise RankingAnalysisError("static run is not canonical-static-v1")
+    static_retention = (
+        static_run.get("execution", {}).get("candidate_retention")
+        if isinstance(static_run.get("execution"), Mapping)
+        else None
+    )
+    if candidate_scope == CANDIDATE_RETENTION_FULL and static_retention != CANDIDATE_RETENTION_FULL:
+        raise RankingAnalysisError("full analysis requires a static run with full retention")
     if evaluation_report.get("detector_target_blind") is not True:
         raise RankingAnalysisError("evaluator report is not target-blind")
     if evaluation_report.get("evaluator_only") is not True:
         raise RankingAnalysisError("evaluator report is not evaluator-only")
+    report_scope = evaluation_report.get("candidate_scope", CANDIDATE_RETENTION_TOP10)
+    if report_scope != candidate_scope:
+        raise RankingAnalysisError("static and evaluator candidate scopes do not match")
 
     static_cases = static_run.get("cases")
     evaluation_records = evaluation_report.get("records")
@@ -375,7 +421,15 @@ def analyze_target_family_ranking(
         split = split_map.get(case_id)
         if split is None:
             raise RankingAnalysisError(f"{case_id}: missing cohort split")
-        case_results.append(_analyze_case(case_id, static_record, evaluation_record, split))
+        case_results.append(
+            _analyze_case(
+                case_id,
+                static_record,
+                evaluation_record,
+                split,
+                candidate_scope=candidate_scope,
+            )
+        )
 
     split_names = sorted({case["split"] for case in case_results})
     by_split = {}
@@ -391,6 +445,7 @@ def analyze_target_family_ranking(
         "schema_version": SCHEMA_VERSION,
         "created_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "family_id": static_run.get("family_id"),
+        "candidate_scope": candidate_scope,
         "claim_boundary": "exploratory_shadow_ranking_only",
         "interpretation_status": "diagnostic_pending_independent_review",
         "canonical_artifact_modified": False,
@@ -404,8 +459,14 @@ def analyze_target_family_ranking(
         },
         "scope": {
             "case_count": len(case_results),
-            "stored_candidates_per_case": 10,
-            "candidate_scope": "stored_top10_only",
+            "stored_candidates_per_case": (
+                10 if candidate_scope == CANDIDATE_RETENTION_TOP10 else None
+            ),
+            "candidate_scope": (
+                "stored_top10_only"
+                if candidate_scope == CANDIDATE_RETENTION_TOP10
+                else "all_detected_pockets"
+            ),
             "tail_censored_case_count": sum(case["tail_censored"] for case in case_results),
             "tail_censored_cases": [
                 case["structure_id"] for case in case_results if case["tail_censored"]
@@ -431,8 +492,17 @@ def analyze_target_family_ranking(
         "error_class_counts": _error_class_counts(case_results),
         "cases": case_results,
         "limitations": [
-            "The static artifact stores only the first ten volume-ranked pockets.",
-            "The shadow result cannot rescue a true pocket outside the stored top ten.",
+            *(
+                [
+                    "The static artifact stores only the first ten volume-ranked pockets.",
+                    "The shadow result cannot rescue a true pocket outside the stored top ten.",
+                ]
+                if candidate_scope == CANDIDATE_RETENTION_TOP10
+                else [
+                    "Full-candidate retention covers the detector output recorded in the sealed static run.",
+                    "This is still a small, family-specific diagnostic and not a confirmatory benchmark.",
+                ]
+            ),
             "The cohort has two cases per split; rates are descriptive, not inferential.",
             "This analysis was run after the pilot and is exploratory, not confirmatory.",
             "No superiority, validated prediction, or discovery claim is authorized.",
@@ -446,8 +516,11 @@ def analyze_target_family_ranking(
 
 def _render_markdown(report: Mapping[str, Any]) -> str:
     aggregate = report["aggregate"]
+    candidate_scope = report.get("candidate_scope", CANDIDATE_RETENTION_TOP10)
+    full_scope = candidate_scope == CANDIDATE_RETENTION_FULL
+    scope_label = "full-candidate" if full_scope else "top-10"
     lines = [
-        "# PF00497 shadow-ranking analysis — 22 August 2026",
+        f"# PF00497 {scope_label} shadow-ranking analysis — 22 August 2026",
         "",
         "This is an ignored, offline, exploratory diagnostic. The canonical static",
         "artifact and its volume ranking were not modified; no detector, ML, NMA,",
@@ -458,8 +531,13 @@ def _render_markdown(report: Mapping[str, Any]) -> str:
         "`0.70 * within-case volume_minmax + 0.30 * within-case enclosure_minmax`",
         "",
         "Depth is excluded because canonical-static-v1 deterministically derives it",
-        "from enclosure and the frozen ray length. The analysis is limited to the",
-        "stored top ten candidates, so full-pocket tail misses remain censored.",
+        "from enclosure and the frozen ray length.",
+        (
+            "The analysis covers the complete candidate list recorded in the sealed "
+            "full-candidate static run."
+            if full_scope
+            else "The analysis is limited to the stored top ten candidates, so full-pocket tail misses remain censored."
+        ),
         "",
         "## Aggregate outcome",
         "",
@@ -480,7 +558,11 @@ def _render_markdown(report: Mapping[str, Any]) -> str:
             "",
             "## Shadow versus canonical changes",
             "",
-            "Rescued/regressed counts are descriptive changes inside the stored top ten.",
+            (
+                "Rescued/regressed counts are descriptive changes inside the full candidate list."
+                if full_scope
+                else "Rescued/regressed counts are descriptive changes inside the stored top ten."
+            ),
             "",
         ]
     )
@@ -526,6 +608,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cohort", type=Path, default=DEFAULT_COHORT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--markdown-output", type=Path, default=DEFAULT_MARKDOWN_OUTPUT)
+    parser.add_argument(
+        "--candidate-scope",
+        choices=(CANDIDATE_RETENTION_TOP10, CANDIDATE_RETENTION_FULL),
+        default=CANDIDATE_RETENTION_TOP10,
+        help="Analyze the stored top ten, or a sealed full-candidate artifact.",
+    )
     return parser.parse_args()
 
 
@@ -538,6 +626,7 @@ def main() -> int:
             cohort_path=args.cohort,
             output_path=args.output,
             markdown_output_path=args.markdown_output,
+            candidate_scope=args.candidate_scope,
         )
     except RankingAnalysisError as exc:
         print(f"target-family ranking analysis error: {exc}", file=sys.stderr)

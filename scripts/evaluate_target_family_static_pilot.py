@@ -45,6 +45,11 @@ from src.structure_preparation import (  # noqa: E402
     PROTEIN_RESIDUES,
     load_structure_atoms,
 )
+from src.target_family_ranking import (  # noqa: E402
+    CANDIDATE_RETENTION_FULL,
+    CANDIDATE_RETENTION_TOP10,
+    validate_candidate_retention,
+)
 from src.target_family_manifest import MAX_PILOT_CASES, validate_detector_manifest  # noqa: E402
 
 
@@ -56,6 +61,10 @@ DEFAULT_STATIC_RUN = (
     REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-rerun-v2/"
     "target-family-static-pilot-run-v1.json"
 )
+DEFAULT_FULL_STATIC_RUN = (
+    REPO_ROOT / "data/runtime/target-family/static-pilot-pfam-v1-full-candidates/"
+    "target-family-static-pilot-run-v1.json"
+)
 DEFAULT_RECOVERY_RUN = (
     REPO_ROOT / "data/runtime/target-family/static-pilot-recovery-pfam-v1/"
     "target-family-static-recovery-v1.json"
@@ -64,6 +73,13 @@ DEFAULT_PAIRS = REPO_ROOT / "local-private/research/target-family/pilot-pairs-pf
 DEFAULT_HOLO_DIR = REPO_ROOT / "local-private/research/target-family/holo-pfam-v1"
 DEFAULT_REPORT = (
     REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-rerun-v2/"
+    "target-family-static-evaluation-pfam-v1.json"
+)
+DEFAULT_FULL_HOLO_DIR = (
+    REPO_ROOT / "local-private/research/target-family/holo-pfam-v1-full-candidates"
+)
+DEFAULT_FULL_REPORT = (
+    REPO_ROOT / "data/runtime/target-family/static-evaluation-pfam-v1-full-candidates/"
     "target-family-static-evaluation-pfam-v1.json"
 )
 MAX_DISK_BYTES = 10_000_000_000
@@ -165,10 +181,16 @@ def build_evaluation_skeleton(
     *,
     max_cases: int = DEFAULT_MAX_CASES,
     max_disk_bytes: int = MAX_DISK_BYTES,
+    candidate_scope: str = CANDIDATE_RETENTION_TOP10,
+    static_run_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Build the evaluator report before any holo coordinate is opened."""
 
     validate_detector_manifest(manifest)
+    try:
+        candidate_scope = validate_candidate_retention(candidate_scope)
+    except ValueError as exc:
+        raise TargetFamilyEvaluationError(str(exc)) from exc
     if max_cases < 1 or max_cases > MAX_PILOT_CASES:
         raise ValueError(f"max_cases must be between 1 and {MAX_PILOT_CASES}")
     case_count = int(manifest["constraints"]["case_count"])
@@ -196,6 +218,7 @@ def build_evaluation_skeleton(
             "max_disk_bytes": max_disk_bytes,
             "disk_quota_enforced": True,
             "holo_coordinates_downloaded": False,
+            "candidate_scope": candidate_scope,
         },
         "source": {
             "holo_provider": "RCSB files.rcsb.org",
@@ -204,6 +227,8 @@ def build_evaluation_skeleton(
         },
         "alignment_policy": asdict(EVALUATOR_POLICY),
         "chain_selection_policy": CHAIN_SELECTION_POLICY,
+        "candidate_scope": candidate_scope,
+        "static_run_sha256": static_run_sha256,
         "interpretation_status": "pending_independent_review",
         "records": {},
         "counts": {
@@ -379,22 +404,57 @@ def _detector_record(
     structure_id: str,
     primary_case: Mapping[str, Any] | None,
     recovery_case: Mapping[str, Any] | None,
+    *,
+    candidate_scope: str = CANDIDATE_RETENTION_TOP10,
 ) -> tuple[Any, str]:
+    try:
+        candidate_scope = validate_candidate_retention(candidate_scope)
+    except ValueError as exc:
+        raise TargetFamilyEvaluationError(str(exc)) from exc
     if primary_case is not None and primary_case.get("status") == "completed":
-        pockets = primary_case.get("top_pockets")
+        pockets_key = (
+            "all_pockets" if candidate_scope == CANDIDATE_RETENTION_FULL else "top_pockets"
+        )
+        pockets = primary_case.get(pockets_key)
         if not isinstance(pockets, list) or not pockets:
-            raise TargetFamilyEvaluationError(f"Canonical case has no pockets: {structure_id}")
+            raise TargetFamilyEvaluationError(
+                f"Canonical case has no {candidate_scope} pockets: {structure_id}"
+            )
+        if candidate_scope == CANDIDATE_RETENTION_FULL:
+            if primary_case.get("candidate_retention") != CANDIDATE_RETENTION_FULL:
+                raise TargetFamilyEvaluationError(
+                    f"Canonical case is not sealed with full candidate retention: {structure_id}"
+                )
+            pocket_count = primary_case.get("pocket_count")
+            top_pockets = primary_case.get("top_pockets")
+            if not isinstance(pocket_count, int) or len(pockets) != pocket_count:
+                raise TargetFamilyEvaluationError(
+                    f"Full candidate count is inconsistent: {structure_id}"
+                )
+            if not isinstance(top_pockets, list) or pockets[:10] != top_pockets:
+                raise TargetFamilyEvaluationError(
+                    f"Full candidate top10 prefix is inconsistent: {structure_id}"
+                )
         return (
             adapt_biovoid_pockets(
                 structure_id,
                 pockets,
                 provenance={
-                    "source": "target-family-static-pilot-v1",
+                    "source": (
+                        "target-family-static-pilot-full-candidates-v1"
+                        if candidate_scope == CANDIDATE_RETENTION_FULL
+                        else "target-family-static-pilot-v1"
+                    ),
                     "canonical_static_result": True,
+                    "candidate_scope": candidate_scope,
+                    "stored_candidate_count": len(pockets),
                 },
             ),
             "canonical_static",
         )
+    if candidate_scope == CANDIDATE_RETENTION_FULL:
+        reason = "canonical full-candidate result unavailable; recovery is not eligible"
+        return unavailable_record("biovoid_static", structure_id, reason), "unavailable"
     if recovery_case is not None and recovery_case.get("status") == "completed":
         pockets = recovery_case.get("top_pockets")
         if not isinstance(pockets, list) or not pockets:
@@ -495,6 +555,12 @@ def validate_evaluation_report(
         raise TargetFamilyEvaluationError("Evaluator report claim boundary is unsafe")
     if report.get("chain_selection_policy") != CHAIN_SELECTION_POLICY:
         raise TargetFamilyEvaluationError("Evaluator chain-selection policy is not locked")
+    try:
+        candidate_scope = validate_candidate_retention(
+            report.get("candidate_scope", CANDIDATE_RETENTION_TOP10)
+        )
+    except ValueError as exc:
+        raise TargetFamilyEvaluationError(str(exc)) from exc
 
     execution = report.get("execution")
     if not isinstance(execution, Mapping):
@@ -507,6 +573,14 @@ def validate_evaluation_report(
         raise TargetFamilyEvaluationError(
             "Evaluator report unexpectedly enables external baselines"
         )
+    if execution.get("candidate_scope", CANDIDATE_RETENTION_TOP10) != candidate_scope:
+        raise TargetFamilyEvaluationError("Evaluator candidate scope metadata drifted")
+    if (
+        candidate_scope == CANDIDATE_RETENTION_FULL
+        and str(report.get("status", "")) != "not_started"
+        and not str(report.get("static_run_sha256", "")).strip()
+    ):
+        raise TargetFamilyEvaluationError("Full evaluator report is missing static run hash")
     max_disk_bytes = execution.get("max_disk_bytes")
     if not isinstance(max_disk_bytes, int) or max_disk_bytes < 1 or max_disk_bytes > MAX_DISK_BYTES:
         raise TargetFamilyEvaluationError("Evaluator report has no bounded disk quota")
@@ -625,27 +699,51 @@ def run_target_family_evaluation(
     max_cases: int = DEFAULT_MAX_CASES,
     max_disk_bytes: int = MAX_DISK_BYTES,
     user_approved: bool = False,
+    candidate_scope: str = CANDIDATE_RETENTION_TOP10,
 ) -> dict[str, Any]:
     if not user_approved:
         raise TargetFamilyEvaluationError(
             "Opening evaluator-only holo coordinates requires --approve-evaluator"
         )
+    try:
+        candidate_scope = validate_candidate_retention(candidate_scope)
+    except ValueError as exc:
+        raise TargetFamilyEvaluationError(str(exc)) from exc
     manifest = _read_json(manifest_path.resolve())
     validate_detector_manifest(manifest)
     static_run = _read_json(static_run_path.resolve())
-    recovery_run = _read_json(recovery_run_path.resolve()) if recovery_run_path.is_file() else {}
+    recovery_run = (
+        {}
+        if candidate_scope == CANDIDATE_RETENTION_FULL
+        else (_read_json(recovery_run_path.resolve()) if recovery_run_path.is_file() else {})
+    )
     pairs_payload = _read_json(pairs_path.resolve())
     pairs = pairs_payload.get("pairs")
     if not isinstance(pairs, list):
         raise TargetFamilyEvaluationError("Private pilot pair inventory is invalid")
     if static_run.get("manifest_sha256") != manifest.get("manifest_sha256"):
         raise TargetFamilyEvaluationError("Static run manifest hash mismatch")
+    static_retention = (
+        static_run.get("execution", {}).get("candidate_retention")
+        if isinstance(static_run.get("execution"), Mapping)
+        else None
+    )
+    if candidate_scope == CANDIDATE_RETENTION_FULL and static_retention != CANDIDATE_RETENTION_FULL:
+        raise TargetFamilyEvaluationError(
+            "Full evaluator scope requires a static run sealed with full candidate retention"
+        )
     if recovery_run and recovery_run.get("manifest_sha256") != manifest.get("manifest_sha256"):
         raise TargetFamilyEvaluationError("Recovery run manifest hash mismatch")
     if len(manifest["cases"]) > max_cases:
         raise TargetFamilyEvaluationError("Target-family evaluator case cap exceeded")
 
-    report = build_evaluation_skeleton(manifest, max_cases=max_cases, max_disk_bytes=max_disk_bytes)
+    report = build_evaluation_skeleton(
+        manifest,
+        max_cases=max_cases,
+        max_disk_bytes=max_disk_bytes,
+        candidate_scope=candidate_scope,
+        static_run_sha256=_sha256_file(static_run_path.resolve()),
+    )
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report["status"] = "running"
     _seal(report)
@@ -684,7 +782,10 @@ def run_target_family_evaluation(
             primary_case = static_cases.get(case_id)
             recovery_case = recovery_case_by_structure.get(structure_id)
             detector_record, detector_arm = _detector_record(
-                structure_id, primary_case, recovery_case
+                structure_id,
+                primary_case,
+                recovery_case,
+                candidate_scope=candidate_scope,
             )
             record["detector_arm"] = detector_arm
             record["detector_status"] = detector_record.status
@@ -803,6 +904,12 @@ def main() -> int:
     parser.add_argument("--max-cases", type=int, default=DEFAULT_MAX_CASES)
     parser.add_argument("--max-disk-bytes", type=int, default=MAX_DISK_BYTES)
     parser.add_argument(
+        "--candidate-scope",
+        choices=(CANDIDATE_RETENTION_TOP10, CANDIDATE_RETENTION_FULL),
+        default=CANDIDATE_RETENTION_TOP10,
+        help="Evaluate the stored top ten, or an explicitly sealed full-candidate run.",
+    )
+    parser.add_argument(
         "--validate-only",
         action="store_true",
         help="Validate an existing evaluator report without network or holo access.",
@@ -830,6 +937,7 @@ def main() -> int:
         max_cases=args.max_cases,
         max_disk_bytes=args.max_disk_bytes,
         user_approved=args.approve_evaluator,
+        candidate_scope=args.candidate_scope,
     )
     print(f"status={report['status']}")
     print(f"completed_ground_truth={report['counts']['completed_ground_truth']}")

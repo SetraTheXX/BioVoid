@@ -1,6 +1,6 @@
 # Target-family held-out ranking v1
 
-Status: **frozen preparation contract; no held-out result has been claimed**.
+Status: **frozen preparation contract; one local diagnostic full-candidate run completed; no held-out result has been claimed**.
 
 This contract defines how BioVoid may later inspect the complete static
 candidate universe without changing the canonical detector ranking or leaking
@@ -25,7 +25,17 @@ Both modes remain bounded by the existing contract:
 - explicit user approval before coordinate download.
 
 Full retention is not a resource-limit bypass. A blocked or failed case remains
-visible and is never replaced by a recovery result in the canonical arm.
+visible and is never replaced by a recovery result in the canonical arm. The
+evaluator and offline shadow analyzer accept `--candidate-scope full` only when
+the static artifact is sealed with full retention; the evaluator records the
+static-run hash and keeps the full-candidate workspace separate from the
+top-10 workspace.
+
+The 22 August 2026 local diagnostic run completed all six cases with zero
+failures and zero resource blocks. Its evaluator report also completed all six
+DCC/DCA alignments. These ignored local artifacts are implementation evidence
+only; they do not authorize a benchmark, superiority, validated-prediction or
+discovery claim.
 
 ## Held-out split and label boundary
 
@@ -56,8 +66,8 @@ post-hoc threshold, split, candidate cutoff or pair policy change is allowed.
 ## Decision boundary
 
 This contract authorizes implementation of a separate full-candidate artifact,
-not its execution or any scientific claim. A future run must be approved
-explicitly, sealed with manifest/protocol/input hashes, and reviewed before
-the temporal-test evaluator is opened. Negative or unchanged results are valid
-outcomes. ML, NMA, docking, broad PDB scanning, superiority language and
-discovery claims remain closed.
+not a scientific claim. Each run must be approved explicitly, sealed with
+manifest/protocol/input hashes, and reviewed before any confirmatory use of the
+temporal-test split. Negative or unchanged results are valid outcomes. ML,
+NMA, docking, broad PDB scanning, superiority language and discovery claims
+remain closed.

@@ -134,3 +134,31 @@ def test_shadow_analysis_marks_tail_censoring(tmp_path: Path) -> None:
     assert report["scope"]["tail_censored_case_count"] == 1
     assert report["cases"][0]["tail_censored"] is True
     assert report["cases"][0]["error_classes"] == ["top10_tail_censored"]
+
+
+def test_shadow_analysis_accepts_sealed_full_candidate_scope(tmp_path: Path) -> None:
+    static, evaluation, cohort = _inputs(tmp_path)
+    static_payload = json.loads(static.read_text(encoding="utf-8"))
+    static_payload["execution"] = {"candidate_retention": "full"}
+    static_case = next(iter(static_payload["cases"].values()))
+    static_case["candidate_retention"] = "full"
+    static_case["all_pockets"] = static_case["top_pockets"]
+    static.write_text(json.dumps(static_payload), encoding="utf-8")
+
+    evaluation_payload = json.loads(evaluation.read_text(encoding="utf-8"))
+    evaluation_payload["candidate_scope"] = "full"
+    evaluation.write_text(json.dumps(evaluation_payload), encoding="utf-8")
+
+    report = analyze_target_family_ranking(
+        static_run_path=static,
+        evaluation_report_path=evaluation,
+        cohort_path=cohort,
+        output_path=tmp_path / "full-report.json",
+        markdown_output_path=tmp_path / "full-report.md",
+        candidate_scope="full",
+    )
+
+    assert report["candidate_scope"] == "full"
+    assert report["scope"]["candidate_scope"] == "all_detected_pockets"
+    assert report["scope"]["tail_censored_case_count"] == 0
+    assert report["cases"][0]["tail_censored"] is False
