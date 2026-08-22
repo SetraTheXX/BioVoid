@@ -61,8 +61,17 @@ performance.
 
 ## Next gate
 
-Review the six-case failure patterns, representative-chain/alignment warnings,
-and family/sequence limitations. Then either close the bounded diagnostic as a
-negative/equivalent result or design a larger family/sequence-aware,
-leakage-audited apo--holo cohort. Only that cohort can support a real held-out
-benchmark or a later ML decision.
+The six-case failure-pattern and representative-chain/alignment review is
+complete and is recorded in the ignored local audit
+`research-local/audits/TARGET_FAMILY_EXTERNAL_BASELINE_REVIEW_2026-08-22.md`.
+Clean-alignment BioVoid misses remain (`1IIW`, `5WJP`), four records retain
+alignment warnings, and P2Rank's small-sample advantage is descriptive only.
+The canonical ranking is frozen; no post-hoc threshold or ML decision follows
+from this comparison.
+
+The current G4 gate is therefore closed as a bounded development diagnostic. The
+next safe step is to design a larger family/sequence-aware, leakage-audited
+apo--holo cohort. Only a newly pre-registered cohort, with explicit approval and
+true held-out evaluation, could support a later ML baseline or a stronger
+scientific claim. No new detector run, NMA, or ML training is authorized by this
+document.

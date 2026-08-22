@@ -52,6 +52,7 @@ The six-case external-baseline run has now completed after the readiness report
 was `ready_for_explicit_user_approval` and explicit bounded-run approval was
 provided. Its ignored comparison output is diagnostic-only and does not
 authorize superiority or discovery claims. Readiness remains a preflight
-contract, not a scientific validation result. NMA, broad scans, ML training,
-and discovery language remain out of scope while the six-case failure patterns
-and family/sequence limitations are reviewed.
+contract, not a scientific validation result. The six-case failure-pattern
+review is complete and the canonical ranking remains frozen. NMA, broad scans,
+ML training, and discovery language remain out of scope while a new,
+family/sequence-aware leakage-audited cohort is designed.

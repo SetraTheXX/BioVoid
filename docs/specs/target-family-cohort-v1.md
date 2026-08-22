@@ -34,7 +34,7 @@ limits. Holo IDs, labels, grouping metadata, and evaluator fields are removed
 before detector use. The command performs no network access, coordinate
 download, detector run, NMA, or ML training.
 
-## Next decision
+## Current decision and next gate
 
 The bounded PF00497 metadata expansion now contains 98 records and nine strict
 paired UniProt groups. Six pairs produced exact independent holo-derived contact
@@ -46,10 +46,18 @@ not a benchmark or ML authorization. The three unavailable cases remain in the
 evaluator report and are recorded in the cohort's `excluded_cases` audit trail;
 they are not silently relabelled or counted as negatives.
 
-Sequence clusters remain review-required metadata. The next research task is a
-review of the three unavailable pairs and an explicit user decision on a bounded
-static comparison. A later ML baseline must use the redacted manifest plus
-independent labels and family-aware splits.
+The bounded G4 external comparison has now completed on the same six target-blind
+apo inputs. Its DCC/DCA output is explicitly diagnostic
+(`held_out_evaluation: false`) and does not authorize superiority, validation,
+ML, or discovery claims. The unavailable-pair review is also complete; ambiguous
+records remain fail-closed. The current six-case manifest and canonical ranking
+are frozen.
+
+The next safe gate is metadata-only design of a larger, family/sequence-aware
+leakage-audited cohort (or a documented decision to close this negative/equivalent
+diagnostic). No new detector run, NMA, or ML training starts at this contract
+gate. A later ML baseline must use the redacted manifest, independent labels, and
+family-aware held-out splits after a separate explicit approval.
 
 ## Sequence-cluster materialization boundary
 
@@ -67,8 +75,10 @@ with 283 threshold edges. The bounded PFAM expansion materialized 98 records
 into 48 components with 203 threshold edges. Both are curation diagnostics:
 single-linkage clusters are explicitly marked `review_required`, do not create
 independent labels, and are not eligible to authorize a detector, benchmark, ML
-training, or discovery claim. The next gate remains independent contact-label
-review followed by the leakage-audited cohort contract.
+training, or discovery claim. Independent contact-label review is complete for
+the nine strict pairs; the three unavailable records remain excluded with
+reasons. The next gate is a new, explicitly pre-registered cohort design, not an
+automatic expansion of this manifest.
 
 `scripts/build_target_family_pfam_inventory.py` is a separate bounded
 preflight for the exact PF00497 annotation. It requests only the first 100

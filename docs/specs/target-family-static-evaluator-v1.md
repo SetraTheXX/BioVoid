@@ -62,8 +62,9 @@ An earlier bounded two-case fpocket/P2Rank comparison is retained as historical
 diagnostic evidence; it is not the current PF00497 evaluator cohort. The current
 PF00497 static/evaluator pilot contains six usable apo--holo-labelled cases
 (two development, two validation, and two temporal-test cases) and remains
-diagnostic-only. The next gate is an independent review of the
-representative-chain policy and these metrics, followed by an explicit decision
-on whether a larger family/sequence-aware leakage-audited cohort or a bounded
-external-baseline comparison is worth running. NMA, ML, broad PDB scans and
-discovery language remain out of scope until independent evidence supports them.
+diagnostic-only. The representative-chain/error-pattern review and the bounded
+external-baseline comparison are complete; their metrics do not authorize
+superiority, validation, or discovery claims. The next gate is design of a new,
+family/sequence-aware leakage-audited cohort. NMA, ML, broad PDB scans and
+discovery language remain out of scope until a separately approved held-out
+experiment and independent evidence support them.
