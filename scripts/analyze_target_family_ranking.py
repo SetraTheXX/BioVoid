@@ -215,6 +215,36 @@ def _comparison_summary(case_results: Sequence[Mapping[str, Any]]) -> dict[str, 
     return comparison
 
 
+def _error_classes(
+    *,
+    alignment: Mapping[str, Any],
+    canonical: Mapping[str, Any],
+    tail_censored: bool,
+) -> list[str]:
+    """Return pre-defined, non-exclusive diagnostic classes for one case."""
+
+    classes = []
+    if alignment.get("warning_count", 0):
+        classes.append("alignment_warning")
+    dcc_hit = bool(canonical["dcc"]["top_k_hits"]["5"])
+    dca_hit = bool(canonical["dca"]["top_k_hits"]["5"])
+    if not dcc_hit and not dca_hit and not alignment.get("warning_count", 0):
+        classes.append("clean_alignment_top5_miss")
+    if dcc_hit != dca_hit:
+        classes.append("dcc_dca_top5_disagreement")
+    if tail_censored:
+        classes.append("top10_tail_censored")
+    return classes
+
+
+def _error_class_counts(case_results: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for case in case_results:
+        for error_class in case["error_classes"]:
+            counts[error_class] = counts.get(error_class, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def _case_split_map(cohort: Mapping[str, Any]) -> dict[str, str]:
     cases = cohort.get("cases")
     if not isinstance(cases, list):
@@ -267,6 +297,12 @@ def _analyze_case(
     if not isinstance(alignment, dict):
         raise RankingAnalysisError(f"{case_id}: alignment metadata is missing")
 
+    canonical = {
+        "order_pocket_ids": [pockets[index].get("pocket_id") for index in canonical_order],
+        "dcc": _rank_metrics(dcc, canonical_order),
+        "dca": _rank_metrics(dca, canonical_order),
+    }
+    tail_censored = static_record.get("pocket_count") != len(pockets)
     return {
         "case_id": case_id,
         "structure_id": static_record.get("structure_id"),
@@ -278,13 +314,17 @@ def _analyze_case(
         },
         "stored_pocket_count": len(pockets),
         "full_pocket_count": static_record.get("pocket_count"),
-        "tail_censored": static_record.get("pocket_count") != len(pockets),
+        "tail_censored": tail_censored,
         "depth_audit": _depth_audit(pockets),
-        "canonical": {
-            "order_pocket_ids": [pockets[index].get("pocket_id") for index in canonical_order],
-            "dcc": _rank_metrics(dcc, canonical_order),
-            "dca": _rank_metrics(dca, canonical_order),
-        },
+        "canonical": canonical,
+        "error_classes": _error_classes(
+            alignment={
+                "status": alignment.get("status"),
+                "warning_count": len(alignment.get("warnings", [])),
+            },
+            canonical=canonical,
+            tail_censored=tail_censored,
+        ),
         "shadow": {
             "order_pocket_ids": [pockets[index].get("pocket_id") for index in shadow_order],
             "order_original_ranks": [index + 1 for index in shadow_order],
@@ -338,20 +378,15 @@ def analyze_target_family_ranking(
         case_results.append(_analyze_case(case_id, static_record, evaluation_record, split))
 
     split_names = sorted({case["split"] for case in case_results})
-    by_split = {
-        split: {
-            "canonical": _metric_summary(
-                [case for case in case_results if case["split"] == split], "canonical"
-            ),
-            "shadow": _metric_summary(
-                [case for case in case_results if case["split"] == split], "shadow"
-            ),
-            "comparison": _comparison_summary(
-                [case for case in case_results if case["split"] == split]
-            ),
+    by_split = {}
+    for split in split_names:
+        split_cases = [case for case in case_results if case["split"] == split]
+        by_split[split] = {
+            "canonical": _metric_summary(split_cases, "canonical"),
+            "shadow": _metric_summary(split_cases, "shadow"),
+            "comparison": _comparison_summary(split_cases),
+            "error_class_counts": _error_class_counts(split_cases),
         }
-        for split in split_names
-    }
     report: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "created_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -390,8 +425,10 @@ def analyze_target_family_ranking(
             "canonical": _metric_summary(case_results, "canonical"),
             "shadow": _metric_summary(case_results, "shadow"),
             "comparison": _comparison_summary(case_results),
+            "error_class_counts": _error_class_counts(case_results),
         },
         "by_split": by_split,
+        "error_class_counts": _error_class_counts(case_results),
         "cases": case_results,
         "limitations": [
             "The static artifact stores only the first ten volume-ranked pockets.",
@@ -456,6 +493,17 @@ def _render_markdown(report: Mapping[str, Any]) -> str:
             item = comparison[metric]["top_k"][str(top)]
             cells.append(f"+{item['rescued']} / -{item['regressed']}")
         lines.append(f"| {metric.upper()} | " + " | ".join(cells) + " |")
+    lines.extend(
+        [
+            "",
+            "## Pre-defined error classes",
+            "",
+            "| Class | Cases |",
+            "|---|---:|",
+        ]
+    )
+    for error_class, count in report["error_class_counts"].items():
+        lines.append(f"| {error_class} | {count} |")
     lines.extend(
         [
             "",

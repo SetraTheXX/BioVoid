@@ -98,6 +98,7 @@ def test_shadow_analysis_keeps_depth_derived_and_marks_top10_scope(tmp_path: Pat
     assert case["shadow"]["order_original_ranks"][:2] == [2, 1]
     assert case["canonical"]["dcc"]["best_rank"] == 2
     assert case["shadow"]["dcc"]["best_rank"] == 1
+    assert case["error_classes"] == []
     assert output.is_file()
     assert markdown.is_file()
 
@@ -132,3 +133,4 @@ def test_shadow_analysis_marks_tail_censoring(tmp_path: Path) -> None:
 
     assert report["scope"]["tail_censored_case_count"] == 1
     assert report["cases"][0]["tail_censored"] is True
+    assert report["cases"][0]["error_classes"] == ["top10_tail_censored"]
