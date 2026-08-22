@@ -54,6 +54,8 @@ MAX_CASES = 10
 MAX_DISK_BYTES = 1_000_000_000
 REPORT_SCHEMA_VERSION = "biovoid-target-family-contact-labels-v1"
 LABEL_SOURCE = "holo_ligand_contact_v1"
+SEQUENCE_CLUSTER_SCHEMA_VERSION = "biovoid-target-family-sequence-clusters-v1"
+SEQUENCE_COMPATIBLE_SELECTION_POLICY = "xray-180-350aa-resolution-2.8-sequence-compatible-v1"
 
 
 class TargetFamilyContactLabelError(RuntimeError):
@@ -165,8 +167,125 @@ def _holo_components(value: Any, field: str) -> list[dict[str, str]]:
     return components
 
 
+def _sequence_cluster_index(
+    payload: Mapping[str, Any] | None, *, family_id: str, records: Sequence[Mapping[str, Any]]
+) -> dict[str, str] | None:
+    """Validate and index a complete metadata-only sequence-cluster report."""
+
+    if payload is None:
+        return None
+    if payload.get("schema_version") != SEQUENCE_CLUSTER_SCHEMA_VERSION:
+        raise TargetFamilyContactLabelError("sequence-cluster report schema is unsupported")
+    if payload.get("status") != "sequence_materialized_review_required":
+        raise TargetFamilyContactLabelError("sequence-cluster report is not review-required")
+    report_family = payload.get("family_id")
+    if not isinstance(report_family, str) or report_family.strip().upper() != family_id:
+        source = payload.get("source")
+        report_family = source.get("family_id") if isinstance(source, Mapping) else report_family
+    if not isinstance(report_family, str) or report_family.strip().upper() != family_id:
+        raise TargetFamilyContactLabelError("sequence-cluster report family drifted")
+    raw_cluster_records = payload.get("records")
+    if not isinstance(raw_cluster_records, list):
+        raise TargetFamilyContactLabelError("sequence-cluster report records are missing")
+    indexed: dict[str, str] = {}
+    for raw_record in raw_cluster_records:
+        if not isinstance(raw_record, Mapping):
+            raise TargetFamilyContactLabelError("sequence-cluster report records are invalid")
+        pdb_id = _pdb_id(raw_record.get("pdb_id"), "sequence_cluster.pdb_id")
+        if pdb_id in indexed:
+            raise TargetFamilyContactLabelError(
+                "sequence-cluster report contains duplicate PDB IDs"
+            )
+        cluster_id = str(raw_record.get("sequence_cluster_id") or "").strip()
+        if not cluster_id:
+            raise TargetFamilyContactLabelError(
+                "sequence_cluster.sequence_cluster_id must be non-empty"
+            )
+        indexed[pdb_id] = cluster_id
+    missing = [
+        _pdb_id(record.get("pdb_id"), "inventory.pdb_id")
+        for record in records
+        if _pdb_id(record.get("pdb_id"), "inventory.pdb_id") not in indexed
+    ]
+    if missing:
+        raise TargetFamilyContactLabelError(
+            "sequence-cluster report is incomplete for inventory: " + ", ".join(sorted(missing))
+        )
+    return indexed
+
+
+def _strict_quality_passes(record: Mapping[str, Any]) -> bool:
+    method = str(record.get("experimental_method", "")).casefold()
+    try:
+        length = int(record["sequence_length"])
+        resolution = float(record["resolution_angstrom"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return "x-ray" in method and 180 <= length <= 350 and resolution <= 2.8
+
+
+def _sequence_compatible_candidates(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    sequence_clusters: Mapping[str, str],
+    max_cases: int,
+) -> list[dict[str, Any]]:
+    """Select one quality-passing, same-cluster apo/holo pair per group."""
+
+    grouped: dict[str, list[Mapping[str, Any]]] = {}
+    for record in records:
+        group_values = record.get("uniprot_ids")
+        if not isinstance(group_values, list) or not group_values:
+            raise TargetFamilyContactLabelError("inventory record has no UniProt group")
+        group = "+".join(sorted(str(value).strip().upper() for value in group_values))
+        grouped.setdefault(group, []).append(record)
+
+    candidates: list[dict[str, Any]] = []
+    for group in sorted(grouped):
+        eligible = [record for record in grouped[group] if _strict_quality_passes(record)]
+        apo_records = [record for record in eligible if not record.get("likely_ligand_components")]
+        holo_records = [record for record in eligible if record.get("likely_ligand_components")]
+        compatible: list[tuple[Mapping[str, Any], Mapping[str, Any]]] = []
+        for apo in apo_records:
+            apo_id = _pdb_id(apo.get("pdb_id"), "candidate.apo_structure_id")
+            for holo in holo_records:
+                holo_id = _pdb_id(holo.get("pdb_id"), "candidate.holo_structure_id")
+                if sequence_clusters[apo_id] == sequence_clusters[holo_id]:
+                    compatible.append((apo, holo))
+        if not compatible:
+            continue
+        apo, holo = min(
+            compatible,
+            key=lambda pair: (
+                float(pair[0]["resolution_angstrom"]),
+                float(pair[1]["resolution_angstrom"]),
+                -len(pair[1].get("likely_ligand_components", [])),
+                str(pair[0]["pdb_id"]),
+                str(pair[1]["pdb_id"]),
+            ),
+        )
+        candidates.append(
+            {
+                "uniprot_group": group,
+                "apo_structure_id": _pdb_id(apo.get("pdb_id"), "candidate.apo_structure_id"),
+                "holo_structure_id": _pdb_id(holo.get("pdb_id"), "candidate.holo_structure_id"),
+                "sequence_cluster_id": sequence_clusters[
+                    _pdb_id(apo.get("pdb_id"), "candidate.apo_structure_id")
+                ],
+            }
+        )
+    if len(candidates) > max_cases:
+        raise TargetFamilyContactLabelError(
+            f"strict sequence-compatible pair count exceeds maximum bound ({max_cases})"
+        )
+    return candidates
+
+
 def build_strict_pair_payload(
-    inventory_payload: Mapping[str, Any], *, max_cases: int = MAX_CASES
+    inventory_payload: Mapping[str, Any],
+    *,
+    max_cases: int = MAX_CASES,
+    sequence_clusters: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build deterministic private pair metadata from the strict audit policy."""
 
@@ -182,7 +301,20 @@ def build_strict_pair_payload(
         if isinstance(record, Mapping)
     }
     audit = audit_metadata_candidates(inventory_payload)
-    candidates = audit["strict"]["pairs"]
+    inventory_records = [record for record in raw_records if isinstance(record, Mapping)]
+    sequence_cluster_index = _sequence_cluster_index(
+        sequence_clusters, family_id=family_id, records=inventory_records
+    )
+    if sequence_cluster_index is None:
+        candidates = audit["strict"]["pairs"]
+        selection_policy = "xray-180-350aa-resolution-2.8-v1"
+    else:
+        candidates = _sequence_compatible_candidates(
+            inventory_records,
+            sequence_clusters=sequence_cluster_index,
+            max_cases=max_cases,
+        )
+        selection_policy = SEQUENCE_COMPATIBLE_SELECTION_POLICY
     if not isinstance(candidates, list):
         raise TargetFamilyContactLabelError("strict candidate audit pairs are invalid")
     if len(candidates) > max_cases:
@@ -222,6 +354,11 @@ def build_strict_pair_payload(
                 "apo_pdb_id": apo_id,
                 "holo_pdb_id": holo_id,
                 "holo_components": components,
+                **(
+                    {"sequence_cluster_id": sequence_cluster_index[apo_id]}
+                    if sequence_cluster_index is not None
+                    else {}
+                ),
             }
         )
     return {
@@ -229,7 +366,7 @@ def build_strict_pair_payload(
         "status": "private_contact_label_review_required",
         "family_id": family_id,
         "label_source": LABEL_SOURCE,
-        "selection_policy": "xray-180-350aa-resolution-2.8-v1",
+        "selection_policy": selection_policy,
         "pairs": pairs,
         "source_inventory_sha256": _stable_hash(inventory_payload),
     }
@@ -436,6 +573,7 @@ def _run_pair(
 def run_contact_label_materializer(
     *,
     inventory_path: Path = DEFAULT_INVENTORY,
+    sequence_clusters_path: Path | None = None,
     output_root: Path = DEFAULT_OUTPUT_ROOT,
     pairs_output: Path = DEFAULT_PAIRS_OUTPUT,
     report_path: Path = DEFAULT_REPORT,
@@ -443,7 +581,14 @@ def run_contact_label_materializer(
     max_disk_bytes: int = MAX_DISK_BYTES,
 ) -> dict[str, Any]:
     inventory = _read_json(inventory_path.resolve())
-    pairs_payload = build_strict_pair_payload(inventory, max_cases=max_cases)
+    sequence_clusters = (
+        _read_json(sequence_clusters_path.resolve()) if sequence_clusters_path is not None else None
+    )
+    pairs_payload = build_strict_pair_payload(
+        inventory,
+        max_cases=max_cases,
+        sequence_clusters=sequence_clusters,
+    )
     pairs_output.parent.mkdir(parents=True, exist_ok=True)
     _write_json(pairs_output.resolve(), pairs_payload)
     pairs = pairs_payload["pairs"]
@@ -497,6 +642,12 @@ def run_contact_label_materializer(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inventory", type=Path, default=DEFAULT_INVENTORY)
+    parser.add_argument(
+        "--sequence-clusters",
+        type=Path,
+        default=None,
+        help="optional complete metadata-only sequence-cluster report",
+    )
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--pairs-output", type=Path, default=DEFAULT_PAIRS_OUTPUT)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
@@ -518,6 +669,7 @@ def main() -> int:
     try:
         report = run_contact_label_materializer(
             inventory_path=args.inventory,
+            sequence_clusters_path=args.sequence_clusters,
             output_root=args.output_root,
             pairs_output=args.pairs_output,
             report_path=args.report,

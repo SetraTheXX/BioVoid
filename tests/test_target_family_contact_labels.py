@@ -74,3 +74,34 @@ def test_contact_label_report_skeleton_keeps_detector_closed() -> None:
     assert report["records"] == {}
     assert report["coordinates_downloaded"] is False
     assert report["claims_authorized"] is False
+
+
+def test_strict_pair_builder_prefers_same_sequence_cluster_pair() -> None:
+    from scripts.materialize_target_family_contact_labels import build_strict_pair_payload
+
+    inventory = {
+        "schema_version": "biovoid-target-family-metadata-inventory-v1",
+        "source": {"family_id": "PF00497"},
+        "records": [
+            _record("A001", "U1", ligand=False, release="2010-01-01"),
+            _record("A002", "U1", ligand=False, release="2011-01-01"),
+            _record("B001", "U1", ligand=True, release="2012-01-01"),
+        ],
+    }
+    sequence_clusters = {
+        "schema_version": "biovoid-target-family-sequence-clusters-v1",
+        "status": "sequence_materialized_review_required",
+        "family_id": "PF00497",
+        "records": [
+            {"pdb_id": "A001", "sequence_cluster_id": "cluster-old"},
+            {"pdb_id": "A002", "sequence_cluster_id": "cluster-compatible"},
+            {"pdb_id": "B001", "sequence_cluster_id": "cluster-compatible"},
+        ],
+    }
+
+    pairs = build_strict_pair_payload(inventory, sequence_clusters=sequence_clusters)
+
+    assert pairs["pairs"][0]["apo_pdb_id"] == "A002"
+    assert pairs["pairs"][0]["holo_pdb_id"] == "B001"
+    assert pairs["pairs"][0]["sequence_cluster_id"] == "cluster-compatible"
+    assert pairs["selection_policy"] == "xray-180-350aa-resolution-2.8-sequence-compatible-v1"
