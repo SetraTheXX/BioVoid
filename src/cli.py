@@ -114,6 +114,7 @@ def cmd_serve(args):
 
 def cmd_cache(args):
     """Manage analysis cache."""
+    _setup_logging()
     from .cache import AnalysisCache
 
     cache = AnalysisCache()
