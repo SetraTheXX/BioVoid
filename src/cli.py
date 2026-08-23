@@ -216,6 +216,7 @@ def cmd_benchmark(args):
 
 def cmd_info(args):
     """Show project configuration and info."""
+    _setup_logging()
     import src
 
     logger.info("Bio-Void Hunter v%s", src.__version__)
