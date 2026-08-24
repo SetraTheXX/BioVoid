@@ -114,6 +114,11 @@ class RcsbMetadataRecord:
     nonpolymer_components: tuple[NonPolymerComponent, ...] = ()
     pfam_ids: tuple[str, ...] = ()
     release_date: str | None = None
+    deposited_atom_count: int | None = None
+    deposited_model_count: int | None = None
+    deposited_polymer_entity_instance_count: int | None = None
+    molecular_weight_kda: float | None = None
+    polymer_composition: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "pdb_id", _normalise_pdb_id(self.pdb_id))
@@ -143,6 +148,25 @@ class RcsbMetadataRecord:
             "pfam_ids",
             tuple(sorted({_required_text(value, "pfam_id") for value in self.pfam_ids})),
         )
+        for field_name in (
+            "deposited_atom_count",
+            "deposited_model_count",
+            "deposited_polymer_entity_instance_count",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and (not isinstance(value, int) or value < 1):
+                raise TargetFamilyContractError(f"{field_name} must be a positive integer")
+        if self.molecular_weight_kda is not None:
+            molecular_weight = float(self.molecular_weight_kda)
+            if not math.isfinite(molecular_weight) or molecular_weight <= 0:
+                raise TargetFamilyContractError("molecular_weight_kda must be positive and finite")
+            object.__setattr__(self, "molecular_weight_kda", molecular_weight)
+        if self.polymer_composition is not None:
+            object.__setattr__(
+                self,
+                "polymer_composition",
+                _required_text(self.polymer_composition, "polymer_composition"),
+            )
 
     @property
     def primary_group_id(self) -> str:

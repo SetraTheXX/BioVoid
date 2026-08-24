@@ -6,6 +6,11 @@ matches, then reads only entry, polymer-entity and non-polymer metadata.  It
 does not download coordinates, open structures, run the detector, run a
 benchmark, or train ML.  Ambiguous entries containing multiple PF00497 polymer
 entities are skipped rather than silently selecting one entity.
+
+Each retained entry also receives a non-authoritative ``SAFE_16GB`` resource
+proxy based on deposited atom/model counts, polymer-instance count and molecular
+weight.  The proxy only prioritizes later review; prepared coordinates remain
+the authoritative static resource gate.
 """
 
 from __future__ import annotations
@@ -39,6 +44,7 @@ from scripts.build_target_family_manifest import (  # noqa: E402
     _record_from_entity,
     _record_payload,
 )
+from src.resources import SAFE_16GB  # noqa: E402
 from src.target_family_manifest import RcsbMetadataRecord, select_pilot_pairs  # noqa: E402
 
 
@@ -47,6 +53,12 @@ DEFAULT_FAMILY_ID = "PF00497"
 DEFAULT_TIMEOUT_SECONDS = 60
 DEFAULT_OUTPUT = REPO_ROOT / "local-private/research/target-family/metadata-inventory-pfam-v1.json"
 _PDB_ID_RE = re.compile(r"^[A-Z0-9]{4}$")
+RESOURCE_PROXY_SCHEMA_VERSION = "biovoid-target-family-resource-proxy-v1"
+RESOURCE_PROXY_STATUSES = (
+    "likely_within_static_atom_cap",
+    "likely_above_static_atom_cap",
+    "review_required",
+)
 
 
 def _stable_hash(payload: Any) -> str:
@@ -218,6 +230,39 @@ def collect_pfam_metadata_records(
     return records, source
 
 
+def _resource_proxy_payload(record: RcsbMetadataRecord) -> dict[str, Any]:
+    """Classify entry metadata without replacing the prepared-coordinate gate."""
+
+    atom_count = record.deposited_atom_count
+    model_count = record.deposited_model_count
+    if atom_count is None or model_count != 1:
+        status = "review_required"
+    elif atom_count <= SAFE_16GB.max_static_atoms:
+        status = "likely_within_static_atom_cap"
+    else:
+        status = "likely_above_static_atom_cap"
+    return {
+        "schema_version": RESOURCE_PROXY_SCHEMA_VERSION,
+        "status": status,
+        "profile": SAFE_16GB.name,
+        "max_static_atoms": SAFE_16GB.max_static_atoms,
+        "deposited_atom_count": atom_count,
+        "deposited_model_count": model_count,
+        "deposited_polymer_entity_instance_count": (record.deposited_polymer_entity_instance_count),
+        "molecular_weight_kda": record.molecular_weight_kda,
+        "polymer_composition": record.polymer_composition,
+        "authoritative_resource_gate": False,
+        "coordinates_required_for_authoritative_gate": True,
+    }
+
+
+def _status_counts(records: Sequence[RcsbMetadataRecord]) -> dict[str, int]:
+    counts = {status: 0 for status in RESOURCE_PROXY_STATUSES}
+    for record in records:
+        counts[str(_resource_proxy_payload(record)["status"])] += 1
+    return counts
+
+
 def build_pfam_inventory_payload(
     records: Sequence[RcsbMetadataRecord], source: Mapping[str, Any], *, family_id: str
 ) -> dict[str, Any]:
@@ -238,6 +283,12 @@ def build_pfam_inventory_payload(
         max_sequence_length=DEFAULT_MAX_SEQUENCE_LENGTH,
         max_resolution_angstrom=DEFAULT_MAX_RESOLUTION_ANGSTROM,
     )
+    record_payloads = []
+    for record in records:
+        record_payload = _record_payload(record)
+        record_payload["resource_proxy"] = _resource_proxy_payload(record)
+        record_payloads.append(record_payload)
+    strict_apo_records = [pair.apo for pair in strict_pairs]
     retrieved_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     inventory: dict[str, Any] = {
         "schema_version": INVENTORY_SCHEMA_VERSION,
@@ -252,9 +303,18 @@ def build_pfam_inventory_payload(
         },
         "record_count": len(records),
         "unique_uniprot_group_count": len({record.primary_group_id for record in records}),
-        "records": [_record_payload(record) for record in records],
+        "records": record_payloads,
         "pilot_pair_count": len(strict_pairs),
         "relaxed_120_pair_count": len(relaxed_pairs),
+        "resource_proxy_summary": {
+            "schema_version": RESOURCE_PROXY_SCHEMA_VERSION,
+            "profile": SAFE_16GB.name,
+            "max_static_atoms": SAFE_16GB.max_static_atoms,
+            "record_status_counts": _status_counts(records),
+            "strict_pair_apo_status_counts": _status_counts(strict_apo_records),
+            "authoritative_resource_gate": False,
+            "coordinates_required_for_authoritative_gate": True,
+        },
         "coordinate_files_downloaded": False,
     }
     inventory["inventory_sha256"] = _stable_hash(inventory)

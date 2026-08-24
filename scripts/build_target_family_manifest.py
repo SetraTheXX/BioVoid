@@ -288,6 +288,28 @@ def _record_from_entity(
         if isinstance(release_data, Mapping) and release_data.get("initial_release_date")
         else None
     )
+    entry_info = entry.get("rcsb_entry_info")
+    entry_info = entry_info if isinstance(entry_info, Mapping) else {}
+
+    def optional_positive_int(field_name: str) -> int | None:
+        raw_value = entry_info.get(field_name)
+        if raw_value is None:
+            return None
+        try:
+            value = int(str(raw_value))
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    raw_molecular_weight = entry_info.get("molecular_weight")
+    try:
+        molecular_weight_kda = float(str(raw_molecular_weight))
+    except (TypeError, ValueError):
+        molecular_weight_kda = None
+    if molecular_weight_kda is not None and molecular_weight_kda <= 0:
+        molecular_weight_kda = None
+    raw_polymer_composition = entry_info.get("polymer_composition")
+    polymer_composition = str(raw_polymer_composition).strip() if raw_polymer_composition else None
     return RcsbMetadataRecord(
         pdb_id=entry_id,
         uniprot_ids=uniprot_ids,
@@ -299,6 +321,13 @@ def _record_from_entity(
         nonpolymer_components=components,
         pfam_ids=pfam_ids,
         release_date=release_date,
+        deposited_atom_count=optional_positive_int("deposited_atom_count"),
+        deposited_model_count=optional_positive_int("deposited_model_count"),
+        deposited_polymer_entity_instance_count=optional_positive_int(
+            "deposited_polymer_entity_instance_count"
+        ),
+        molecular_weight_kda=molecular_weight_kda,
+        polymer_composition=polymer_composition,
     )
 
 
@@ -406,6 +435,15 @@ def _record_payload(record: RcsbMetadataRecord) -> dict[str, Any]:
         "experimental_method": record.experimental_method,
         "pfam_ids": list(record.pfam_ids),
         "release_date": record.release_date,
+        "entry_resource_metadata": {
+            "deposited_atom_count": record.deposited_atom_count,
+            "deposited_model_count": record.deposited_model_count,
+            "deposited_polymer_entity_instance_count": (
+                record.deposited_polymer_entity_instance_count
+            ),
+            "molecular_weight_kda": record.molecular_weight_kda,
+            "polymer_composition": record.polymer_composition,
+        },
         "nonpolymer_components": [
             {"comp_id": item.comp_id, "name": item.name} for item in record.nonpolymer_components
         ],
