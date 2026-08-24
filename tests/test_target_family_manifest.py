@@ -4,6 +4,23 @@ import json
 
 import pytest
 
+
+def test_metadata_session_retries_transient_rcsb_failures_only() -> None:
+    from scripts.build_target_family_manifest import _metadata_session
+
+    session = _metadata_session("BioVoid/test")
+    try:
+        retry = session.adapters["https://"].max_retries
+        assert retry.total == 3
+        assert retry.backoff_factor == 0.5
+        assert set(retry.status_forcelist) == {429, 500, 502, 503, 504}
+        assert set(retry.allowed_methods or ()) == {"GET", "POST"}
+        assert retry.respect_retry_after_header is True
+        assert session.headers["User-Agent"] == "BioVoid/test"
+    finally:
+        session.close()
+
+
 from src.target_family_manifest import (
     NonPolymerComponent,
     RcsbMetadataRecord,

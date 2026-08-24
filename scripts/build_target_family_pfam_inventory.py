@@ -40,6 +40,7 @@ from scripts.build_target_family_manifest import (  # noqa: E402
     TargetFamilyMetadataError,
     _api_json,
     _component_metadata,
+    _metadata_session,
     _nonpolymer_entity_ids,
     _record_from_entity,
     _record_payload,
@@ -337,8 +338,7 @@ def run_pfam_inventory_builder(
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     output_path: Path = DEFAULT_OUTPUT,
 ) -> dict[str, Any]:
-    session = requests.Session()
-    session.headers.update({"User-Agent": "BioVoid/0.1 target-family PFAM metadata preflight"})
+    session = _metadata_session("BioVoid/0.1 target-family PFAM metadata preflight")
     try:
         records, source = collect_pfam_metadata_records(
             session, family_id=family_id, max_entries=max_entries, timeout=timeout
