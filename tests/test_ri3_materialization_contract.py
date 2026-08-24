@@ -1,8 +1,24 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from scripts.materialize_ri3_preflight import MaterializationError, _chain_ids, _select_ids
+from scripts.materialize_ri3_preflight import (
+    REPO_ROOT,
+    MaterializationError,
+    _chain_ids,
+    _resolve_repo_path,
+    _select_ids,
+)
+
+
+def test_runtime_paths_resolve_relative_values_inside_repo() -> None:
+    relative = Path("data/runtime/ri3/pilot10-members")
+    expected = (REPO_ROOT / relative).resolve()
+
+    assert _resolve_repo_path(relative) == expected
+    assert _resolve_repo_path(expected) == expected
 
 
 def test_select_ids_is_deterministic_and_development_bounded() -> None:

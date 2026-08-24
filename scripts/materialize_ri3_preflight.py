@@ -64,6 +64,13 @@ class MaterializationError(RuntimeError):
     """Raised when a selected source member cannot be verified safely."""
 
 
+def _resolve_repo_path(value: Path) -> Path:
+    """Resolve CLI paths relative to the BioVoid repository, not the shell cwd."""
+
+    candidate = value if value.is_absolute() else REPO_ROOT / value
+    return candidate.resolve()
+
+
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -358,6 +365,12 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
+    args.lock = _resolve_repo_path(args.lock)
+    args.metadata_dir = _resolve_repo_path(args.metadata_dir)
+    args.member_index = _resolve_repo_path(args.member_index)
+    args.member_dir = _resolve_repo_path(args.member_dir)
+    args.prepared_dir = _resolve_repo_path(args.prepared_dir)
+    args.report = _resolve_repo_path(args.report)
     lock = json.loads(args.lock.read_text(encoding="utf-8"))
     metadata_lock = lock["dataset"]["metadata_files"]
     dataset = _verified_local_json(
