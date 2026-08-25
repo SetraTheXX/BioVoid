@@ -193,7 +193,8 @@ Public method contracts are under `docs/specs/`, including the bounded
 [`target-family external-baseline comparison contract`](docs/specs/target-family-external-baseline-comparison-v1.md),
 [`target-family leakage-audited cohort contract`](docs/specs/target-family-cohort-v1.md),
 [`target-family metadata resource-proxy contract`](docs/specs/target-family-metadata-resource-proxy-v1.md),
-and the [`target-family held-out ranking contract`](docs/specs/target-family-heldout-ranking-v1.md).
+the [`target-family held-out ranking contract`](docs/specs/target-family-heldout-ranking-v1.md),
+and the [`target-family detection-vs-ranking diagnostic contract`](docs/specs/target-family-detection-ranking-diagnostic-v1.md).
 Personal planning, internal audits, research execution reports, and
 evaluator-only inputs stay local.
 

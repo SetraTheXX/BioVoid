@@ -53,10 +53,13 @@ ML, or discovery claims. The unavailable-pair review is also complete; ambiguous
 records remain fail-closed. The current six-case manifest and canonical ranking
 are frozen.
 
-The next safe gate is metadata-only design of a larger, family/sequence-aware
-leakage-audited cohort (or a documented decision to close this negative/equivalent
-diagnostic). No new detector run, NMA, or ML training starts at this contract
-gate. A later ML baseline must use the redacted manifest, independent labels, and
+Before any larger cohort is designed, the repository roadmap now requires the
+read-only RI-3 detection-vs-ranking diagnostic in
+`docs/specs/target-family-detection-ranking-diagnostic-v1.md`. It must separate
+final-pocket-list localization from canonical ranking without changing the
+detector or tuning on evaluator-exposed rows. No new detector run, NMA, or ML
+training starts at this contract gate. A later family cohort is conditional on
+that decision and must use the redacted manifest, independent labels, and
 family-aware held-out splits after a separate explicit approval.
 
 The subsequent bounded second-family source screens (PFAM/RCSB metadata-only

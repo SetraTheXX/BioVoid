@@ -2,10 +2,12 @@
 
 Status: **frozen preparation contract; one local diagnostic full-candidate run completed; no held-out result has been claimed**.
 
-This contract defines how BioVoid may later inspect the complete static
-candidate universe without changing the canonical detector ranking or leaking
-the holo/evaluator label into the detector. It is a preparation gate for a
-future PF00497 analysis, not a benchmark result.
+This contract defines how BioVoid may later inspect the complete **final pocket
+list** without changing the canonical detector ranking or leaking the
+holo/evaluator label into the detector. It is a preparation gate for a future
+PF00497 analysis, not a benchmark result. The raw Voronoi candidate universe
+before clustering and final volume acceptance is a separate intermediate and
+is not implied by `all_pockets`.
 
 ## Candidate retention
 

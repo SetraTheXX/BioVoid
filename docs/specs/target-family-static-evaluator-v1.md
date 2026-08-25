@@ -64,7 +64,15 @@ PF00497 static/evaluator pilot contains six usable apo--holo-labelled cases
 (two development, two validation, and two temporal-test cases) and remains
 diagnostic-only. The representative-chain/error-pattern review and the bounded
 external-baseline comparison are complete; their metrics do not authorize
-superiority, validation, or discovery claims. The next gate is design of a new,
-family/sequence-aware leakage-audited cohort. NMA, ML, broad PDB scans and
-discovery language remain out of scope until a separately approved held-out
-experiment and independent evidence support them.
+superiority, validation, or discovery claims.
+
+At repository level, the immediate next gate is the read-only RI-3
+detection-vs-ranking diagnostic defined in
+[`target-family-detection-ranking-diagnostic-v1.md`](target-family-detection-ranking-diagnostic-v1.md).
+It must establish whether the current final pocket list is populated for the
+known site and whether the remaining problem is ranking or the detector
+pipeline. It does not rerun the detector or reopen a family search. Only after
+that decision may a new family/sequence-aware leakage-audited cohort be
+designed. NMA, ML, broad PDB scans and discovery language remain out of scope
+until a separately approved held-out experiment and independent evidence
+support them.
