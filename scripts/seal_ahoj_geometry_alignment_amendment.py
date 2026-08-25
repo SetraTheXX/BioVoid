@@ -27,8 +27,7 @@ from scripts.seal_ahoj_geometry_cohort import _read_json, _write_json  # noqa: E
 
 
 DEFAULT_RESOLUTION = (
-    REPO_ROOT
-    / "local-private/research/geometry-data-source-catalog/ahoj-v1/"
+    REPO_ROOT / "local-private/research/geometry-data-source-catalog/ahoj-v1/"
     "ahoj-geometry-metadata-resolution-v1.json"
 )
 DEFAULT_V1_COHORT = (
@@ -36,13 +35,11 @@ DEFAULT_V1_COHORT = (
     / "local-private/research/geometry-data-source-catalog/ahoj-v1/ahoj-geometry-cohort-v1.json"
 )
 DEFAULT_PRIVATE_OUTPUT = (
-    REPO_ROOT
-    / "local-private/research/geometry-data-source-catalog/ahoj-v2-alignment-quality/"
+    REPO_ROOT / "local-private/research/geometry-data-source-catalog/ahoj-v2-alignment-quality/"
     "ahoj-geometry-cohort-v2.json"
 )
 DEFAULT_DETECTOR_OUTPUT = (
-    REPO_ROOT
-    / "data/runtime/target-family/cohort-ahoj-geometry-v2-alignment-quality/"
+    REPO_ROOT / "data/runtime/target-family/cohort-ahoj-geometry-v2-alignment-quality/"
     "ahoj-geometry-detector-manifest-v2.json"
 )
 FAMILY_ID = "AHOJ-GEOMETRY-V2-ALIGNMENT-QUALITY"
@@ -79,7 +76,9 @@ def _ratio(case: Mapping[str, Any]) -> float:
             f"entity sequence lengths are missing for {case.get('case_id')}"
         ) from exc
     if min(apo_length, holo_length) <= 0:
-        raise AhojAlignmentAmendmentError(f"entity sequence length is non-positive: {case.get('case_id')}")
+        raise AhojAlignmentAmendmentError(
+            f"entity sequence length is non-positive: {case.get('case_id')}"
+        )
     return min(apo_length, holo_length) / max(apo_length, holo_length)
 
 
@@ -87,7 +86,11 @@ def _metadata_alignment_pass(case: Mapping[str, Any]) -> bool:
     apo = case.get("apo_entity")
     holo = case.get("holo_entity")
     resource = case.get("resource_proxy")
-    if not isinstance(apo, Mapping) or not isinstance(holo, Mapping) or not isinstance(resource, Mapping):
+    if (
+        not isinstance(apo, Mapping)
+        or not isinstance(holo, Mapping)
+        or not isinstance(resource, Mapping)
+    ):
         return False
     if apo.get("status") != "resolved" or holo.get("status") != "resolved":
         return False
@@ -105,14 +108,17 @@ def _metadata_alignment_pass(case: Mapping[str, Any]) -> bool:
 
 
 def _amendment_case_id(case: Mapping[str, Any]) -> str:
-    return "ahoj-geometry-v2:" + _stable_hash(
-        {
-            "apo": _pdb_id(case.get("apo_structure_id"), "case.apo_structure_id"),
-            "holo": _pdb_id(case.get("holo_structure_id"), "case.holo_structure_id"),
-            "uniprot": str(case.get("uniprot_id", "")).upper(),
-            "family": FAMILY_ID,
-        }
-    )[:16]
+    return (
+        "ahoj-geometry-v2:"
+        + _stable_hash(
+            {
+                "apo": _pdb_id(case.get("apo_structure_id"), "case.apo_structure_id"),
+                "holo": _pdb_id(case.get("holo_structure_id"), "case.holo_structure_id"),
+                "uniprot": str(case.get("uniprot_id", "")).upper(),
+                "family": FAMILY_ID,
+            }
+        )[:16]
+    )
 
 
 def _private_case(case: Mapping[str, Any], split: str) -> dict[str, Any]:
@@ -162,14 +168,20 @@ def build_alignment_amendment(
                 raise AhojAlignmentAmendmentError("v1 case is absent from resolution")
             v1_by_split[str(case["split"])].append(original)
     if len(v1_by_split["development"]) != 6 or len(v1_by_split["validation"]) != 2:
-        raise AhojAlignmentAmendmentError("v1 cohort does not contain the expected 6/2/2 allocation")
+        raise AhojAlignmentAmendmentError(
+            "v1 cohort does not contain the expected 6/2/2 allocation"
+        )
     # Keep the original development and temporal rows.  Replace only the
     # alignment-incompatible validation row through a metadata-only rule.
     original_validation = [
-        case for case in v1_by_split["validation"] if _pdb_id(case["apo_structure_id"], "case.apo") != "6J6F"
+        case
+        for case in v1_by_split["validation"]
+        if _pdb_id(case["apo_structure_id"], "case.apo") != "6J6F"
     ]
     if len(original_validation) != 1:
-        raise AhojAlignmentAmendmentError("v1 validation amendment expects exactly one 6J6F replacement")
+        raise AhojAlignmentAmendmentError(
+            "v1 validation amendment expects exactly one 6J6F replacement"
+        )
     used_apo = {
         _pdb_id(case["apo_structure_id"], "case.apo_structure_id")
         for split_cases in v1_by_split.values()
@@ -185,7 +197,9 @@ def build_alignment_amendment(
         and _metadata_alignment_pass(case)
     ]
     if not validation_candidates:
-        raise AhojAlignmentAmendmentError("no deterministic metadata-compatible validation replacement exists")
+        raise AhojAlignmentAmendmentError(
+            "no deterministic metadata-compatible validation replacement exists"
+        )
     replacement = min(
         validation_candidates,
         key=lambda case: (

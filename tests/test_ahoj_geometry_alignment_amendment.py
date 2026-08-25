@@ -28,9 +28,7 @@ def _resolution_case(apo: str, holo: str, *, release: str, ratio: float = 1.0) -
 
 def test_alignment_amendment_replaces_only_the_incompatible_validation_case() -> None:
     ids = ["1AAA", "1AAB", "1AAC", "1AAD", "1AAE", "1AAF"]
-    resolution_cases = [
-        _resolution_case(apo, f"{apo[:3]}B", release="2016-01-01") for apo in ids
-    ]
+    resolution_cases = [_resolution_case(apo, f"{apo[:3]}B", release="2016-01-01") for apo in ids]
     resolution_cases.extend(
         [
             _resolution_case("6EHF", "6EHG", release="2019-01-01"),
@@ -72,4 +70,3 @@ def test_alignment_amendment_replaces_only_the_incompatible_validation_case() ->
         token in str(manifest).casefold()
         for token in ("holo", "ligand", "evaluator", "ground_truth", "bio_score")
     )
-
