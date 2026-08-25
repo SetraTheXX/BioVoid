@@ -34,6 +34,7 @@ from scripts.evaluate_target_family_static_pilot import (  # noqa: E402
 )
 from src.fetcher import FetchError, fetch_structure_input  # noqa: E402
 from src.ground_truth_alignment import (  # noqa: E402
+    AlignmentPolicy,
     GroundTruthAlignmentError,
     build_aligned_ground_truth_from_files,
 )
@@ -379,6 +380,7 @@ def build_contact_label_report(
     output_root: str | Path,
     max_cases: int,
     max_disk_bytes: int,
+    alignment_policy: AlignmentPolicy = EVALUATOR_POLICY,
 ) -> dict[str, Any]:
     """Build the sealed-boundary skeleton before any coordinate request."""
 
@@ -396,6 +398,7 @@ def build_contact_label_report(
         "evaluator_only": True,
         "detector_target_blind": True,
         "claim_boundary": "independent_label_curation_only",
+        "alignment_policy": asdict(alignment_policy),
         "execution": {
             "workers": 1,
             "max_cases": max_cases,
@@ -483,6 +486,12 @@ def _run_pair(
     output_root: Path,
     source_cache: Path,
     max_disk_bytes: int,
+    alignment_policy: AlignmentPolicy = EVALUATOR_POLICY,
+    preferred_apo_chain_id: str | None = None,
+    preferred_holo_chain_id: str | None = None,
+    preferred_ligand_chain_id: str | None = None,
+    provenance_label: str = "target-family-rcsb-contact-label-only-v1",
+    run_id_suffix: str = "contact-label-v1",
 ) -> dict[str, Any]:
     apo_id = _pdb_id(pair.get("apo_pdb_id"), "pair.apo_pdb_id")
     holo_id = _pdb_id(pair.get("holo_pdb_id"), "pair.holo_pdb_id")
@@ -505,7 +514,7 @@ def _run_pair(
             apo_source,
             PreparationConfig(),
             preparation_dir,
-            run_id=f"target-family-{apo_id.lower()}-contact-label-v1",
+            run_id=f"target-family-{apo_id.lower()}-{run_id_suffix}",
             source_metadata={
                 "provider": "RCSB PDB",
                 "entry_id": apo_id,
@@ -522,6 +531,19 @@ def _run_pair(
         )
         _enforce_disk_quota(output_root, max_disk_bytes)
         chain_pairs = _chain_pairs(preparation.prepared_path, holo_fetched.path)
+        if preferred_apo_chain_id or preferred_holo_chain_id:
+            declared_apo = str(preferred_apo_chain_id or "").strip()
+            declared_holo = str(preferred_holo_chain_id or "").strip()
+            chain_pairs = tuple(
+                pair
+                for pair in chain_pairs
+                if (not declared_apo or pair.apo_chain_id == declared_apo)
+                and (not declared_holo or pair.holo_chain_id == declared_holo)
+            )
+            if not chain_pairs:
+                raise GroundTruthAlignmentError(
+                    "Declared apo/holo chains are not a common alignment pair"
+                )
         component_ids = tuple(
             str(component.get("comp_id", "")).strip().upper()
             for component in pair.get("holo_components", [])
@@ -530,7 +552,9 @@ def _run_pair(
         selector = _ligand_selector(
             holo_fetched.path,
             component_ids,
-            preferred_chain_id=chain_pairs[0].holo_chain_id,
+            preferred_chain_id=(
+                preferred_ligand_chain_id or preferred_holo_chain_id or chain_pairs[0].holo_chain_id
+            ),
         )
         alignment = build_aligned_ground_truth_from_files(
             case_id=str(pair["case_id"]),
@@ -539,8 +563,8 @@ def _run_pair(
             holo_path=holo_fetched.path,
             ligand=selector,
             chain_pairs=chain_pairs,
-            provenance_label="target-family-rcsb-contact-label-only-v1",
-            policy=EVALUATOR_POLICY,
+            provenance_label=provenance_label,
+            policy=alignment_policy,
         )
         record = _alignment_record(
             pair=pair,

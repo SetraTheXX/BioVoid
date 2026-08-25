@@ -7,6 +7,9 @@ from scripts.audit_pocketminer_source_catalog import (
     build_pocketminer_cohort_payload,
     parse_pocketminer_rows,
 )
+from scripts.materialize_pocketminer_development_labels import (
+    build_development_pair_payload,
+)
 from src.target_family_cohort import build_target_blind_manifest
 
 
@@ -266,3 +269,25 @@ def test_cohort_payload_redacts_temporal_label_as_test_split() -> None:
     assert all(case["label_source"] == "independent_annotation_v1" for case in cohort["cases"])
     detector_manifest = build_target_blind_manifest(cohort)
     assert all("holo" not in str(case["case_id"]).casefold() for case in detector_manifest["cases"])
+
+
+def test_development_label_pairs_split_multi_component_ligand_codes() -> None:
+    cohort = {
+        "cases": [
+            {
+                "case_id": "case-1",
+                "apo_structure_id": "1AAA",
+                "holo_structure_id": "1BBB",
+                "split": "development",
+                "uniprot_group_id": "U1",
+                "ligand_code": "NDP,TOP",
+            }
+        ]
+    }
+
+    pairs = build_development_pair_payload(cohort, expected_cases=1)
+
+    assert pairs[0]["holo_components"] == [
+        {"comp_id": "NDP"},
+        {"comp_id": "TOP"},
+    ]

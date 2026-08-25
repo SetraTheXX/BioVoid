@@ -46,6 +46,7 @@ def test_strict_pair_builder_is_deterministic_and_private() -> None:
 
 def test_contact_label_report_skeleton_keeps_detector_closed() -> None:
     from scripts.materialize_target_family_contact_labels import build_contact_label_report
+    from src.ground_truth_alignment import AlignmentPolicy
 
     report = build_contact_label_report(
         family_id="PF00497",
@@ -62,6 +63,9 @@ def test_contact_label_report_skeleton_keeps_detector_closed() -> None:
         output_root="local-private/research/target-family/contact-labels-pfam-v1",
         max_cases=10,
         max_disk_bytes=1_000_000_000,
+        alignment_policy=AlignmentPolicy(
+            policy_version="test-policy-v2", ambiguous_sequence_policy="structural_fit"
+        ),
     )
 
     assert report["status"] == "not_started"
@@ -74,6 +78,8 @@ def test_contact_label_report_skeleton_keeps_detector_closed() -> None:
     assert report["records"] == {}
     assert report["coordinates_downloaded"] is False
     assert report["claims_authorized"] is False
+    assert report["alignment_policy"]["policy_version"] == "test-policy-v2"
+    assert report["alignment_policy"]["ambiguous_sequence_policy"] == "structural_fit"
 
 
 def test_strict_pair_builder_prefers_same_sequence_cluster_pair() -> None:
