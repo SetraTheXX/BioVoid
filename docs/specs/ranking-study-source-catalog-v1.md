@@ -97,9 +97,18 @@ retains validation/test split IDs, and probes only the pinned fpocket/P2Rank
 Docker images. It never pulls images, starts containers, opens evaluator data,
 or runs NMA/ML.
 
-On 2026-08-25 the readiness result was `blocked_tool_runtime` with decision
-`WAIT_DOCKER_AND_IMAGES`: the Docker daemon was unavailable and neither image
-was inspected. This is an operational gate, not a scientific negative. An
-external comparison remains optional and may start only after the daemon and
-both pinned images are available, the unchanged one-worker/one-gigabyte output
-contract passes, and explicit bounded-run approval is recorded.
+The first readiness probe on 2026-08-25 was `blocked_tool_runtime` with
+decision `WAIT_DOCKER_AND_IMAGES`; this was an operational state, not a
+scientific negative. After Docker Desktop became available, both pinned images
+were already present and the explicitly bounded run completed 4/4 cases for
+fpocket and P2Rank. The evaluator-only comparison report is ignored local
+evidence under `data/runtime/`.
+
+The locked four-case diagnostic reported joint Top-1/3/5/10 recall of 0/4 for
+BioVoid, 1/4 for fpocket, and 0/1/1/1 for P2Rank (Top-1/3/5/10). BioVoid's
+joint candidate-universe recall was 3/4; fpocket and P2Rank each retained a
+joint candidate in 1/4 cases. BioVoid retains the full final pocket list while
+the external adapters retain each tool's top-20 output, so candidate-universe
+counts are not a claim of detector superiority. These four held-out cases are
+too small for a scientific superiority conclusion; the result is a negative or
+equivalent diagnostic and no retuning is authorized.
