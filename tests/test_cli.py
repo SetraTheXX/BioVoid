@@ -46,6 +46,71 @@ def test_batch_parser_rejects_blank_or_invalid_identifiers() -> None:
     with pytest.raises(ValueError, match="four alphanumeric characters"):
         _parse_batch_pdb_ids("1CBS,,not-a-pdb")
 
+    with pytest.raises(ValueError, match="limited to 10"):
+        _parse_batch_pdb_ids(",".join(["1CBS"] * 11))
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (("analyze", "not-a-pdb"), "PDB ID must contain exactly four alphanumeric characters"),
+        (("analyze", "1CBS", "--n-frames", "0"), "--n-frames must be in the range 1-8"),
+        (("batch", "1CBS", "--profile", "not-a-profile"), "invalid choice"),
+        (("serve", "--port", "70000"), "--port must be in the range 1-65535"),
+    ],
+)
+def test_cli_rejects_invalid_options_before_work_starts(
+    argv: tuple[str, ...], message: str
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-m", "src.cli", *argv],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 2
+    assert message in output
+    assert "Traceback" not in output
+
+
+def test_cli_requires_explicit_opt_in_for_alphafold_motion() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-m", "src.cli", "alphafold", "P04637"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 2
+    assert "--allow-experimental" in output
+    assert "Traceback" not in output
+
+
+def test_alphafold_cli_handles_no_evidence_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.alphafold_ensemble as ensemble_module
+    from src.cli import cmd_alphafold
+
+    def fake_run(**_: object) -> dict[str, object]:
+        return {"analysis": {"consensus_pockets": [], "total_frames_analyzed": 0}}
+
+    monkeypatch.setattr(ensemble_module, "run_alphafold_ensemble_pipeline", fake_run)
+    args = SimpleNamespace(
+        uniprot_id="P04637",
+        verbose=False,
+        frames_per_amp=1,
+        profile="default",
+        allow_experimental=True,
+    )
+
+    assert cmd_alphafold(args) == 0
+
 
 def test_batch_command_returns_failure_when_any_analysis_fails(
     monkeypatch: pytest.MonkeyPatch,
@@ -70,3 +135,32 @@ def test_batch_command_returns_failure_when_any_analysis_fails(
     )
 
     assert cmd_batch(args) == 1
+
+
+def test_analyze_command_returns_failure_without_traceback_on_pipeline_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import main as pipeline_module
+    from src.cli import cmd_analyze
+
+    class FailingPipeline:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def run(self) -> dict[str, object]:
+            raise RuntimeError("synthetic CLI failure")
+
+    monkeypatch.setattr(pipeline_module, "BioVoidPipeline", FailingPipeline)
+    args = SimpleNamespace(
+        pdb_id="1CBS",
+        verbose=False,
+        n_frames=1,
+        profile="default",
+        output="data/runtime/test-cli",
+        dock=False,
+        use_ml=False,
+        motion_aware=False,
+        allow_experimental=False,
+    )
+
+    assert cmd_analyze(args) == 1

@@ -142,6 +142,18 @@ Show project info:
 python -m src.cli info
 ```
 
+The AlphaFold/NMA ensemble command is experimental evidence only and is
+disabled by default during recovery. Run it only as an explicitly requested,
+resource-bounded experiment:
+
+```powershell
+python -m src.cli alphafold P04637 --allow-experimental --frames-per-amp 4
+```
+
+The local CLI validates PDB IDs, safe frame counts, profiles, ports, and
+positive benchmark tolerances before starting network or structure work. Batch
+analysis is bounded to ten IDs per invocation on the safe local profile.
+
 ## Tests
 
 Run the Python suite:

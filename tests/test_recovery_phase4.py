@@ -421,6 +421,25 @@ def test_alphafold_amplitudes_reach_motion_generator(
     assert result["accepted_samples"] == 8
 
 
+def test_alphafold_no_evidence_result_reports_zero_consensus_pockets(tmp_path: Path) -> None:
+    from src.alphafold_ensemble import EnsembleConfig, analyze_ensemble
+
+    source = tmp_path / "source.pdb"
+    source.write_text("END\n", encoding="utf-8")
+
+    result = analyze_ensemble(
+        {
+            "source_pdb": str(source),
+            "amplitude_metadata": [{"amplitude": 2.0, "error": "resource blocked"}],
+        },
+        EnsembleConfig(n_modes=1, n_frames_per_amplitude=1, amplitudes=(2.0,)),
+    )
+
+    assert result["status"] == "experimental_no_evidence"
+    assert result["total_frames_analyzed"] == 0
+    assert result["total_consensus_pockets"] == 0
+
+
 def test_sparse_memory_estimate_is_lower_and_safe_profile_limits_sampling() -> None:
     from src.resources import (
         ResourceLimitError,

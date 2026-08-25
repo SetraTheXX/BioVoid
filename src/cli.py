@@ -9,6 +9,8 @@ Commands:
     batch     - Analyze multiple proteins
     serve     - Start the API server
     cache     - Manage analysis cache
+    alphafold - Run explicitly-enabled experimental AlphaFold ensemble evidence
+    benchmark - Run the quarantined legacy benchmark (explicit opt-in)
     info      - Show project info and config
 """
 
@@ -16,14 +18,73 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import re
 import sys
 from pathlib import Path
 
 from .config import API, PATHS, PIPELINE
+from .resources import SAFE_16GB
 
 logger = logging.getLogger(__name__)
 _RCSB_ID_PATTERN = re.compile(r"^[A-Z0-9]{4}$")
+_MAX_CLI_BATCH_SIZE = 10
+
+
+def _normalize_pdb_id(value: str) -> str:
+    """Normalize one RCSB identifier and reject malformed input."""
+    normalized = value.strip().upper()
+    if not _RCSB_ID_PATTERN.fullmatch(normalized):
+        raise ValueError(
+            f"PDB ID must contain exactly four alphanumeric characters; received: {value!r}"
+        )
+    return normalized
+
+
+def _parse_pdb_id_arg(value: str) -> str:
+    """Argparse adapter for a single RCSB identifier."""
+    try:
+        return _normalize_pdb_id(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _bounded_int_arg(value: str, *, name: str, maximum: int) -> int:
+    """Parse a positive bounded integer before any work is started."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(f"{name} must be an integer") from exc
+    if not 1 <= parsed <= maximum:
+        raise argparse.ArgumentTypeError(f"{name} must be in the range 1-{maximum}")
+    return parsed
+
+
+def _safe_n_frames_arg(value: str) -> int:
+    return _bounded_int_arg(
+        value,
+        name="--n-frames",
+        maximum=SAFE_16GB.max_samples_per_mode,
+    )
+
+
+def _legacy_n_frames_arg(value: str) -> int:
+    """Keep the quarantined legacy benchmark's historical upper bound explicit."""
+    return _bounded_int_arg(value, name="--n-frames", maximum=20)
+
+
+def _positive_float_arg(value: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("--tolerance must be a number") from exc
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("--tolerance must be a finite number greater than zero")
+    return parsed
+
+
+def _port_arg(value: str) -> int:
+    return _bounded_int_arg(value, name="--port", maximum=65535)
 
 
 def _setup_logging(verbose: bool = False):
@@ -38,21 +99,25 @@ def cmd_analyze(args):
     """Run pipeline on a single protein."""
     _setup_logging(args.verbose)
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from main import BioVoidPipeline
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from main import BioVoidPipeline
 
-    pipeline = BioVoidPipeline(
-        pdb_id=args.pdb_id,
-        n_frames=args.n_frames,
-        verbose=args.verbose,
-        output_dir=args.output,
-        profile=args.profile,
-        dock=args.dock,
-        use_ml=args.use_ml,
-        multiframe=args.motion_aware,
-        allow_experimental=args.allow_experimental,
-    )
-    report = pipeline.run()
+        pipeline = BioVoidPipeline(
+            pdb_id=args.pdb_id,
+            n_frames=args.n_frames,
+            verbose=args.verbose,
+            output_dir=args.output,
+            profile=args.profile,
+            dock=args.dock,
+            use_ml=args.use_ml,
+            multiframe=args.motion_aware,
+            allow_experimental=args.allow_experimental,
+        )
+        report = pipeline.run()
+    except Exception as exc:
+        logger.error("Analysis failed for %s: %s", args.pdb_id, exc)
+        return 1
 
     logger.info(
         "PDB: %s | Cavities: %d | Heuristic shortlist: %d | Time: %.1fs",
@@ -71,6 +136,10 @@ def _parse_batch_pdb_ids(raw_pdb_ids: str) -> list[str]:
         raise ValueError(
             "Batch input must contain only four alphanumeric characters per PDB ID; "
             f"invalid values: {', '.join(invalid)}"
+        )
+    if len(pdb_ids) > _MAX_CLI_BATCH_SIZE:
+        raise ValueError(
+            f"Batch input is limited to {_MAX_CLI_BATCH_SIZE} PDB IDs for the safe local CLI"
         )
     return pdb_ids
 
@@ -121,15 +190,20 @@ def cmd_serve(args):
         import uvicorn
     except ImportError:
         logger.error("uvicorn is required: pip install uvicorn")
-        sys.exit(1)
+        return 1
 
-    uvicorn.run(
-        "src.api.app:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-        log_level="debug" if args.verbose else "info",
-    )
+    try:
+        uvicorn.run(
+            "src.api.app:app",
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            log_level="debug" if args.verbose else "info",
+        )
+    except Exception as exc:
+        logger.error("API server failed: %s", exc)
+        return 1
+    return 0
 
 
 def cmd_cache(args):
@@ -159,19 +233,32 @@ def cmd_cache(args):
 def cmd_alphafold(args):
     """Run AlphaFold ensemble analysis."""
     _setup_logging(args.verbose)
-    from .alphafold_ensemble import EnsembleConfig, run_alphafold_ensemble_pipeline
 
-    config = EnsembleConfig(
-        n_frames_per_amplitude=args.frames_per_amp,
-        profile=args.profile,
-    )
-    result = run_alphafold_ensemble_pipeline(
-        uniprot_id=args.uniprot_id,
-        config=config,
-    )
+    if not getattr(args, "allow_experimental", False):
+        logger.error(
+            "AlphaFold ensemble analysis is experimental and disabled during recovery. "
+            "Re-run with --allow-experimental only for an explicitly requested evidence run."
+        )
+        return 2
 
-    n_pockets = result["analysis"]["total_consensus_pockets"]
-    n_frames = result["analysis"]["total_frames_analyzed"]
+    try:
+        from .alphafold_ensemble import EnsembleConfig, run_alphafold_ensemble_pipeline
+
+        config = EnsembleConfig(
+            n_frames_per_amplitude=args.frames_per_amp,
+            profile=args.profile,
+        )
+        result = run_alphafold_ensemble_pipeline(
+            uniprot_id=args.uniprot_id,
+            config=config,
+        )
+    except Exception as exc:
+        logger.error("AlphaFold ensemble failed for %s: %s", args.uniprot_id, exc)
+        return 1
+
+    analysis = result.get("analysis", {})
+    n_pockets = analysis.get("total_consensus_pockets", len(analysis.get("consensus_pockets", [])))
+    n_frames = analysis.get("total_frames_analyzed", 0)
     logger.info("AlphaFold Ensemble: %s", args.uniprot_id)
     logger.info("Frames analyzed: %d", n_frames)
     logger.info("Consensus pockets: %d", n_pockets)
@@ -186,6 +273,7 @@ def cmd_alphafold(args):
             center[1],
             center[2],
         )
+    return 0
 
 
 def cmd_benchmark(args):
@@ -258,12 +346,15 @@ def main() -> int:
 
     # analyze
     p_analyze = sub.add_parser("analyze", help="Analyze a single protein")
-    p_analyze.add_argument("pdb_id", help="PDB ID (e.g. 1CBS)")
+    p_analyze.add_argument("pdb_id", type=_parse_pdb_id_arg, help="PDB ID (e.g. 1CBS)")
     p_analyze.add_argument(
         "--n-frames",
-        type=int,
+        type=_safe_n_frames_arg,
         default=PIPELINE.n_frames,
-        help="Independent samples per NMA mode (legacy option name)",
+        help=(
+            "Independent samples per NMA mode (legacy option name; "
+            f"safe-16gb max: {SAFE_16GB.max_samples_per_mode})"
+        ),
     )
     p_analyze.add_argument(
         "--profile", default=PIPELINE.profile, choices=list(PIPELINE.scoring_profiles)
@@ -287,8 +378,15 @@ def main() -> int:
     # batch
     p_batch = sub.add_parser("batch", help="Analyze multiple proteins")
     p_batch.add_argument("pdb_ids", help="Comma-separated PDB IDs")
-    p_batch.add_argument("--n-frames", type=int, default=PIPELINE.n_frames)
-    p_batch.add_argument("--profile", default=PIPELINE.profile)
+    p_batch.add_argument(
+        "--n-frames",
+        type=_safe_n_frames_arg,
+        default=PIPELINE.n_frames,
+        help=f"Independent samples per mode (safe-16gb max: {SAFE_16GB.max_samples_per_mode})",
+    )
+    p_batch.add_argument(
+        "--profile", default=PIPELINE.profile, choices=list(PIPELINE.scoring_profiles)
+    )
     p_batch.add_argument("--output", default=str(PATHS.results))
     p_batch.add_argument("-v", "--verbose", action="store_true")
     p_batch.set_defaults(func=cmd_batch)
@@ -296,7 +394,7 @@ def main() -> int:
     # serve
     p_serve = sub.add_parser("serve", help="Start API server")
     p_serve.add_argument("--host", default=API.host)
-    p_serve.add_argument("--port", type=int, default=API.port)
+    p_serve.add_argument("--port", type=_port_arg, default=API.port)
     p_serve.add_argument("--reload", action="store_true")
     p_serve.add_argument("-v", "--verbose", action="store_true")
     p_serve.set_defaults(func=cmd_serve)
@@ -312,20 +410,28 @@ def main() -> int:
     p_af.add_argument("uniprot_id", help="UniProt ID (e.g. P04637)")
     p_af.add_argument(
         "--frames-per-amp",
-        type=int,
+        type=_safe_n_frames_arg,
         default=PIPELINE.n_frames,
-        choices=range(1, 9),
         help="Independent samples per mode and amplitude (1-8)",
     )
-    p_af.add_argument("--profile", default=PIPELINE.profile)
+    p_af.add_argument(
+        "--profile", default=PIPELINE.profile, choices=list(PIPELINE.scoring_profiles)
+    )
+    p_af.add_argument(
+        "--allow-experimental",
+        action="store_true",
+        help="Allow this explicitly requested experimental motion evidence run",
+    )
     p_af.add_argument("-v", "--verbose", action="store_true")
     p_af.set_defaults(func=cmd_alphafold)
 
     # benchmark
     p_bench = sub.add_parser("benchmark", help="Run accuracy benchmark")
-    p_bench.add_argument("--n-frames", type=int, default=20)
-    p_bench.add_argument("--profile", default=PIPELINE.profile)
-    p_bench.add_argument("--tolerance", type=float, default=8.0)
+    p_bench.add_argument("--n-frames", type=_legacy_n_frames_arg, default=20)
+    p_bench.add_argument(
+        "--profile", default=PIPELINE.profile, choices=list(PIPELINE.scoring_profiles)
+    )
+    p_bench.add_argument("--tolerance", type=_positive_float_arg, default=8.0)
     p_bench.add_argument("--output", default=None, help="Save report JSON path")
     p_bench.add_argument(
         "--allow-legacy-benchmark",

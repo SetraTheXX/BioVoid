@@ -215,6 +215,7 @@ def analyze_ensemble(
             "frame_stats": frame_stats,
             "frame_errors": frame_errors,
             "total_frames_analyzed": 0,
+            "total_consensus_pockets": 0,
             "status": "experimental_no_evidence",
             "canonical_ranking_affected": False,
         }
