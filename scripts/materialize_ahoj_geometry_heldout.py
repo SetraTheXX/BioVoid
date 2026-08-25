@@ -70,7 +70,10 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def _validate_manifest(manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    if manifest.get("schema_version") != "biovoid-ahoj-geometry-detector-manifest-v1":
+    if manifest.get("schema_version") not in {
+        "biovoid-ahoj-geometry-detector-manifest-v1",
+        "biovoid-ahoj-geometry-detector-manifest-v2",
+    }:
         raise AhojHeldoutMaterializationError("unsupported AHoJ detector manifest schema")
     if manifest.get("boundary") != "apo_full_structure_only_v1":
         raise AhojHeldoutMaterializationError("held-out manifest is not apo full-structure only")

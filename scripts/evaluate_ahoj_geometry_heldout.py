@@ -110,11 +110,17 @@ def _validate_inputs(
     static_run: Mapping[str, Any],
     selection: Mapping[str, Any],
 ) -> tuple[list[Mapping[str, Any]], dict[str, Mapping[str, Any]]]:
-    if cohort.get("schema_version") != "biovoid-ahoj-geometry-cohort-v1":
+    if cohort.get("schema_version") not in {
+        "biovoid-ahoj-geometry-cohort-v1",
+        "biovoid-ahoj-geometry-cohort-v2",
+    }:
         raise AhojHeldoutEvaluationError("unsupported AHoJ cohort schema")
     if cohort.get("evaluator_started") is not False:
         raise AhojHeldoutEvaluationError("held-out evaluator state was already opened")
-    if manifest.get("schema_version") != "biovoid-ahoj-geometry-detector-manifest-v1":
+    if manifest.get("schema_version") not in {
+        "biovoid-ahoj-geometry-detector-manifest-v1",
+        "biovoid-ahoj-geometry-detector-manifest-v2",
+    }:
         raise AhojHeldoutEvaluationError("unsupported AHoJ detector manifest schema")
     if static_run.get("schema_version") != "biovoid-ahoj-geometry-heldout-static-pilot-v1":
         raise AhojHeldoutEvaluationError("unsupported held-out static schema")

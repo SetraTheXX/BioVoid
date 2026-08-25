@@ -1,7 +1,7 @@
 # Geometry/data research contract v1
 
-Status: **active development/held-out gate; AHoJ development diagnostic is
-complete, while validation and temporal-test remain sealed**.
+Status: **active development/held-out gate; AHoJ v1 readout is complete and a
+separate alignment-quality amendment is resource-blocked**.
 
 This contract starts a new research branch after the bounded PocketMiner
 held-out study and external comparison. It does not reopen the PocketMiner
@@ -210,3 +210,39 @@ source/alignment-quality decision: either close this branch with the E row
 retained, or create a new versioned cohort/alignment contract. Replacing the
 6J6F case ad hoc after seeing outcomes is prohibited. NMA, external baselines,
 ML, and new source search remain closed until that decision is recorded.
+
+## AHoJ alignment-quality amendment v2 (2026-08-25)
+
+The `6J6F`/`5FB7` E row was audited as a source/alignment-quality problem: the
+resolved apo and holo entities are in the same sequence group but have a large
+entity-length mismatch (apo 313 residues versus holo 155). The original v1
+held-out result is retained unchanged; it is not relabelled as a detector miss
+and it is not removed from the denominator.
+
+A separate metadata-only amendment was therefore sealed before opening any
+replacement label. Its preregistered proxy requires resolved apo/holo entities,
+resolved chain mapping, independent label provenance, no overlap, a non-empty
+ligand-chain mapping, a likely-within-`safe-16gb` resource proxy, and an
+apo/holo entity-length ratio of at least `0.90`. The deterministic earliest
+unused validation candidate was `6IRX`; development and temporal reservations
+were unchanged. The amendment is a new versioned `6/2/2` cohort and its
+target-blind detector manifest contains no holo, ligand, evaluator, or
+ground-truth fields.
+
+The amendment materialization prepared all four apo inputs (1,901,167 raw
+bytes), but the unchanged live-memory `safe-16gb` gate blocked the 3,915-atom
+`6IRX` static job while the other three cases completed. A repeated preflight
+under the same cap still marked `6IRX` `blocked_safe_16gb`; no cap, threshold,
+worker count, or denominator was changed. Consequently no v2 evaluator,
+DCC/DCA readout, NMA, external baseline, or ML run has started. This is an
+operational resource status, not a scientific negative. The v1 E row remains
+the only completed held-out AHoJ diagnostic until the amendment can be run
+under the same contract or is explicitly closed.
+
+The amendment artifacts are ignored local data under
+`local-private/research/geometry-data-source-catalog/ahoj-v2-alignment-quality/`
+and `data/runtime/target-family/cohort-ahoj-geometry-v2-alignment-quality/`.
+Do not select a smaller replacement after observing this block; that would
+require another separately versioned source/amendment contract. Until the
+amendment decision is closed, downstream external baselines, NMA, ML, broad
+scans, and new source searches remain closed.
