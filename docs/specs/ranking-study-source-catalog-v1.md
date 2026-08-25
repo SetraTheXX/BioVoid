@@ -68,3 +68,20 @@ snapshot.
 
 Reproducible local report (ignored):
 `local-private/research/ranking-study-source-catalog/pocketminer-v1/`.
+
+## Development and held-out execution boundary
+
+The six pre-sealed development apo cases have a target-blind static artifact
+with the complete final merged pocket list retained. Independent holo/contact
+labels are materialized only in ignored evaluator storage under the versioned
+`ground-truth-alignment-pocketminer-v2` policy; the earlier ambiguous-alignment
+failure remains a separate fail-closed v1 report. The public repository stores
+the bounded materialization/evaluation commands, not coordinates or label
+artifacts.
+
+Development-only DCC/DCA decomposition and the A/B/C shadow ranking-policy
+selection are descriptive and do not change `canonical-static-v1`. The
+validation and temporal/test rows were reserved before development results and
+must remain sealed until the selected shadow policy is frozen. Their apo-only
+preparation may be resource-blocked by the live `safe-16gb` available-memory
+gate; the atom/memory limits must not be raised after seeing a result.
