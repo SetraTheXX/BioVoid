@@ -79,6 +79,15 @@ biological negative. A new catalog must reserve and hash all three splits before
 any development result is observed; no historical diagnostic case may be
 reused.
 
+The first separately versioned replacement catalog is the PocketMiner
+novel-cryptic-pocket source defined in
+`docs/specs/ranking-study-source-catalog-v1.md`. Its metadata-only report
+passed with 26 eligible independent cases and a sealed 6-development,
+2-validation, 2-temporal reserve. The apo-only manifest and six-case
+preparation/resource preflight now pass; this still does not authorize a
+benchmark, model inference, NMA, ML, or a scientific claim. The ignored local
+report records the source/license and snapshot hashes.
+
 ## Sequence-cluster materialization boundary
 
 `scripts/materialize_target_family_sequence_clusters.py` is the bounded
@@ -97,8 +106,8 @@ single-linkage clusters are explicitly marked `review_required`, do not create
 independent labels, and are not eligible to authorize a detector, benchmark, ML
 training, or discovery claim. Independent contact-label review is complete for
 the nine strict pairs; the three unavailable records remain excluded with
-reasons. The next gate is a new, explicitly pre-registered cohort design, not an
-automatic expansion of this manifest.
+reasons. The next gate is the separately versioned source/catalog contract,
+not an automatic expansion of this manifest.
 
 `scripts/build_target_family_pfam_inventory.py` is a separate bounded
 preflight for the exact PF00497 annotation. It requests only the first 100
