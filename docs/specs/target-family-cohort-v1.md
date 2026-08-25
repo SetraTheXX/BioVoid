@@ -59,6 +59,15 @@ diagnostic). No new detector run, NMA, or ML training starts at this contract
 gate. A later ML baseline must use the redacted manifest, independent labels, and
 family-aware held-out splits after a separate explicit approval.
 
+The subsequent bounded second-family source screens (PFAM/RCSB metadata-only
+V1–V5, including a 100-entry pagination completion and one review-only
+sequence-cluster diagnostic) also closed without an eligible family. They did
+not download coordinates or create a second-family cohort. This is a source
+feasibility boundary, not a detector, ranking, biological, or discovery result;
+the exact quality, overlap, and `safe-16gb` gates remain unchanged. A future
+second-family attempt therefore requires a separately versioned source/catalog
+or cohort contract before any pilot authorization.
+
 ## Sequence-cluster materialization boundary
 
 `scripts/materialize_target_family_sequence_clusters.py` is the bounded
