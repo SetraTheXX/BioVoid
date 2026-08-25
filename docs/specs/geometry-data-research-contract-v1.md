@@ -1,6 +1,7 @@
 # Geometry/data research contract v1
 
-Status: **design gate; no source has passed and no coordinates are authorized**.
+Status: **active development/held-out gate; AHoJ development diagnostic is
+complete, while validation and temporal-test remain sealed**.
 
 This contract starts a new research branch after the bounded PocketMiner
 held-out study and external comparison. It does not reopen the PocketMiner
@@ -87,11 +88,13 @@ No result may be described as accuracy, validated prediction, druggability,
 discovery, or superiority without an independent rerun and expert/experimental
 review.
 
-## Immediate next action
+## Initial design action (closed)
 
 Build a metadata-only candidate catalog under a new versioned source ID. Do not
 download coordinates, open holo labels, start NMA/ML, or change the static
-detector while that feasibility gate is running.
+detector while that feasibility gate is running. This was the initial source
+gate; the AHoJ catalog, split reservation, apo-only manifest, and development
+static artifact below now supersede it.
 
 ## First catalog feasibility result — AHoJ subset 1 (2026-08-25)
 
@@ -151,3 +154,59 @@ diagnostic artifact with 79–315 final pockets per case and no evaluator data,
 motion, external baseline, or ML activity. This is not a validation result;
 the next gate is to materialize the six evaluator-side AHoJ labels and run a
 read-only DCC/DCA decomposition against this frozen static artifact.
+
+## AHoJ evaluator and development policy gate (2026-08-25)
+
+The evaluator opened only the six development holo structures after the
+target-blind static artifact was sealed. Protein C-alpha alignment was fitted
+in the prepared apo frame and ligand coordinates were transformed only after
+that fit. The first reject-only alignment attempt remains as a private
+fail-closed audit; a deterministic structural-fit recovery policy already
+implemented by the alignment module was then used for ambiguous sequence
+alignments. The recovery policy is versioned, does not inspect DCC/DCA results,
+and does not alter detector output or ranking.
+
+All six development labels aligned successfully. Validation and temporal-test
+coordinates/labels were not opened. The full final-pocket list was evaluated
+with the frozen `phase6-cryptobench-v1` 4 Å DCC/DCA protocol. The joint
+final-list candidate-universe count was **5/6**; joint Top-1/3/5/10 recall was
+**1/6, 3/6, 3/6, and 4/6**. Three cases had joint Top-5 support, two were
+late-ranking cases (best joint ranks 8 and 15), and one was a final-list miss.
+These are small development diagnostics, not accuracy or discovery claims.
+
+The pre-registered A/B/C shadow ranking comparison then ran only on these six
+development cases. A is canonical volume-descending, B is the fixed
+70/30 volume/enclosure variant, and C is the fixed 50/50 variant. DCC Top-3,
+DCA Top-3, and DCC Top-1 tie-breaks were equal for A and B; the final frozen
+tie-break retained **`A-canonical-volume-v1`**. No policy was promoted to
+`canonical-static-v1`, and no validation/temporal label was opened.
+
+The next gate is a target-blind, bounded materialization/static run for the
+reserved 2 validation + 2 temporal cases, followed by one locked-A evaluator
+readout. No retuning, NMA, external baseline, ML, or new source search is
+authorized before that held-out result.
+
+## AHoJ locked-policy held-out gate (2026-08-25)
+
+The four reserved apo inputs (2 validation + 2 temporal-test) passed the same
+one-worker `safe-16gb` preflight and completed target-blind canonical static
+analysis with full final-pocket retention. The locked A policy was not changed
+or rerun as a different detector.
+
+The held-out evaluator opened only the four reserved holo structures. Three
+rows aligned under the versioned structural-fit recovery policy; the
+`6J6F`–`5FB7` pair remained **E — evaluator/alignment unavailable** because its
+protein fit exceeded the frozen 8 Å maximum RMSD. That row stays visible and
+is not converted into a detector miss or success. Among the three aligned
+rows, the joint final-list candidate-universe count was **2/3**, while joint
+Top-1/3/5/10 was **0/3** at every cutoff. The validation subset contributes
+one aligned row (6EHF, best joint rank 111); the temporal subset contributes
+two aligned rows (8SBN, best joint rank 32; 8BCL, final-list miss).
+
+This is a small negative/equivalent diagnostic with an explicit E-status, not
+a validated held-out result and not a superiority or discovery claim. The
+current decision is to keep the locked A policy and open a separate
+source/alignment-quality decision: either close this branch with the E row
+retained, or create a new versioned cohort/alignment contract. Replacing the
+6J6F case ad hoc after seeing outcomes is prohibited. NMA, external baselines,
+ML, and new source search remain closed until that decision is recorded.
