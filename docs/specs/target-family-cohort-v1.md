@@ -71,6 +71,14 @@ the exact quality, overlap, and `safe-16gb` gates remain unchanged. A future
 second-family attempt therefore requires a separately versioned source/catalog
 or cohort contract before any pilot authorization.
 
+The post-diagnostic ranking-cohort feasibility gate also closed the current
+PF00497 metadata catalog for policy selection: all strict pair candidates were
+historical diagnostic inputs, so no independent 6-development/2-validation/2-
+temporal reserve remained. This is a metadata-capacity `NO_GO`, not a
+biological negative. A new catalog must reserve and hash all three splits before
+any development result is observed; no historical diagnostic case may be
+reused.
+
 ## Sequence-cluster materialization boundary
 
 `scripts/materialize_target_family_sequence_clusters.py` is the bounded
