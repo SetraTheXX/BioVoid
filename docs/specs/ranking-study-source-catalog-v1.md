@@ -80,8 +80,9 @@ the bounded materialization/evaluation commands, not coordinates or label
 artifacts.
 
 Development-only DCC/DCA decomposition and the A/B/C shadow ranking-policy
-selection are descriptive and do not change `canonical-static-v1`. The
-validation and temporal/test rows were reserved before development results and
-must remain sealed until the selected shadow policy is frozen. Their apo-only
-preparation may be resource-blocked by the live `safe-16gb` available-memory
-gate; the atom/memory limits must not be raised after seeing a result.
+selection are descriptive and do not change `canonical-static-v1`. The locked
+A policy was then measured once on the pre-reserved four held-out rows: joint
+candidate-universe recall was 3/4, but joint Top-1/3/5/10 recall was 0/4.
+DCA Top-5 was 2/4 and DCC Top-10 was 0/4. This is a small negative/equivalent
+diagnostic; no retuning or discovery claim is authorized. The atom/memory
+limits were unchanged throughout.

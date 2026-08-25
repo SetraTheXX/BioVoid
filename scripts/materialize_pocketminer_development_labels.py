@@ -93,15 +93,26 @@ def _pdb_id(value: Any, field: str) -> str:
 def build_development_pair_payload(
     cohort: Mapping[str, Any], *, expected_cases: int = MAX_DEVELOPMENT_CASES
 ) -> list[dict[str, Any]]:
-    """Build deterministic private pair inputs from the pre-sealed cohort."""
+    """Build deterministic private development pair inputs."""
+
+    return build_pair_payload_for_splits(
+        cohort, splits=frozenset({"development"}), expected_cases=expected_cases
+    )
+
+
+def build_pair_payload_for_splits(
+    cohort: Mapping[str, Any],
+    *,
+    splits: frozenset[str],
+    expected_cases: int,
+) -> list[dict[str, Any]]:
+    """Build deterministic private pair inputs for pre-sealed split rows."""
 
     raw_cases = cohort.get("cases")
     if not isinstance(raw_cases, list):
         raise PocketMinerDevelopmentLabelError("cohort cases are missing")
     development = [
-        case
-        for case in raw_cases
-        if isinstance(case, Mapping) and case.get("split") == "development"
+        case for case in raw_cases if isinstance(case, Mapping) and case.get("split") in splits
     ]
     if len(development) != expected_cases:
         raise PocketMinerDevelopmentLabelError(
