@@ -117,6 +117,21 @@ def test_pilot_run_skeleton_closes_evaluation_and_is_hash_valid() -> None:
 
 
 def test_pilot_status_distinguishes_resource_block_from_success() -> None:
-    assert _final_pilot_status(processed=10, expected=10, counts={"completed": 10, "resource_blocked": 0, "failed": 0}) == "complete"
-    assert _final_pilot_status(processed=10, expected=10, counts={"completed": 0, "resource_blocked": 10, "failed": 0}) == "complete_with_resource_blocks"
-    assert _final_pilot_status(processed=10, expected=10, counts={"completed": 9, "resource_blocked": 0, "failed": 1}) == "complete_with_failures"
+    assert (
+        _final_pilot_status(
+            processed=10, expected=10, counts={"completed": 10, "resource_blocked": 0, "failed": 0}
+        )
+        == "complete"
+    )
+    assert (
+        _final_pilot_status(
+            processed=10, expected=10, counts={"completed": 0, "resource_blocked": 10, "failed": 0}
+        )
+        == "complete_with_resource_blocks"
+    )
+    assert (
+        _final_pilot_status(
+            processed=10, expected=10, counts={"completed": 9, "resource_blocked": 0, "failed": 1}
+        )
+        == "complete_with_failures"
+    )
