@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 
 from .config import API, PATHS, PIPELINE
 
 logger = logging.getLogger(__name__)
+_RCSB_ID_PATTERN = re.compile(r"^[A-Z0-9]{4}$")
 
 
 def _setup_logging(verbose: bool = False):
@@ -61,12 +63,29 @@ def cmd_analyze(args):
     )
 
 
+def _parse_batch_pdb_ids(raw_pdb_ids: str) -> list[str]:
+    """Normalize and validate the comma-separated RCSB IDs accepted by ``batch``."""
+    pdb_ids = [pdb_id.strip().upper() for pdb_id in raw_pdb_ids.split(",")]
+    invalid = [pdb_id or "<empty>" for pdb_id in pdb_ids if not _RCSB_ID_PATTERN.fullmatch(pdb_id)]
+    if invalid:
+        raise ValueError(
+            "Batch input must contain only four alphanumeric characters per PDB ID; "
+            f"invalid values: {', '.join(invalid)}"
+        )
+    return pdb_ids
+
+
 def cmd_batch(args):
     """Analyze multiple proteins."""
     _setup_logging(args.verbose)
     logger = logging.getLogger("biovoid.cli.batch")
 
-    pdb_ids = [pid.strip().upper() for pid in args.pdb_ids.split(",")]
+    try:
+        pdb_ids = _parse_batch_pdb_ids(args.pdb_ids)
+    except ValueError as exc:
+        logger.error("%s", exc)
+        return 2
+
     logger.info("Batch analysis: %d proteins", len(pdb_ids))
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -91,6 +110,7 @@ def cmd_batch(args):
 
     succeeded = sum(1 for r in results if r["status"] == "success")
     logger.info("Batch complete: %d/%d succeeded", succeeded, len(results))
+    return 0 if succeeded == len(results) else 1
 
 
 def cmd_serve(args):
@@ -229,7 +249,7 @@ def cmd_info(args):
     logger.info("API: %s:%d", API.host, API.port)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         prog="biovoid",
         description="BioVoid: local protein pocket analysis research prototype",
@@ -320,8 +340,9 @@ def main():
     p_info.set_defaults(func=cmd_info)
 
     args = parser.parse_args()
-    args.func(args)
+    result = args.func(args)
+    return result if isinstance(result, int) else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
