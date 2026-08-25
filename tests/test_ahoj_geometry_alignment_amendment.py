@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from scripts.seal_ahoj_geometry_alignment_amendment import (
     build_alignment_amendment,
+    AhojAlignmentAmendmentError,
 )
 
 
@@ -70,3 +73,32 @@ def test_alignment_amendment_replaces_only_the_incompatible_validation_case() ->
         token in str(manifest).casefold()
         for token in ("holo", "ligand", "evaluator", "ground_truth", "bio_score")
     )
+
+
+def test_alignment_amendment_rejects_missing_temporal_reservation() -> None:
+    resolution_cases = [
+        *[
+            _resolution_case(f"{index:04d}", f"{index:04d}", release="2016-01-01")
+            for index in range(1, 7)
+        ],
+        _resolution_case("6EHF", "6EHG", release="2019-01-01"),
+        _resolution_case("6J6F", "5FB7", release="2019-02-01", ratio=0.50),
+    ]
+    v1_cases = [
+        *[
+            {
+                "apo_structure_id": f"{index:04d}",
+                "holo_structure_id": f"{index:04d}",
+                "split": "development",
+            }
+            for index in range(1, 7)
+        ],
+        {"apo_structure_id": "6EHF", "holo_structure_id": "6EHG", "split": "validation"},
+        {"apo_structure_id": "6J6F", "holo_structure_id": "5FB7", "split": "validation"},
+    ]
+
+    with pytest.raises(AhojAlignmentAmendmentError, match="6/2/2"):
+        build_alignment_amendment(
+            {"decision": "PASS", "cases": resolution_cases},
+            {"cases": v1_cases},
+        )

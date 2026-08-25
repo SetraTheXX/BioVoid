@@ -155,19 +155,27 @@ def build_alignment_amendment(
     v1_cases = v1_cohort.get("cases")
     if not isinstance(raw_cases, list) or not isinstance(v1_cases, list):
         raise AhojAlignmentAmendmentError("resolution or v1 cohort cases are missing")
-    by_apo = {
-        _pdb_id(case.get("apo_structure_id"), "case.apo_structure_id"): case
-        for case in raw_cases
-        if isinstance(case, Mapping)
-    }
+    by_apo: dict[str, Mapping[str, Any]] = {}
+    for case in raw_cases:
+        if not isinstance(case, Mapping):
+            continue
+        apo_id = _pdb_id(case.get("apo_structure_id"), "case.apo_structure_id")
+        if apo_id in by_apo:
+            raise AhojAlignmentAmendmentError(f"duplicate apo structure in resolution: {apo_id}")
+        by_apo[apo_id] = case
     v1_by_split: dict[str, list[Mapping[str, Any]]] = {split: [] for split in TARGET_COUNTS}
+    v1_apo_ids: set[str] = set()
     for case in v1_cases:
         if isinstance(case, Mapping) and str(case.get("split")) in v1_by_split:
-            original = by_apo.get(_pdb_id(case.get("apo_structure_id"), "case.apo_structure_id"))
+            apo_id = _pdb_id(case.get("apo_structure_id"), "case.apo_structure_id")
+            if apo_id in v1_apo_ids:
+                raise AhojAlignmentAmendmentError(f"duplicate apo structure in v1 cohort: {apo_id}")
+            v1_apo_ids.add(apo_id)
+            original = by_apo.get(apo_id)
             if original is None:
                 raise AhojAlignmentAmendmentError("v1 case is absent from resolution")
             v1_by_split[str(case["split"])].append(original)
-    if len(v1_by_split["development"]) != 6 or len(v1_by_split["validation"]) != 2:
+    if any(len(v1_by_split[split]) != count for split, count in TARGET_COUNTS.items()):
         raise AhojAlignmentAmendmentError(
             "v1 cohort does not contain the expected 6/2/2 allocation"
         )
@@ -182,6 +190,13 @@ def build_alignment_amendment(
         raise AhojAlignmentAmendmentError(
             "v1 validation amendment expects exactly one 6J6F replacement"
         )
+    replaced_case = next(
+        case
+        for case in v1_by_split["validation"]
+        if _pdb_id(case["apo_structure_id"], "case.apo") == "6J6F"
+    )
+    if _pdb_id(replaced_case.get("holo_structure_id"), "case.holo") != "5FB7":
+        raise AhojAlignmentAmendmentError("v1 validation replacement must target 6J6F/5FB7")
     used_apo = {
         _pdb_id(case["apo_structure_id"], "case.apo_structure_id")
         for split_cases in v1_by_split.values()
