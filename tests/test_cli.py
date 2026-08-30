@@ -76,6 +76,58 @@ def test_cli_rejects_invalid_options_before_work_starts(
     assert "Traceback" not in output
 
 
+def test_cli_serve_rejects_non_loopback_bind_without_explicit_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+
+    from src.cli import cmd_serve
+
+    called = False
+
+    def fake_run(*_: object, **__: object) -> None:
+        nonlocal called
+        called = True
+
+    monkeypatch.setitem(sys.modules, "uvicorn", SimpleNamespace(run=fake_run))
+    args = SimpleNamespace(
+        host="0.0.0.0",
+        port=8766,
+        reload=False,
+        verbose=False,
+        allow_remote=False,
+    )
+
+    assert cmd_serve(args) == 2
+    assert not called
+
+
+def test_cli_serve_allows_non_loopback_bind_with_explicit_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+
+    from src.cli import cmd_serve
+
+    observed: dict[str, object] = {}
+
+    def fake_run(*_: object, **kwargs: object) -> None:
+        observed.update(kwargs)
+
+    monkeypatch.setitem(sys.modules, "uvicorn", SimpleNamespace(run=fake_run))
+    args = SimpleNamespace(
+        host="0.0.0.0",
+        port=8766,
+        reload=False,
+        verbose=False,
+        allow_remote=True,
+    )
+
+    assert cmd_serve(args) == 0
+    assert observed["host"] == "0.0.0.0"
+    assert observed["port"] == 8766
+
+
 def test_cli_requires_explicit_opt_in_for_alphafold_motion() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     result = subprocess.run(

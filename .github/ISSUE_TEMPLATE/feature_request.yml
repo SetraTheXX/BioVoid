@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a bounded product improvement tied to a real user workflow.
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        BioVoid remains a local research-software prototype. Feature proposals
+        must preserve the static canonical/evaluator separation, provenance,
+        public-hygiene boundary, and conservative scientific claim limits.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Who is affected, and what concrete task is currently difficult?
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Proposed bounded workflow
+      description: Describe the smallest useful end-to-end behavior and its success check.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Installation and local runtime
+        - CLI or API
+        - React UI
+        - Provenance and reproducibility
+        - Documentation and examples
+        - Research contract or evaluator
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and claim boundary
+      description: Note resource, leakage, public-hygiene, or scientific-claim constraints.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data boundary check
+      options:
+        - label: I will not attach secrets, raw structures, private databases, models, or generated research outputs.
+          required: true

@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a reproducible installation, runtime, API, or UI problem.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        BioVoid is a local computational research prototype. Do not include
+        secrets, access tokens, private structure files, local databases,
+        generated research outputs, or unredacted local paths.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Installation or dependencies
+        - CLI or API runtime
+        - React UI or molecular viewer
+        - Reproducibility or provenance
+        - Optional Docker or external tool path
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: BioVoid version or commit
+      placeholder: "0.1.0 or short commit SHA"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Python version, Node/npm versions, and relevant resource profile.
+      placeholder: "Windows 11, Python 3.13.x, Node 22.x, safe-16gb"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest command sequence that reproduces the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: Remove secrets, tokens, private paths, raw structures, and generated research data.
+      render: text
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data boundary check
+      options:
+        - label: I removed secrets, private paths, raw structures, databases, models, and generated research outputs.
+          required: true

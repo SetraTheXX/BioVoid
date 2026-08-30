@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import sys
 from pathlib import Path
 
@@ -14,6 +13,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.api.app import app
+from src.bind_policy import is_loopback_host
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,17 +27,6 @@ def parse_args() -> argparse.Namespace:
         help="explicitly allow a non-loopback bind (local-only mode rejects it)",
     )
     return parser.parse_args()
-
-
-def is_loopback_host(host: str) -> bool:
-    """Return whether a bind target is local-only."""
-    normalized = host.strip().lower()
-    if normalized in {"localhost", "ip6-localhost"}:
-        return True
-    try:
-        return ipaddress.ip_address(normalized).is_loopback
-    except ValueError:
-        return False
 
 
 def main() -> None:

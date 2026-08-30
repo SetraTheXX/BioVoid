@@ -23,6 +23,7 @@ from typing import Any
 
 from .errors import ApiError
 from .models import JobDetailResponse, JobErrorResponse, JobStatus, JobSubmitRequest
+from ..resources import ResourceLimitError
 
 logger = logging.getLogger(__name__)
 Runner = Callable[[JobSubmitRequest], dict[str, Any]]
@@ -46,6 +47,8 @@ def _process_runner_entry(
         if execution_id:
             os.environ["BIOVOID_JOB_ID"] = execution_id
         connection.send(("ok", runner(request)))
+    except ResourceLimitError as exc:
+        connection.send(("resource_limit", str(exc)))
     except BaseException as exc:
         connection.send(("error", type(exc).__name__, str(exc)))
     finally:
@@ -406,6 +409,16 @@ class JobOrchestrator:
                     detail=f"timeout_seconds={timeout_seconds}",
                     attempts=attempt,
                 )
+            except ResourceLimitError as exc:
+                final_error = JobErrorResponse(
+                    code="RESOURCE_LIMIT",
+                    message=(
+                        "Job rejected by the active resource safety profile. "
+                        "Free available resources or review the request limits."
+                    ),
+                    detail=str(exc),
+                    attempts=attempt,
+                )
             except Exception as exc:  # pragma: no cover - covered via tests
                 final_error = JobErrorResponse(
                     code="JOB_EXECUTION_ERROR",
@@ -516,6 +529,8 @@ class JobOrchestrator:
                 if process.is_alive():
                     process.join(timeout=0.2)
 
+            if envelope[0] == "resource_limit":
+                raise ResourceLimitError(str(envelope[1]))
             if envelope[0] == "error":
                 raise RuntimeError(f"{envelope[1]}: {envelope[2]}")
             return envelope[1]

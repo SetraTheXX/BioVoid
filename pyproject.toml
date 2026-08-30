@@ -5,11 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "biovoid"
 version = "0.1.0"
-description = "Local research prototype for geometry and motion-aware protein pocket analysis"
+description = "Local computational research prototype for full-atom geometry-based protein pocket candidate analysis"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12,<3.14"
 authors = [{name = "Bio-Void Hunter Team"}]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
 
 dependencies = [
     "biopython>=1.87",
@@ -25,6 +33,12 @@ dependencies = [
     "starlette>=1.3.1",
     "uvicorn>=0.30",
 ]
+
+[project.urls]
+Homepage = "https://github.com/SetraTheXX/BioVoid"
+Repository = "https://github.com/SetraTheXX/BioVoid"
+Issues = "https://github.com/SetraTheXX/BioVoid/issues"
+Changelog = "https://github.com/SetraTheXX/BioVoid/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dashboard = ["streamlit>=1.30"]

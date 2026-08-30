@@ -6,6 +6,12 @@ repository.
 
 ## [Unreleased]
 
+- Added a shared loopback bind policy and explicit `--allow-remote` opt-in for
+  non-loopback API serving.
+- Classified fail-closed resource rejections as public `RESOURCE_LIMIT` job
+  failures without exposing local exception details.
+- Documented the supported source-checkout installation path and a bounded,
+  provenance-aware `1CRN` operational smoke example.
 - Tightened the source-only boundary for local data, models, structures,
   generated outputs, archives, and private documents.
 - Added fail-closed public-hygiene checks for the working tree and reachable

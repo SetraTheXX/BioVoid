@@ -10,6 +10,7 @@ from src.api.app import create_app
 from src.api.models import JobStatus, JobSubmitRequest
 from src.api.orchestrator import JobOrchestrator
 from src.api.rate_limit import InMemoryRateLimiter
+from src.resources import ResourceLimitError
 
 
 def _build_client() -> TestClient:
@@ -40,6 +41,10 @@ def _submit_payload(pdb_id: str = "1CBS", options: dict | None = None) -> dict:
         "input": {"pdb_id": pdb_id},
         "options": options or {},
     }
+
+
+def _resource_limited_runner(_: JobSubmitRequest) -> dict:
+    raise ResourceLimitError("Insufficient available memory for a safe static detector job")
 
 
 def test_submit_and_fetch_job_lifecycle() -> None:
@@ -152,6 +157,33 @@ def test_timeout_and_retry_lead_to_failed_job() -> None:
         assert final_state["status"] == JobStatus.FAILED.value
         assert final_state["attempts"] == 2
         assert final_state["error"]["code"] == "JOB_TIMEOUT"
+
+
+def test_resource_limit_failure_is_publicly_actionable() -> None:
+    with _build_client() as client:
+        client.app.state.orchestrator.register_runner(
+            "full_analysis",
+            _resource_limited_runner,
+        )
+        response = client.post(
+            "/jobs",
+            headers={"Idempotency-Key": "idem-resource-limit-1"},
+            json={
+                "job_type": "full_analysis",
+                "input": {"pdb_id": "1CBS"},
+                "options": {"max_retries": 0},
+            },
+        )
+        assert response.status_code == 202
+
+        final_state = _wait_for_terminal_status(client, response.json()["job_id"])
+        assert final_state["status"] == JobStatus.FAILED.value
+        assert final_state["error"]["code"] == "RESOURCE_LIMIT"
+        assert final_state["error"]["message"] == (
+            "Job rejected by the active resource safety profile. "
+            "Free available resources or review the request limits."
+        )
+        assert final_state["error"]["detail"] is None
 
 
 def test_fifty_jobs_smoke_no_crash() -> None:

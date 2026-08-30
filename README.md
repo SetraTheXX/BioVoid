@@ -8,7 +8,7 @@ This repository contains source code only. It does not include local databases,
 trained model files, raw PDB downloads, generated reports, or benchmark
 artifacts.
 
-The `v0.1.0` release is a public source release for local experimentation. It
+The `v0.1.0` scope is a public source release for local experimentation. It
 does not represent scientific validation, a benchmark result, or a claim that
 motion-aware analysis improves pocket localization.
 
@@ -56,7 +56,7 @@ local unless an independently documented release artifact is prepared.
 ## Requirements
 
 - Python 3.12 or 3.13 (the supported release range is `>=3.12,<3.14`)
-- Node.js and npm for the React frontend
+- Node.js and npm for the React frontend (Node.js 22.x is the CI/release-evidence baseline)
 - Optional: AutoDock Vina, fpocket, and P2Rank tooling for docking or external comparisons
 
 Third-party licenses, citations, and runtime attribution requirements are
@@ -78,6 +78,25 @@ cd frontend
 npm ci
 ```
 
+## Supported Local Release Path
+
+The supported path for this source release is a local repository checkout with
+the lock files installed and the frontend built in the checkout. It is not a
+self-contained PyPI or wheel distribution: the canonical API serves the
+generated `frontend/dist/` directory from the repository layout. Docker is an
+optional operator path until its image build and healthcheck are separately
+verified.
+
+Use the canonical launcher for local work:
+
+```powershell
+python scripts/run_phase6_api.py --host 127.0.0.1 --port 8000
+```
+
+It is loopback-only by default. A non-loopback bind requires an explicit
+`--allow-remote` opt-in and an authenticated network boundary. The installed
+`biovoid serve` command follows the same policy.
+
 ## Run Locally
 
 Build the canonical React UI, then start the API:
@@ -94,6 +113,25 @@ Open the application:
 ```text
 http://127.0.0.1:8000/
 ```
+
+After the server starts, these bounded checks confirm that the local runtime is
+ready without running a protein analysis:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8000/health
+Invoke-WebRequest http://127.0.0.1:8000/ready
+```
+
+For a first UI analysis, open **Analyze**, enter a four-character RCSB PDB ID,
+keep the `default` profile and static mode, then inspect the Research Status
+and Provenance panels before interpreting the candidate list.
+
+The default full-analysis path applies the live `safe-16gb` resource preflight.
+If currently available RAM is insufficient, the job may fail closed before the
+detector runs; the API reports this as a `RESOURCE_LIMIT` failure. Do not
+interpret it as a zero-pocket result or lower the guard. On a constrained
+machine, use the bounded `smoke_rcsb.py` command below as the installation
+check and retry full analysis only when the resource gate passes.
 
 `/portal` is retained only as a compatibility redirect to the canonical React
 interface at `/`. For React development:
@@ -123,6 +161,40 @@ output directory and does not commit or retain structure files:
 ```powershell
 python scripts/smoke_rcsb.py --pdb-id 1CRN
 ```
+
+The smoke output is an operational diagnostic. It reports the input, atom and
+candidate counts, pocket count, detector version, resource profile and warnings;
+it does not validate binding, druggability, discovery or clinical relevance.
+
+The CLI smoke uses the `asymmetric_unit` representation and the
+`bounded-rcsb-smoke-v1` resource profile. The React **Analyze** form is a
+separate UI path that requests biological assembly 1; do not compare their
+counts as if they were the same preparation.
+
+Example operational output observed on 2026-08-31 (not a benchmark):
+
+```json
+{
+  "status": "ok",
+  "pdb_id": "1CRN",
+  "input_format": "cif",
+  "input_atom_count": 327,
+  "protein_atom_count": 327,
+  "candidate_count": 75,
+  "pocket_count": 17,
+  "representation": "asymmetric_unit",
+  "detector_version": "canonical-static-v1",
+  "resource_profile": "bounded-rcsb-smoke-v1",
+  "prepared_sha256": "4cd16376e9ed9636c1ebc1f69cb35c1637cdd9ed4a45528fbc7d662328884c79",
+  "output_retained": false,
+  "warnings": []
+}
+```
+
+This is a reproducibility and installation smoke example, not a scientific
+benchmark. Counts can change if the remote source or preparation contract
+changes; the provenance fields should be read together with the run manifest
+and version information.
 
 Analyze one structure:
 

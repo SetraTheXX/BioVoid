@@ -23,6 +23,7 @@ import re
 import sys
 from pathlib import Path
 
+from .bind_policy import is_loopback_host
 from .config import API, PATHS, PIPELINE
 from .resources import SAFE_16GB
 
@@ -185,6 +186,13 @@ def cmd_batch(args):
 def cmd_serve(args):
     """Start the API server."""
     _setup_logging(args.verbose)
+
+    if not is_loopback_host(args.host) and not getattr(args, "allow_remote", False):
+        logger.error(
+            "Refusing non-loopback bind in local-only mode. "
+            "Use --allow-remote only behind an authenticated network boundary."
+        )
+        return 2
 
     try:
         import uvicorn
@@ -395,6 +403,11 @@ def main() -> int:
     p_serve = sub.add_parser("serve", help="Start API server")
     p_serve.add_argument("--host", default=API.host)
     p_serve.add_argument("--port", type=_port_arg, default=API.port)
+    p_serve.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="explicitly allow a non-loopback bind behind an authenticated network boundary",
+    )
     p_serve.add_argument("--reload", action="store_true")
     p_serve.add_argument("-v", "--verbose", action="store_true")
     p_serve.set_defaults(func=cmd_serve)
