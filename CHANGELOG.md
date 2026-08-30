@@ -6,6 +6,8 @@ repository.
 
 ## [Unreleased]
 
+- Updated pinned GitHub Actions to Node 24-compatible releases and removed the
+  deprecated Node 20 workflow runtime path.
 - Added a shared loopback bind policy and explicit `--allow-remote` opt-in for
   non-loopback API serving.
 - Classified fail-closed resource rejections as public `RESOURCE_LIMIT` job
