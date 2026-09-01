@@ -71,6 +71,16 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-lock.txt
 ```
 
+Install the local `biovoid` console entry point after the locked dependencies:
+
+```powershell
+python -m pip install --no-deps -e .
+biovoid info
+```
+
+The editable install keeps the source-checkout workflow explicit; it does not
+turn this release into a self-contained PyPI distribution.
+
 Install frontend dependencies:
 
 ```powershell

@@ -710,12 +710,8 @@ class BioVoidPipeline:
                 cavity_data["score_semantics"] = cavity["score_semantics"]
                 cavity_data["static_score_contribution"] = cavity["static_score_contribution"]
                 cavity_data["motion_score_contribution"] = cavity["motion_score_contribution"]
-                cavity_data["ranking_contract_version"] = cavity[
-                    "ranking_contract_version"
-                ]
-                cavity_data["heuristic_shortlist"] = cavity[
-                    "heuristic_shortlist"
-                ]
+                cavity_data["ranking_contract_version"] = cavity["ranking_contract_version"]
+                cavity_data["heuristic_shortlist"] = cavity["heuristic_shortlist"]
 
             if "pocket_fit_score" in cavity:
                 cavity_data["pocket_fit_score"] = cavity["pocket_fit_score"]
@@ -749,9 +745,7 @@ class BioVoidPipeline:
                 "docking": self.dock,
             },
             "experimental_feature_status": {
-                "motion_aware": (
-                    "enabled_experimental" if self.multiframe else "disabled"
-                ),
+                "motion_aware": ("enabled_experimental" if self.multiframe else "disabled"),
                 "ml_reranking": dict(self.ml_status),
                 "docking": "enabled_experimental" if self.dock else "disabled",
             },

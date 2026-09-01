@@ -21,6 +21,8 @@ repository.
 - Kept the canonical React interface and the local API on a bounded,
   conservative runtime path.
 - Added citation metadata and clarified the research-prototype claim boundary.
+- Documented the editable local install needed for the `biovoid` console entry
+  point.
 
 ## [0.1.0] - 2026-08-01
 
