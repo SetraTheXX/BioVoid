@@ -17,6 +17,8 @@ docs/*
 !docs/specs/*.md
 !docs/releases/
 !docs/releases/*.md
+!docs/assets/
+!docs/assets/*.gif
 
 # Public repository boundary: keep scientific results/specifications only.
 # Working plans, internal audits, procedures, and drafts remain local even

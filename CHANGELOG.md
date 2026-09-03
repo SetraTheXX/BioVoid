@@ -23,6 +23,10 @@ repository.
 - Added citation metadata and clarified the research-prototype claim boundary.
 - Documented the editable local install needed for the `biovoid` console entry
   point.
+- Added a claim-bounded GIF of a real local `1CRN` static-analysis run, including
+  the result status, provenance panel and molecular viewer.
+- Updated the public AHoJ research contract to record the completed v2 gate and
+  its diagnostic-only claim boundary without publishing private artifacts.
 
 ## [0.1.0] - 2026-08-01
 

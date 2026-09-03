@@ -16,6 +16,20 @@ motion-aware analysis improves pocket localization.
 > drug-development system. Its outputs are unvalidated pocket candidates that
 > require independent scientific review.
 
+## 60-Second Demo
+
+![BioVoid 1CRN static-analysis demo](docs/assets/biovoid-1crn-demo.gif)
+
+This is a real local run of the canonical static UI path using the public RCSB
+structure `1CRN`, biological assembly 1 and the `default` profile. The captured
+run produced 17 geometry-based pocket candidates and recorded the detector,
+preparation, configuration, code and environment identities needed for review.
+
+The number 17 is an operational example, not a benchmark score or evidence of
+binding, druggability, discovery, clinical relevance or superiority. The UI
+therefore labels the result as an unvalidated research-prototype output and
+keeps motion/ML evidence outside the canonical static result.
+
 ## What Is Included
 
 - Deterministic full-heavy-atom structure preparation with hashes and run

@@ -1,7 +1,7 @@
 # Geometry/data research contract v1
 
-Status: **active development/held-out gate; AHoJ v1 readout is complete and a
-separate alignment-quality amendment is resource-blocked**.
+Status: **AHoJ v1 and alignment-quality amendment v2 readouts are complete;
+the branch is closed as a diagnostic-only result**.
 
 This contract starts a new research branch after the bounded PocketMiner
 held-out study and external comparison. It does not reopen the PocketMiner
@@ -230,19 +230,27 @@ target-blind detector manifest contains no holo, ligand, evaluator, or
 ground-truth fields.
 
 The amendment materialization prepared all four apo inputs (1,901,167 raw
-bytes), but the unchanged live-memory `safe-16gb` gate blocked the 3,915-atom
-`6IRX` static job while the other three cases completed. A repeated preflight
-under the same cap still marked `6IRX` `blocked_safe_16gb`; no cap, threshold,
-worker count, or denominator was changed. Consequently no v2 evaluator,
-DCC/DCA readout, NMA, external baseline, or ML run has started. This is an
-operational resource status, not a scientific negative. The v1 E row remains
-the only completed held-out AHoJ diagnostic until the amendment can be run
-under the same contract or is explicitly closed.
+bytes). The unchanged live-memory `safe-16gb` gate initially blocked the
+3,915-atom `6IRX` static job while the other three cases completed; a repeated
+preflight under the same cap produced the same operational block. On
+2026-09-02, a later bounded retry with the same one-worker profile and unchanged
+cap completed `6IRX` and the other three reserved static cases. No threshold,
+ranking policy, denominator, or resource contract was changed.
+
+The evaluator then completed all four v2 rows. The joint final-list
+candidate-universe count was **3/4**, while joint Top-1/3/5/10 was **0/4** at
+every cutoff; DCC Top-10 was **0/4** and DCA Top-10 was **1/4**. The v1 E row
+remains unchanged and visible in the v1 record. The v2 `3/4` and v1 `2/3`
+candidate-universe counts are not an improvement comparison because the
+amendment uses a different sealed cohort.
 
 The amendment artifacts are ignored local data under
 `local-private/research/geometry-data-source-catalog/ahoj-v2-alignment-quality/`
 and `data/runtime/target-family/cohort-ahoj-geometry-v2-alignment-quality/`.
-Do not select a smaller replacement after observing this block; that would
-require another separately versioned source/amendment contract. Until the
-amendment decision is closed, downstream external baselines, NMA, ML, broad
-scans, and new source searches remain closed.
+The amendment is now operationally complete and the AHoJ branch is closed as a
+small mixed/negative ranking diagnostic. It does not support an accuracy,
+validated-prediction, binding, druggability, discovery, or superiority claim.
+The canonical `A-canonical-volume-v1` ranking stays unchanged. External
+baselines, NMA, ML, broad scans, and new source searches are not automatically
+authorized by this result; each requires a new bounded question and its own
+versioned gate.
