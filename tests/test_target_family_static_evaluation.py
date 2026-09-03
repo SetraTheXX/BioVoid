@@ -22,6 +22,7 @@ from scripts.evaluate_target_family_static_pilot import (
     _detector_record,
     _download_holo,
     _chain_pairs,
+    _ligand_selectors,
     build_evaluation_skeleton,
     enforce_workspace_quota,
     validate_evaluation_report,
@@ -256,6 +257,51 @@ def test_chain_policy_uses_one_representative_common_chain(monkeypatch) -> None:
     )
 
     assert _chain_pairs(Path("apo"), Path("holo")) == (ChainPair("A", "A"),)
+    assert _chain_pairs(
+        Path("apo"),
+        Path("holo"),
+        preferred_apo_chain_id="B",
+        preferred_holo_chain_id="A",
+    ) == (ChainPair("B", "A"),)
+
+
+def test_declared_ligand_selectors_keep_all_source_copies(monkeypatch) -> None:
+    def atoms_for(_path: Path) -> tuple[ParsedAtom, ...]:
+        return tuple(
+            ParsedAtom(
+                record="HETATM",
+                atom_name="C1",
+                altloc="",
+                res_name="CHD",
+                chain_id="A",
+                res_id=residue_id,
+                ins_code="",
+                x=float(residue_id),
+                y=0.0,
+                z=0.0,
+                occupancy=1.0,
+                b_factor=0.0,
+                element="C",
+            )
+            for residue_id in (10, 11)
+        )
+
+    import scripts.evaluate_target_family_static_pilot as evaluator
+
+    monkeypatch.setattr(evaluator, "load_structure_atoms", atoms_for)
+
+    selectors = _ligand_selectors(Path("holo"), [("CHD", 2)], preferred_chain_id="A")
+
+    assert [(item.chain_id, item.residue_id) for item in selectors] == [("A", 10), ("A", 11)]
+
+    exact_selector = _ligand_selectors(
+        Path("holo"),
+        [("CHD", 1)],
+        preferred_chain_id="A",
+        preferred_residue_ids={"CHD": (11,)},
+    )
+
+    assert [(item.chain_id, item.residue_id) for item in exact_selector] == [("A", 11)]
 
 
 def test_evaluation_report_guard_accepts_diagnostic_skeleton() -> None:

@@ -6,6 +6,7 @@ from scripts.audit_pocketminer_source_catalog import (
     build_pocketminer_catalog,
     build_pocketminer_cohort_payload,
     parse_pocketminer_rows,
+    render_markdown,
 )
 from scripts.materialize_pocketminer_development_labels import (
     build_development_pair_payload,
@@ -202,7 +203,7 @@ def test_cohort_payload_redacts_temporal_label_as_test_split() -> None:
     report = {
         "schema_version": "biovoid-ranking-source-catalog-v1",
         "decision": "PASS",
-        "catalog_id": "synthetic-pocketminer-v1",
+        "catalog_id": "synthetic-pocketminer-v2",
         "report_sha256": "r" * 64,
         "allocation": {
             "assignments": [
@@ -261,6 +262,7 @@ def test_cohort_payload_redacts_temporal_label_as_test_split() -> None:
     cohort = build_pocketminer_cohort_payload(report, family_id="POCKETMINER")
 
     assert cohort["schema_version"] == "biovoid-target-family-cohort-v1"
+    assert all(case["case_id"].startswith("pocketminer-v2:") for case in cohort["cases"])
     assert {case["split"] for case in cohort["cases"]} == {
         "development",
         "validation",
@@ -291,3 +293,89 @@ def test_development_label_pairs_split_multi_component_ligand_codes() -> None:
         {"comp_id": "NDP"},
         {"comp_id": "TOP"},
     ]
+
+
+def test_development_label_pairs_normalize_source_ligand_multiplicity() -> None:
+    cohort = {
+        "cases": [
+            {
+                "case_id": "case-1",
+                "apo_structure_id": "1AAA",
+                "holo_structure_id": "1BBB",
+                "split": "development",
+                "uniprot_group_id": "U1",
+                "ligand_code": "3xBDD; 2xCHD",
+            }
+        ]
+    }
+
+    pairs = build_development_pair_payload(cohort, expected_cases=1)
+
+    assert pairs[0]["holo_components"] == [
+        {"comp_id": "BDD"},
+        {"comp_id": "CHD"},
+    ]
+    assert pairs[0]["holo_component_counts"] == [
+        {"comp_id": "BDD", "count": 3},
+        {"comp_id": "CHD", "count": 2},
+    ]
+
+
+def test_development_label_pairs_normalize_source_residue_and_rcsb_aliases() -> None:
+    cohort = {
+        "cases": [
+            {
+                "case_id": "case-ahk",
+                "apo_structure_id": "6YPK",
+                "holo_structure_id": "5OSZ",
+                "split": "development",
+                "uniprot_group_id": "U1",
+                "ligand_code": "AHK:403",
+            },
+            {
+                "case_id": "case-c5p",
+                "apo_structure_id": "4V38",
+                "holo_structure_id": "4V3B",
+                "split": "development",
+                "uniprot_group_id": "U2",
+                "ligand_code": "C",
+            },
+        ]
+    }
+
+    pairs = build_development_pair_payload(cohort, expected_cases=2)
+
+    assert pairs[0]["holo_components"] == [{"comp_id": "C5P"}]
+    assert pairs[0]["holo_component_aliases"] == [
+        {"source_comp_id": "C", "resolved_comp_id": "C5P"}
+    ]
+    assert pairs[1]["holo_components"] == [{"comp_id": "AHK"}]
+    assert pairs[1]["holo_component_counts"] == [{"comp_id": "AHK", "count": 1}]
+    assert pairs[1]["holo_component_residue_ids"] == [{"comp_id": "AHK", "residue_id": 403}]
+
+
+def test_rendered_catalog_report_uses_the_catalog_id() -> None:
+    report = {
+        "catalog_id": "pocketminer-cryptic-apo-holo-v2",
+        "decision": "PASS",
+        "capacity": {
+            "source_row_count": 10,
+            "candidate_case_count": 10,
+            "independent_label_case_count": 10,
+            "resource_proxy_status_counts": {},
+        },
+        "allocation": {
+            "policy_id": "policy-v1",
+            "validation_cutoff": "2014-01-01",
+            "temporal_cutoff": "2018-01-01",
+            "counts": {"development": 6, "validation": 2, "temporal": 2, "overflow": 0},
+        },
+        "decision_reasons": [],
+        "report_sha256": "a" * 64,
+    }
+
+    rendered = render_markdown(report)
+
+    assert rendered.startswith(
+        "# PocketMiner ranking-study source/catalog `pocketminer-cryptic-apo-holo-v2`"
+    )

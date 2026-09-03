@@ -134,7 +134,9 @@ def materialize_pocketminer_holdout_labels(
             max_disk_bytes=max_disk_bytes,
             alignment_policy=POCKETMINER_ALIGNMENT_POLICY,
             preferred_apo_chain_id=pair.get("apo_chain_id") or None,
+            preferred_holo_chain_id=pair.get("holo_chain_id") or None,
             preferred_ligand_chain_id=pair.get("holo_chain_id") or None,
+            allow_declared_chain_pair=True,
             provenance_label="pocketminer-rcsb-contact-label-only-v2",
             run_id_suffix="pocketminer-heldout-contact-label-v2",
         )

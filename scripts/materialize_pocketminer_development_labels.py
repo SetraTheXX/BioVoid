@@ -45,6 +45,13 @@ DEFAULT_SOURCE_CACHE = (
 )
 MAX_DEVELOPMENT_CASES = 6
 LABEL_SOURCE = "holo_ligand_contact_v2"
+_LIGAND_MULTIPLICITY_RE = re.compile(r"^(\d+)\s*[xX]\s*([A-Za-z0-9]{1,3})$")
+_LIGAND_RESIDUE_RE = re.compile(r"^([A-Za-z0-9]{1,3}):(-?\d+)$")
+# The public PocketMiner cleaned PDB for 4V3B uses the historical component
+# name ``C`` while the current RCSB mmCIF uses ``C5P``.  Keep this one
+# source-compatible alias explicit; never infer component aliases from a
+# post-hoc result.
+POCKETMINER_RCSB_COMPONENT_ALIASES = {("4V3B", "C"): "C5P"}
 POCKETMINER_ALIGNMENT_POLICY = AlignmentPolicy(
     policy_version="ground-truth-alignment-pocketminer-v2",
     ambiguous_sequence_policy="structural_fit",
@@ -120,14 +127,52 @@ def build_pair_payload_for_splits(
         )
     pairs: list[dict[str, Any]] = []
     for case in sorted(development, key=lambda item: str(item.get("apo_structure_id"))):
+        holo_pdb_id = _pdb_id(case.get("holo_structure_id"), "case.holo_structure_id")
         ligand_code = str(case.get("ligand_code") or "").strip()
         components = []
+        component_counts: list[dict[str, Any]] = []
+        component_residue_ids: list[dict[str, Any]] = []
+        component_aliases: list[dict[str, str]] = []
         seen: set[str] = set()
         for value in re.split(r"[,;]", ligand_code):
-            comp_id = value.strip().upper()
+            token = value.strip()
+            residue_match = _LIGAND_RESIDUE_RE.fullmatch(token)
+            multiplicity_match = _LIGAND_MULTIPLICITY_RE.fullmatch(token)
+            source_component = (
+                residue_match.group(1)
+                if residue_match is not None
+                else multiplicity_match.group(2)
+                if multiplicity_match is not None
+                else token
+            ).upper()
+            count = int(multiplicity_match.group(1)) if multiplicity_match else 1
+            comp_id = POCKETMINER_RCSB_COMPONENT_ALIASES.get(
+                (holo_pdb_id, source_component), source_component
+            )
+            if count < 1:
+                raise PocketMinerDevelopmentLabelError(
+                    f"ligand copy count must be positive: {case.get('case_id')}"
+                )
+            if comp_id != source_component:
+                component_aliases.append(
+                    {
+                        "source_comp_id": source_component,
+                        "resolved_comp_id": comp_id,
+                    }
+                )
             if comp_id and comp_id not in seen:
                 components.append({"comp_id": comp_id})
+                component_counts.append({"comp_id": comp_id, "count": count})
                 seen.add(comp_id)
+            elif comp_id:
+                for item in component_counts:
+                    if item["comp_id"] == comp_id:
+                        item["count"] += count
+                        break
+            if residue_match is not None:
+                component_residue_ids.append(
+                    {"comp_id": comp_id, "residue_id": int(residue_match.group(2))}
+                )
         if not components:
             raise PocketMinerDevelopmentLabelError(
                 f"development case lacks an independent ligand code: {case.get('case_id')}"
@@ -139,10 +184,13 @@ def build_pair_payload_for_splits(
                 "uniprot_group": str(case.get("uniprot_group_id") or ""),
                 "sequence_cluster_id": str(case.get("sequence_cluster_id") or ""),
                 "apo_pdb_id": _pdb_id(case.get("apo_structure_id"), "case.apo_structure_id"),
-                "holo_pdb_id": _pdb_id(case.get("holo_structure_id"), "case.holo_structure_id"),
+                "holo_pdb_id": holo_pdb_id,
                 "apo_chain_id": str(case.get("apo_chain_id") or ""),
                 "holo_chain_id": str(case.get("holo_chain_id") or ""),
                 "holo_components": components,
+                "holo_component_counts": component_counts,
+                "holo_component_residue_ids": component_residue_ids,
+                "holo_component_aliases": component_aliases,
                 "label_source": LABEL_SOURCE,
                 "source_dataset_id": str(case.get("source_dataset_id") or ""),
             }
@@ -212,6 +260,8 @@ def materialize_pocketminer_development_labels(
             alignment_policy=POCKETMINER_ALIGNMENT_POLICY,
             preferred_apo_chain_id=pair.get("apo_chain_id") or None,
             preferred_ligand_chain_id=pair.get("holo_chain_id") or None,
+            preferred_holo_chain_id=pair.get("holo_chain_id") or None,
+            allow_declared_chain_pair=True,
             provenance_label="pocketminer-rcsb-contact-label-only-v2",
             run_id_suffix="pocketminer-contact-label-v2",
         )

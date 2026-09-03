@@ -641,6 +641,9 @@ def build_pocketminer_cohort_payload(
     candidates = report.get("candidates")
     if not isinstance(allocation, Mapping) or not isinstance(candidates, list):
         raise PocketMinerCatalogError("source catalog allocation/candidates are missing")
+    catalog_id = _text(report.get("catalog_id"), "catalog_id")
+    version_match = re.search(r"(v\d+)$", catalog_id)
+    case_namespace = f"pocketminer-{version_match.group(1)}" if version_match else catalog_id
     assignment_by_case = {
         str(item.get("case_id")): str(item.get("split"))
         for item in allocation.get("assignments", [])
@@ -658,7 +661,7 @@ def build_pocketminer_cohort_payload(
             raise PocketMinerCatalogError(f"unsupported sealed split: {source_split}")
         apo_id = _pdb_id(candidate.get("apo_pdb_id"), "case.apo_structure_id")
         redacted_case_id = (
-            f"pocketminer-v1:{apo_id}:"
+            f"{case_namespace}:{apo_id}:"
             f"{_stable_hash({'source_case_id': case_id, 'apo_structure_id': apo_id})[:16]}"
         )
         cases.append(
@@ -699,7 +702,7 @@ def build_pocketminer_cohort_payload(
         "family_id": family_id,
         "split_strategy": "sequence_cluster_temporal_holdout_v1",
         "temporal_cutoff": _text(allocation.get("temporal_cutoff"), "allocation.temporal_cutoff"),
-        "source_catalog_id": report.get("catalog_id"),
+        "source_catalog_id": catalog_id,
         "source_catalog_sha256": report.get("report_sha256"),
         "cases": cases,
         "coordinates_downloaded": False,
@@ -860,7 +863,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     capacity = report["capacity"]
     allocation = report["allocation"]
     lines = [
-        "# PocketMiner ranking-study source/catalog v1",
+        f"# PocketMiner ranking-study source/catalog `{report['catalog_id']}`",
         "",
         f"Decision: **{report['decision']}**",
         "",

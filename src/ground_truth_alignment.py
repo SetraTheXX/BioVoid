@@ -560,6 +560,7 @@ def build_aligned_ground_truth_from_files(
     provenance_label: str,
     policy: AlignmentPolicy = AlignmentPolicy(),
     ligand_residues: Sequence[str] = (),
+    additional_ligands: Sequence[LigandSelector] = (),
 ) -> GroundTruthAlignmentResult:
     """Extract exact local-file identities and build evaluator ground truth."""
     prepared_path = Path(prepared_apo_path).resolve()
@@ -593,9 +594,16 @@ def build_aligned_ground_truth_from_files(
         if atom.res_name in protein_names
     )
 
-    ligand_name = ligand.residue_name.strip().upper()
-    ligand_chain = ligand.chain_id.strip()
-    ligand_insertion = ligand.insertion_code.strip()
+    ligands = (ligand, *tuple(additional_ligands))
+    selected_identities = {
+        (
+            item.residue_name.strip().upper(),
+            item.chain_id.strip(),
+            int(item.residue_id),
+            item.insertion_code.strip(),
+        )
+        for item in ligands
+    }
     selected_ligand_atoms = tuple(
         LigandAtom(
             atom_name=atom.atom_name,
@@ -603,10 +611,13 @@ def build_aligned_ground_truth_from_files(
             coordinate=(atom.x, atom.y, atom.z),
         )
         for atom in holo_atoms
-        if atom.res_name == ligand_name
-        and atom.chain_id == ligand_chain
-        and atom.res_id == ligand.residue_id
-        and atom.ins_code.strip() == ligand_insertion
+        if (
+            atom.res_name,
+            atom.chain_id,
+            int(atom.res_id),
+            atom.ins_code.strip(),
+        )
+        in selected_identities
     )
     if not selected_ligand_atoms:
         raise GroundTruthAlignmentError(
@@ -625,5 +636,9 @@ def build_aligned_ground_truth_from_files(
         provenance_label=provenance_label,
         policy=policy,
         ligand_residues=ligand_residues,
-        ligand_identity=asdict(ligand),
+        ligand_identity=(
+            asdict(ligand)
+            if not additional_ligands
+            else {"selectors": [asdict(item) for item in ligands]}
+        ),
     )

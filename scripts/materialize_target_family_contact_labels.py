@@ -31,6 +31,7 @@ from scripts.evaluate_target_family_static_pilot import (  # noqa: E402
     EVALUATOR_POLICY,
     _chain_pairs,
     _ligand_selector,
+    _ligand_selectors,
 )
 from src.fetcher import FetchError, fetch_structure_input  # noqa: E402
 from src.ground_truth_alignment import (  # noqa: E402
@@ -490,6 +491,7 @@ def _run_pair(
     preferred_apo_chain_id: str | None = None,
     preferred_holo_chain_id: str | None = None,
     preferred_ligand_chain_id: str | None = None,
+    allow_declared_chain_pair: bool = False,
     provenance_label: str = "target-family-rcsb-contact-label-only-v1",
     run_id_suffix: str = "contact-label-v1",
 ) -> dict[str, Any]:
@@ -530,8 +532,18 @@ def _run_pair(
             },
         )
         _enforce_disk_quota(output_root, max_disk_bytes)
-        chain_pairs = _chain_pairs(preparation.prepared_path, holo_fetched.path)
-        if preferred_apo_chain_id or preferred_holo_chain_id:
+        chain_selection_policy = "representative-common-chain-v1"
+        if allow_declared_chain_pair:
+            chain_pairs = _chain_pairs(
+                preparation.prepared_path,
+                holo_fetched.path,
+                preferred_apo_chain_id=preferred_apo_chain_id,
+                preferred_holo_chain_id=preferred_holo_chain_id,
+            )
+            chain_selection_policy = "declared-chain-pair-v2"
+        else:
+            chain_pairs = _chain_pairs(preparation.prepared_path, holo_fetched.path)
+        if not allow_declared_chain_pair and (preferred_apo_chain_id or preferred_holo_chain_id):
             declared_apo = str(preferred_apo_chain_id or "").strip()
             declared_holo = str(preferred_holo_chain_id or "").strip()
             chain_pairs = tuple(
@@ -549,13 +561,48 @@ def _run_pair(
             for component in pair.get("holo_components", [])
             if isinstance(component, Mapping) and str(component.get("comp_id", "")).strip()
         )
-        selector = _ligand_selector(
-            holo_fetched.path,
-            component_ids,
-            preferred_chain_id=(
-                preferred_ligand_chain_id or preferred_holo_chain_id or chain_pairs[0].holo_chain_id
-            ),
+        preferred_ligand_chain = (
+            preferred_ligand_chain_id or preferred_holo_chain_id or chain_pairs[0].holo_chain_id
         )
+        component_counts = pair.get("holo_component_counts")
+        if allow_declared_chain_pair and isinstance(component_counts, list):
+            parsed_counts = [
+                (str(item.get("comp_id", "")), int(item.get("count", 0)))
+                for item in component_counts
+                if isinstance(item, Mapping)
+            ]
+            residue_ids: dict[str, tuple[int, ...]] = {}
+            declared_residues = pair.get("holo_component_residue_ids")
+            if isinstance(declared_residues, list):
+                grouped_residues: dict[str, list[int]] = {}
+                for item in declared_residues:
+                    if not isinstance(item, Mapping):
+                        continue
+                    component_name = str(item.get("comp_id", "")).strip().upper()
+                    if not component_name:
+                        continue
+                    grouped_residues.setdefault(component_name, []).append(
+                        int(item.get("residue_id", 0))
+                    )
+                residue_ids = {
+                    component_name: tuple(values)
+                    for component_name, values in grouped_residues.items()
+                }
+            selectors = _ligand_selectors(
+                holo_fetched.path,
+                parsed_counts,
+                preferred_chain_id=preferred_ligand_chain,
+                preferred_residue_ids=residue_ids,
+            )
+        else:
+            selectors = (
+                _ligand_selector(
+                    holo_fetched.path,
+                    component_ids,
+                    preferred_chain_id=preferred_ligand_chain,
+                ),
+            )
+        selector = selectors[0]
         alignment = build_aligned_ground_truth_from_files(
             case_id=str(pair["case_id"]),
             structure_id=apo_id,
@@ -565,6 +612,7 @@ def _run_pair(
             chain_pairs=chain_pairs,
             provenance_label=provenance_label,
             policy=alignment_policy,
+            additional_ligands=selectors[1:],
         )
         record = _alignment_record(
             pair=pair,
@@ -577,7 +625,8 @@ def _run_pair(
                 "apo_source": _source_summary(apo_fetched),
                 "holo_source": _source_summary(holo_fetched),
                 "chain_pairs": [asdict(value) for value in chain_pairs],
-                "chain_selection_policy": "representative-common-chain-v1",
+                "chain_selection_policy": chain_selection_policy,
+                "ligand_selectors": [asdict(value) for value in selectors],
                 "runtime_seconds": round(time.perf_counter() - started, 6),
             }
         )

@@ -315,6 +315,27 @@ def test_file_builder_extracts_exact_ligand_and_binds_real_file_hashes(
             )
         ]
     )
+    holo_lines.extend(
+        [
+            _pdb_atom_line(
+                20 + index,
+                record="HETATM",
+                atom_name=atom_name,
+                residue_name="LIG",
+                chain_id="Z",
+                residue_id=901,
+                coordinate=coordinate,
+                element=element,
+            )
+            for index, (atom_name, element, coordinate) in enumerate(
+                (
+                    ("C1", "C", np.array([2.0, 0.5, 0.5])),
+                    ("N1", "N", np.array([2.5, 0.5, 0.5])),
+                ),
+                start=1,
+            )
+        ]
+    )
     prepared_path = tmp_path / "prepared.pdb"
     holo_path = tmp_path / "holo.pdb"
     prepared_path.write_text("\n".join([*apo_lines, "END", ""]), encoding="ascii")
@@ -353,6 +374,27 @@ def test_file_builder_extracts_exact_ligand_and_binds_real_file_hashes(
     }
     assert provenance["ground_truth_sha256"] == result.ground_truth_sha256
 
+    multi_result = build_aligned_ground_truth_from_files(
+        case_id="cryptobench:1ABC:multi-site",
+        structure_id="1ABC",
+        prepared_apo_path=prepared_path,
+        holo_path=holo_path,
+        ligand=LigandSelector(residue_name="LIG", chain_id="Z", residue_id=900),
+        additional_ligands=(LigandSelector(residue_name="LIG", chain_id="Z", residue_id=901),),
+        chain_pairs=(ChainPair("A", "X"),),
+        provenance_label="synthetic-multi-ligand-boundary",
+        policy=AlignmentPolicy(
+            minimum_matched_residues=4,
+            minimum_sequence_identity=1.0,
+            warning_rmsd_angstrom=0.5,
+            maximum_rmsd_angstrom=1.0,
+        ),
+    )
+
+    assert len(multi_result.ground_truth.ligand_atoms) == 4
+    multi_provenance = json.loads(multi_result.ground_truth.provenance)
+    assert len(multi_provenance["ligand_identity"]["selectors"]) == 2
+
     with pytest.raises(GroundTruthAlignmentError, match="matched no atoms"):
         build_aligned_ground_truth_from_files(
             case_id="cryptobench:1ABC:missing",
@@ -362,7 +404,7 @@ def test_file_builder_extracts_exact_ligand_and_binds_real_file_hashes(
             ligand=LigandSelector(
                 residue_name="LIG",
                 chain_id="Z",
-                residue_id=901,
+                residue_id=902,
             ),
             chain_pairs=(ChainPair("A", "X"),),
             provenance_label="synthetic-missing-ligand",

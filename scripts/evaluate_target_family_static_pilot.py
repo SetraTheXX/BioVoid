@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 import sys
 import time
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import requests
 
@@ -379,7 +379,64 @@ def _ligand_selector(
     )
 
 
-def _chain_pairs(prepared_path: Path, holo_path: Path) -> tuple[ChainPair, ...]:
+def _ligand_selectors(
+    holo_path: Path,
+    component_counts: list[tuple[str, int]],
+    *,
+    preferred_chain_id: str | None = None,
+    preferred_residue_ids: Mapping[str, Sequence[int]] | None = None,
+) -> tuple[LigandSelector, ...]:
+    """Select every declared copy of each source ligand component."""
+    grouped: dict[tuple[str, int, str, str], list[Any]] = defaultdict(list)
+    requested = {name.strip().upper(): int(count) for name, count in component_counts}
+    if not requested or any(count < 1 for count in requested.values()):
+        raise GroundTruthAlignmentError("Ligand component copy counts must be positive")
+    for atom in load_structure_atoms(holo_path):
+        if atom.record.upper() != "HETATM" or atom.res_name.upper() not in requested:
+            continue
+        grouped[(atom.chain_id, atom.res_id, atom.ins_code.strip(), atom.res_name.upper())].append(
+            atom
+        )
+
+    selectors: list[LigandSelector] = []
+    for component_name, expected_count in requested.items():
+        candidates = [
+            (key, atoms)
+            for key, atoms in grouped.items()
+            if key[3] == component_name
+            and any(atom.element.strip().upper() not in {"H", "D"} for atom in atoms)
+        ]
+        if preferred_residue_ids is not None and component_name in preferred_residue_ids:
+            declared_ids = {int(value) for value in preferred_residue_ids[component_name]}
+            candidates = [item for item in candidates if item[0][1] in declared_ids]
+        if preferred_chain_id is not None:
+            candidates = [item for item in candidates if item[0][0] == preferred_chain_id]
+        if len(candidates) != expected_count:
+            raise GroundTruthAlignmentError(
+                f"Declared ligand copy count for {component_name} is {expected_count}, "
+                f"found {len(candidates)} usable residues"
+            )
+        for (chain_id, residue_id, insertion_code, residue_name), _atoms in sorted(
+            candidates, key=lambda item: item[0]
+        ):
+            selectors.append(
+                LigandSelector(
+                    residue_name=residue_name,
+                    chain_id=chain_id,
+                    residue_id=int(residue_id),
+                    insertion_code=insertion_code,
+                )
+            )
+    return tuple(selectors)
+
+
+def _chain_pairs(
+    prepared_path: Path,
+    holo_path: Path,
+    *,
+    preferred_apo_chain_id: str | None = None,
+    preferred_holo_chain_id: str | None = None,
+) -> tuple[ChainPair, ...]:
     protein_names = PROTEIN_RESIDUES | MODIFIED_AMINO_ACIDS
     apo_counts: dict[str, int] = defaultdict(int)
     holo_counts: dict[str, int] = defaultdict(int)
@@ -389,6 +446,19 @@ def _chain_pairs(prepared_path: Path, holo_path: Path) -> tuple[ChainPair, ...]:
     for atom in load_structure_atoms(holo_path):
         if atom.res_name.upper() in protein_names and atom.atom_name.strip().upper() == "CA":
             holo_counts[atom.chain_id] += 1
+    if preferred_apo_chain_id or preferred_holo_chain_id:
+        apo_chain = str(preferred_apo_chain_id or "").strip()
+        holo_chain = str(preferred_holo_chain_id or "").strip()
+        if (
+            apo_chain
+            and holo_chain
+            and apo_counts.get(apo_chain, 0) >= EVALUATOR_POLICY.minimum_matched_residues
+            and holo_counts.get(holo_chain, 0) >= EVALUATOR_POLICY.minimum_matched_residues
+        ):
+            return (ChainPair(apo_chain_id=apo_chain, holo_chain_id=holo_chain),)
+        raise GroundTruthAlignmentError(
+            "Declared apo/holo chains are not available for the alignment minimum"
+        )
     common_chains = [
         chain
         for chain in sorted(set(apo_counts) & set(holo_counts))
